@@ -5,7 +5,7 @@ import cv2
 import pytesseract
 import json
 # path to execute pytesseract operations on my local computer
-pytesseract.pytesseract.tesseract_cmd = r'E:\programy\poboczne\tesseract\tesseract.exe'
+# pytesseract.pytesseract.tesseract_cmd = r'E:\programy\poboczne\tesseract\tesseract.exe'
 
 
 
