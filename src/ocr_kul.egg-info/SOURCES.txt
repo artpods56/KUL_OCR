@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+src/ocr_kul/__init__.py
+src/ocr_kul/pytesseract_gitlab.py
+src/ocr_kul.egg-info/PKG-INFO
+src/ocr_kul.egg-info/SOURCES.txt
+src/ocr_kul.egg-info/dependency_links.txt
+src/ocr_kul.egg-info/requires.txt
+src/ocr_kul.egg-info/top_level.txt

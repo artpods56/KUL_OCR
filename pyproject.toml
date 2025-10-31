@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ocr_kul"
+version = "0.1.0"
+authors = [
+    { name="Jan" }
+]
+dependencies = [
+    "numpy",
+    "pillow",
+    "pytesseract",
+    "requests"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
