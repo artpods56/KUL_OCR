@@ -1,0 +1,11 @@
+[project]
+name = "kul-ocr"
+version = "0.1.0"
+description = "OCR project for KUL"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["ocr_kul"]
