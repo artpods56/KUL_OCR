@@ -4,6 +4,7 @@ This repository contains an OCR application developed for KUL.
 
 ## Project Structure
 
+```text
 kul_ocr/
 ├── src/
 │ └── ocr_kul/ # source code
@@ -11,6 +12,7 @@ kul_ocr/
 ├── pyproject.toml # project configuration
 ├── uv.lock # locked dependencies
 └── README.md
+```
 
 ## Setup
 
