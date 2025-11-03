@@ -1,0 +1,11 @@
+[project]
+name = "ocr_kul"
+version = "0.1.0"
+description = "OCR project for KUL internship"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.uv]
+packages = [{ include = "ocr_kul", from = "src" }]
+
