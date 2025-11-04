@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import List
-from src.ocr.config import SUPPORTED_FORMATS
+from src.ocr_kul.config import SUPPORTED_FORMATS
 
 
 def get_image_paths(input_path: str) -> List[Path]:

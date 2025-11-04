@@ -2,9 +2,9 @@ import argparse
 import sys
 import logging
 from pathlib import Path
-from src.ocr.ocr_service import OcrService
-from src.utils.file_manager import get_image_paths, save_json, save_text
-from src.ocr.config import DEFAULT_OUTPUT_DIR
+from src.ocr_kul.ocr_service import OcrService
+from src.ocr_kul.file_manager import get_image_paths, save_json, save_text
+from src.ocr_kul.config import DEFAULT_OUTPUT_DIR
 
 
 def setup_logging():

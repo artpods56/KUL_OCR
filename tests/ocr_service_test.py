@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from PIL import Image
 import tempfile
 import json
@@ -8,8 +8,8 @@ import logging
 
 logging.basicConfig(level=logging.WARNING)
 
-from src.ocr.ocr_service import OcrService
-from src.utils.file_manager import get_image_paths, save_json, save_text
+from src.ocr_kul.ocr_service import OcrService
+from src.ocr_kul.file_manager import get_image_paths, save_json, save_text
 
 @pytest.fixture
 def temp_image_path(temp_dir) -> Path:
@@ -28,7 +28,7 @@ def temp_dir() -> Path:
 
 
 @patch('pytesseract.get_tesseract_version', return_value='5.0.0')
-@patch('src.ocr.ocr_service.TESSERACT_CMD', new='mocked/tesseract/path')
+@patch('src.ocr_kul.ocr_service.TESSERACT_CMD', new='mocked/tesseract/path')
 class TestOCRProcessor:
 
     def test_initialization_success_does_not_raise(self, mock_version):

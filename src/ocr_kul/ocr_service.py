@@ -5,7 +5,7 @@ from typing import List, Dict
 from datetime import datetime
 import pytesseract
 from PIL import Image
-from src.ocr.config import DEFAULT_LANG, DEFAULT_TIMEOUT, TESSERACT_CMD
+from src.ocr_kul.config import DEFAULT_LANG, DEFAULT_TIMEOUT, TESSERACT_CMD
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
