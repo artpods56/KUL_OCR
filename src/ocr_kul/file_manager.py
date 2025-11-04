@@ -1,10 +1,11 @@
 import json
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any
 from src.ocr_kul.config import SUPPORTED_FORMATS
 
 
 def get_image_paths(input_path: str) -> List[Path]:
+
     path = Path(input_path)
 
     if not path.exists():
@@ -13,13 +14,12 @@ def get_image_paths(input_path: str) -> List[Path]:
     if path.is_file():
         if path.suffix.lower() in SUPPORTED_FORMATS:
             return [path]
-        else:
-            raise ValueError(
-                f"Unsupported format: {path.suffix}. "
-                f"Supported formats: {', '.join(SUPPORTED_FORMATS)}"
-            )
+        raise ValueError(
+            f"Unsupported format: {path.suffix}. "
+            f"Supported formats: {', '.join(SUPPORTED_FORMATS)}"
+        )
 
-    images = []
+    images: List[Path] = []
     for ext in SUPPORTED_FORMATS:
         images.extend(path.glob(f"*{ext}"))
     if not images:
@@ -28,7 +28,7 @@ def get_image_paths(input_path: str) -> List[Path]:
     return sorted(images)
 
 
-def save_json(data: dict, output_path: Path) -> None:
+def save_json(data: Dict[str, Any], output_path: Path) -> None:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w', encoding='utf-8') as f:

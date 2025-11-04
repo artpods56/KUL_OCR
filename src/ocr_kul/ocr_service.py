@@ -1,7 +1,7 @@
 import time
 import logging
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any, TypedDict
 from datetime import datetime
 import pytesseract
 from PIL import Image
@@ -16,12 +16,24 @@ if not logger.handlers:
     logger.addHandler(ch)
 
 
+class ImageResult(TypedDict):
+    filename: str
+    filepath: str
+    text: str
+    processing_time: float
+    status: str
+    error: str | None
+
+
+class BatchResult(TypedDict):
+    metadata: Dict[str, Any]
+    results: List[ImageResult]
+
+
 class OcrService:
-
-    def __init__(self, lang: str = DEFAULT_LANG, timeout: int = DEFAULT_TIMEOUT):
-
-        self.lang = lang
-        self.timeout = timeout
+    def __init__(self, lang: str = DEFAULT_LANG, timeout: int = DEFAULT_TIMEOUT) -> None:
+        self.lang: str = lang
+        self.timeout: int = timeout
         self._setup_tesseract()
         self._validate_tesseract()
 
@@ -31,7 +43,6 @@ class OcrService:
             logger.info(f"Using Tesseract from: {TESSERACT_CMD}")
 
     def _validate_tesseract(self) -> None:
-
         try:
             version = pytesseract.get_tesseract_version()
             logger.info(f"Tesseract version: {version}")
@@ -42,19 +53,18 @@ class OcrService:
                 f"Error: {e}"
             )
 
-    def process_image(self, image_path: Path) -> Dict:
-
+    def process_image(self, image_path: Path) -> ImageResult:
         start_time = time.time()
 
         try:
             with Image.open(image_path) as image:
-                text = pytesseract.image_to_string(
+                text: str = pytesseract.image_to_string(
                     image,
                     lang=self.lang,
                     timeout=self.timeout
                 )
 
-            processing_time = time.time() - start_time
+            processing_time: float = time.time() - start_time
 
             return {
                 'filename': image_path.name,
@@ -84,9 +94,8 @@ class OcrService:
                 'error': str(e)
             }
 
-    def process_batch(self, image_paths: List[Path]) -> Dict:
-
-        results = []
+    def process_batch(self, image_paths: List[Path]) -> BatchResult:
+        results: List[ImageResult] = []
         total_start = time.time()
 
         logger.info(f"\nStarting processing of {len(image_paths)} images")

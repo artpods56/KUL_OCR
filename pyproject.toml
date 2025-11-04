@@ -6,3 +6,8 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = ["pytesseract", "Pillow",]
 packages = [{include = "ocr_kul", from = "src"}]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.407",
+]

@@ -5,26 +5,27 @@ from PIL import Image
 import tempfile
 import json
 import logging
+from collections.abc import Generator
 
 logging.basicConfig(level=logging.WARNING)
 
 from src.ocr_kul.ocr_service import OcrService
 from src.ocr_kul.file_manager import get_image_paths, save_json, save_text
 
+
 @pytest.fixture
-def temp_image_path(temp_dir) -> Path:
+def temp_dir() -> Generator[Path, None, None]:
+    with tempfile.TemporaryDirectory() as d:
+        yield Path(d)
+
+
+@pytest.fixture
+def temp_image_path(temp_dir: Path) -> Generator[Path, None, None]:
     img = Image.new('RGB', (20, 20), color='black')
     path = temp_dir / 'test_image.png'
     img.save(path, format='PNG')
     img.close()
-    return path
-
-
-@pytest.fixture
-def temp_dir() -> Path:
-    with tempfile.TemporaryDirectory() as d:
-        yield Path(d)
-
+    yield path
 
 
 @patch('pytesseract.get_tesseract_version', return_value='5.0.0')
@@ -38,7 +39,7 @@ class TestOCRProcessor:
         mock_version.assert_called_once()
 
     @patch('pytesseract.image_to_string', return_value='MOCKED TEXT')
-    def test_process_image_contract_success(self, mock_to_string, mock_version, temp_image_path):
+    def test_process_image_contract_success(self, mock_to_string, mock_version, temp_image_path: Path):
         processor = OcrService()
         result = processor.process_image(temp_image_path)
 
@@ -50,16 +51,16 @@ class TestOCRProcessor:
         mock_to_string.assert_called_once()
 
     @patch('pytesseract.image_to_string', side_effect=RuntimeError('Timeout'))
-    def test_process_image_contract_timeout_error(self, mock_to_string, mock_version, temp_image_path):
+    def test_process_image_contract_timeout_error(self, mock_to_string, mock_version, temp_image_path: Path):
         processor = OcrService()
         result = processor.process_image(temp_image_path)
 
         assert result['status'] == 'error'
-        assert 'Timeout' in result['error']
+        assert 'Timeout' in (result['error'] or '')
         assert result['text'] == ''
 
     @patch('pytesseract.image_to_string', return_value='MOCKED TEXT')
-    def test_process_batch_contract(self, mock_to_string, mock_version, temp_image_path):
+    def test_process_batch_contract(self, mock_to_string, mock_version, temp_image_path: Path):
         processor = OcrService()
         paths = [temp_image_path, temp_image_path]
         output = processor.process_batch(paths)
@@ -73,19 +74,18 @@ class TestOCRProcessor:
 
 
 
-def test_get_image_paths_single_file_success(temp_image_path):
+def test_get_image_paths_single_file_success(temp_image_path: Path):
     paths = get_image_paths(str(temp_image_path))
     assert len(paths) == 1
     assert paths[0] == temp_image_path
 
 
-def test_get_image_paths_directory_success(temp_dir):
+def test_get_image_paths_directory_success(temp_dir: Path):
     Image.new('RGB', (1, 1)).save(temp_dir / 'a.png', format='PNG')
     Image.new('RGB', (1, 1)).save(temp_dir / 'b.jpeg', format='JPEG')
     (temp_dir / 'c.txt').write_text('not an image')
 
     paths = get_image_paths(str(temp_dir))
-
     expected_paths = {temp_dir / 'a.png', temp_dir / 'b.jpeg'}
 
     assert len(paths) == 2
@@ -97,14 +97,14 @@ def test_get_image_paths_nonexistent_raises_error():
         get_image_paths('nonexistent_path.png')
 
 
-def test_get_image_paths_unsupported_format_raises_error(temp_dir):
+def test_get_image_paths_unsupported_format_raises_error(temp_dir: Path):
     unsupported_file = temp_dir / 'document.pdf'
     unsupported_file.touch()
     with pytest.raises(ValueError, match="Unsupported format"):
         get_image_paths(str(unsupported_file))
 
 
-def test_save_json_creates_file_and_content(temp_dir):
+def test_save_json_creates_file_and_content(temp_dir: Path):
     data = {'metadata': {'count': 1}, 'results': []}
     output_path = temp_dir / 'test.json'
 
@@ -116,7 +116,7 @@ def test_save_json_creates_file_and_content(temp_dir):
     assert loaded['metadata']['count'] == 1
 
 
-def test_save_text_creates_file_and_content(temp_dir):
+def test_save_text_creates_file_and_content(temp_dir: Path):
     text = "Test content line 1\nTest content line 2"
     output_path = temp_dir / 'test.txt'
 

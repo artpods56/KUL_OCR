@@ -2,12 +2,13 @@ import argparse
 import sys
 import logging
 from pathlib import Path
+from typing import List
 from src.ocr_kul.ocr_service import OcrService
 from src.ocr_kul.file_manager import get_image_paths, save_json, save_text
 from src.ocr_kul.config import DEFAULT_OUTPUT_DIR
 
 
-def setup_logging():
+def setup_logging() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format='%(levelname)s: %(message)s',
@@ -18,13 +19,11 @@ def setup_logging():
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> int:
     setup_logging()
 
     parser = argparse.ArgumentParser()
-
     parser.add_argument('input')
-
     parser.add_argument('-o', '--output', default=DEFAULT_OUTPUT_DIR)
     parser.add_argument('-l', '--lang', default='eng')
     parser.add_argument('-t', '--timeout', type=int, default=30)
@@ -34,7 +33,7 @@ def main():
     try:
         logger.info(f"Start processing: {args.input}")
 
-        image_paths = get_image_paths(args.input)
+        image_paths: List[Path] = get_image_paths(args.input)
         logger.info(f"Found {len(image_paths)} images")
 
         processor = OcrService(lang=args.lang, timeout=args.timeout)
@@ -43,16 +42,15 @@ def main():
         output_dir = Path(args.output)
 
         json_path = output_dir / 'results.json'
-        save_json(output_data, json_path)
-
-        all_text_parts = []
+        save_json(output_data.__dict__, json_path)
+        all_text_parts: List[str] = []
         for result in output_data['results']:
             if result['text']:
                 all_text_parts.append(f"--- FILE: {result['filename']} ---")
                 all_text_parts.append(result['text'])
                 all_text_parts.append("")
 
-        all_text = '\n'.join(all_text_parts)
+        all_text: str = '\n'.join(all_text_parts)
         txt_path = output_dir / 'results.txt'
         save_text(all_text, txt_path)
 
@@ -61,7 +59,8 @@ def main():
 
         logger.info(f"Results saved to: {output_dir}")
         logger.info(
-            f"Successes: {output_data['metadata']['successful']}, Errors: {output_data['metadata']['failed']}, Time: {output_data['metadata']['total_processing_time']:.2f}s")
+            f"Successes: {output_data['metadata']['successful']}, Errors: {output_data['metadata']['failed']}, Time: {output_data['metadata']['total_processing_time']:.2f}s"
+        )
 
         return 0
 
