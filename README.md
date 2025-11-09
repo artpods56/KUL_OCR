@@ -13,6 +13,15 @@ kul_ocr/
 ├── uv.lock # locked dependencies
 └── README.md
 ```
+## Type Hints / Static Analysis
+
+This project uses Python type hints for all core functions. Type hints improve code readability, maintainability, and help catch bugs early.
+
+To check type correctness, you can run:
+
+```bash
+uv run pyright .
+```
 
 ## Setup
 
@@ -35,7 +44,7 @@ uv pip install -e .
 You can import the package anywhere in your project:
 
 ```python
-from ocr_kul import task2_ocr_mkr
+from ocr_kul import ocr
 ```
 
 ## Notes
