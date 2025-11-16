@@ -138,6 +138,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env.prodabascas
 .venv
 env/
 venv/
@@ -176,3 +177,11 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
+# claude code
+.claude
+
+# macos
+.DS_Store
+
+# sqlite
+*.db

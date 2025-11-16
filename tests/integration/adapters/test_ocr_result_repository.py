@@ -1,0 +1,180 @@
+import pytest
+
+from ocr_kul.domain.model import (
+    Document,
+    FileType,
+    OCRJob,
+    JobStatus,
+    OCRResult,
+    SimpleOCRValue,
+    SinglePageOcrValue,
+    MultiPageOcrValue,
+)
+from ocr_kul.service_layer.services import generate_id
+from ocr_kul.service_layer.uow import SqlAlchemyUnitOfWork
+
+
+@pytest.fixture
+def job_id(uow: SqlAlchemyUnitOfWork):
+    """Create and persist a test document and OCR job, return job ID"""
+    doc_id = generate_id()
+    j_id = generate_id()
+
+    doc = Document(
+        id=doc_id,
+        file_path="/path/to/test.pdf",
+        file_type=FileType.PDF,
+        file_size_bytes=1024,
+    )
+
+    job = OCRJob(id=j_id, document_id=doc_id, status=JobStatus.PENDING)
+
+    with uow:
+        uow.documents.add(doc)
+        uow.jobs.add(job)
+        uow.commit()
+
+    return j_id
+
+
+def test_can_add_and_retrieve_simple_ocr_result(uow: SqlAlchemyUnitOfWork, job_id: str):
+    """Test adding a simple OCR result to the database and retrieving it"""
+    result_id = generate_id()
+    result = OCRResult(
+        id=result_id,
+        job_id=job_id,
+        content=SimpleOCRValue(content="This is the OCR text content"),
+    )
+
+    with uow:
+        uow.results.add(result)
+        uow.commit()
+
+    # Retrieve in a new transaction
+    with uow:
+        retrieved = uow.results.get(result_id)
+        assert retrieved is not None
+        assert retrieved.id == result_id
+        assert retrieved.job_id == job_id
+        assert retrieved.content.content == "This is the OCR text content"
+
+
+def test_can_list_all_results(uow: SqlAlchemyUnitOfWork, job_id: str):
+    """Test listing all OCR results from the database"""
+    result_ids = [generate_id() for _ in range(3)]
+    results = [
+        OCRResult(
+            id=result_ids[i],
+            job_id=job_id,
+            content=SimpleOCRValue(content=f"OCR content {i}"),
+        )
+        for i in range(3)
+    ]
+
+    with uow:
+        for result in results:
+            uow.results.add(result)
+        uow.commit()
+
+    # Retrieve in a new transaction
+    with uow:
+        all_results = uow.results.list_all()
+        assert len(all_results) == 3
+        assert {r.id for r in all_results} == set(result_ids)
+
+
+def test_get_returns_none_for_nonexistent_result(uow: SqlAlchemyUnitOfWork):
+    """Test that get returns None for a result that doesn't exist"""
+    with uow:
+        result = uow.results.get("nonexistent-id")
+        assert result is None
+
+
+def test_can_store_and_retrieve_multipage_ocr_result(
+    uow: SqlAlchemyUnitOfWork, job_id: str
+):
+    """Test storing and retrieving multipage OCR results"""
+    result_id = generate_id()
+
+    pages = [
+        SinglePageOcrValue(page_number=1, content="Content of page 1"),
+        SinglePageOcrValue(page_number=2, content="Content of page 2"),
+        SinglePageOcrValue(page_number=3, content="Content of page 3"),
+    ]
+
+    result = OCRResult(
+        id=result_id, job_id=job_id, content=MultiPageOcrValue(content=pages)
+    )
+
+    with uow:
+        uow.results.add(result)
+        uow.commit()
+
+    # Retrieve in a new transaction
+    with uow:
+        retrieved = uow.results.get(result_id)
+        assert retrieved is not None
+        assert retrieved.id == result_id
+        assert len(retrieved.content.content) == 3
+        assert retrieved.content.content[0].page_number == 1
+        assert retrieved.content.content[0].content == "Content of page 1"
+
+
+def test_multiple_results_for_different_jobs(uow: SqlAlchemyUnitOfWork):
+    """Test storing results for multiple different jobs"""
+    # Create two documents and jobs
+    doc1_id = generate_id()
+    doc2_id = generate_id()
+    job1_id = generate_id()
+    job2_id = generate_id()
+    result1_id = generate_id()
+    result2_id = generate_id()
+
+    doc1 = Document(
+        id=doc1_id,
+        file_path="/path/to/test1.pdf",
+        file_type=FileType.PDF,
+        file_size_bytes=1024,
+    )
+    doc2 = Document(
+        id=doc2_id,
+        file_path="/path/to/test2.pdf",
+        file_type=FileType.PDF,
+        file_size_bytes=2048,
+    )
+
+    job1 = OCRJob(id=job1_id, document_id=doc1_id, status=JobStatus.COMPLETED)
+    job2 = OCRJob(id=job2_id, document_id=doc2_id, status=JobStatus.COMPLETED)
+
+    result1 = OCRResult(
+        id=result1_id,
+        job_id=job1_id,
+        content=SimpleOCRValue(content="Result for job 1"),
+    )
+    result2 = OCRResult(
+        id=result2_id,
+        job_id=job2_id,
+        content=SimpleOCRValue(content="Result for job 2"),
+    )
+
+    with uow:
+        uow.documents.add(doc1)
+        uow.documents.add(doc2)
+        uow.jobs.add(job1)
+        uow.jobs.add(job2)
+        uow.results.add(result1)
+        uow.results.add(result2)
+        uow.commit()
+
+    # Verify both results are stored correctly
+    with uow:
+        retrieved1 = uow.results.get(result1_id)
+        retrieved2 = uow.results.get(result2_id)
+
+        assert retrieved1 is not None
+        assert retrieved1.job_id == job1_id
+        assert retrieved1.content.content == "Result for job 1"
+
+        assert retrieved2 is not None
+        assert retrieved2.job_id == job2_id
+        assert retrieved2.content.content == "Result for job 2"
