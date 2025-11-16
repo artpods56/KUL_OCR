@@ -7,18 +7,19 @@ Original file is located at
     https://colab.research.google.com/drive/1SQedlr0WbkRiAjzxXBf3RawLXU8kV23U
 """
 
-!pip install pytesseract
-
 from PIL import Image
-
 import pytesseract as pt
+from typing import Any
 
-def simple_ocr(*imgs):
-  for img in imgs:
-    text = (pt.image_to_string(Image.open(img)))
-    with open("text.txt", 'a') as f:
-       print((text), file = f)
+def simple_ocr(*imgs: str) -> None:
+    """
+    Perform OCR on multiple images and append text to text.txt
+    """
+    for img in imgs:
+        text: str = pt.image_to_string(Image.open(img))
+        with open("text.txt", 'a') as f:
+            print(text, file=f)
 
+# Example usage
 simple_ocr('/content/wk_1.png', '/content/wk_2.jpg', '/content/wk_3.png')
 
-"""Źródła: https://forum.pasja-informatyki.pl/506885/zapisywanie-wyniku-funkcji-w-pliku, https://szkoladevnet.pl/tajemnicze-args-i-kwargs/"""
