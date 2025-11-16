@@ -137,6 +137,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+.env
 .env.prodabascas
 .venv
 env/
@@ -178,3 +179,9 @@ cython_debug/
 
 # claude code
 .claude
+
+# macos
+.DS_Store
+
+# sqlite
+*.db
