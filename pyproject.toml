@@ -9,3 +9,8 @@ dependencies = []
 [tool.uv]
 packages = [{ include = "ocr_kul", from = "src" }]
 
+[dependency-groups]
+dev = [
+    "pyright>=1.1.407",
+]
+
