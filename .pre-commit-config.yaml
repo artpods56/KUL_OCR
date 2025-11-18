@@ -23,3 +23,10 @@ repos:
       - id: ruff-check
         args: [ --fix ]
       - id: ruff-format
+
+
+
+  - repo: https://github.com/qoomon/git-conventional-commits
+    rev: v2.7.2
+    hooks:
+      - id: conventional-commits
