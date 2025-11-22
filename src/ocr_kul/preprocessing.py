@@ -3,7 +3,7 @@
 This module provides image enhancement functions that work on PIL Images.
 All functions take a PIL Image and return a modified PIL Image.
 """
-
+#sorry for stupid errors messages, but...I'm your father
 from PIL import Image, ImageEnhance, ImageFilter
 
 
@@ -28,7 +28,11 @@ def enhance_image(image: Image.Image) -> Image.Image:
     # 3. Enhance sharpness: ImageEnhance.Sharpness(img).enhance(2.0)
     # 4. Apply denoising: img.filter(ImageFilter.MedianFilter(size=3))
     # 5. Return the enhanced image
-    raise NotImplementedError("TODO: Implement enhance_image()")
+    image=image.convert('L')
+    image=ImageEnhance.Contrast(image).enhance(1.5)
+    image=ImageEnhance.Sharpness(image).enhance(2.0)
+    image=image.filter(ImageFilter.MedianFilter(size=3))
+    return image
 
 
 def resize_image(image: Image.Image, scale_factor: float = 2.0) -> Image.Image:
@@ -49,7 +53,12 @@ def resize_image(image: Image.Image, scale_factor: float = 2.0) -> Image.Image:
     # 2. Calculate new size: (width * scale_factor, height * scale_factor)
     # 3. Resize using Image.Resampling.LANCZOS
     # 4. Return resized image
-    raise NotImplementedError("TODO: Implement resize_image()")
+    if scale_factor<=0:
+        raise ValueError(f"scale_factor is not big enough for this ride, he is only {scale_factor}")
+    width,height=image.size
+    new_size=(width * scale_factor, height * scale_factor)
+    resized_image=image.resize(new_size,resample=Image.Resampling.LANCZOS)
+    return resized_image
 
 
 def binarize_image(image: Image.Image, threshold: int = 128) -> Image.Image:
@@ -70,4 +79,8 @@ def binarize_image(image: Image.Image, threshold: int = 128) -> Image.Image:
     # 2. Convert to grayscale if not already
     # 3. Apply threshold: img.point(lambda x: 0 if x < threshold else 255, '1')
     # 4. Return binarized image
-    raise NotImplementedError("TODO: Implement binarize_image()")
+    if not (threshold>=0 and threshold<=255):
+        raise ValueError(f"We are very sorry, but your threshold do not meet our expectation...so we kill it, it must be between 0 and 255, but you gave us {threshold}...how dere you")
+    image=image.convert('L')
+    image=image.point(lambda x: 0 if x < threshold else 255, '1')
+    return image

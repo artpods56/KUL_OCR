@@ -2,13 +2,14 @@
 
 This module defines the OCR engine abstraction and concrete implementations.
 """
-
+#sorry for stupid errors messages, but...I'm your father
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from PIL import Image
-
-
+import pytesseract
+from pytesseract import Output, TesseractNotFoundError
+from ocr_kul import config
 @dataclass
 class OCRResult:
     """Result from OCR processing.
@@ -19,7 +20,8 @@ class OCRResult:
     """
     text: str
     # huh what is confidence supposed to be..
-    confidence:
+    # I don't know...my ego?
+    confidence: float
 
 
 class OCREngine(ABC):
@@ -46,13 +48,16 @@ class OCREngine(ABC):
 
 # there was a TesseractOCREngine class here that was implementation of the OCREngine but not its gone.. how sad..
 # write a new one
+# no, but yes - fallaut 4
+class TesseractOCREngine(OCREngine):
     """Tesseract OCR engine implementation.
 
     Uses pytesseract to extract text from images.
     """
 
-    def __init__(self, tesseract_cmd: = None):
+    def __init__(self, tesseract_cmd: str | None):
         # that arg is either str or None, fill the missing type
+        # first I need to find it
         """Initialize Tesseract OCR engine.
 
         Args:
@@ -62,9 +67,13 @@ class OCREngine(ABC):
         # TODO: Store tesseract_cmd
         # TODO: Import and configure pytesseract.pytesseract.tesseract_cmd
         # Hint: Use config.get_tesseract_path() if tesseract_cmd is None
-        raise NotImplementedError("TODO: Implement __init__")
+        if tesseract_cmd is not None:
+            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        else:
+            pytesseract.pytesseract.tesseract_cmd=config.get_tesseract_path()
+            
 
-    def process(self, image:) -> OCRResult:
+    def process(self, image:Image.Image) -> OCRResult:
         #and this one was doing something with a PIL Image
         """Extract text from image using Tesseract.
 
@@ -86,4 +95,39 @@ class OCREngine(ABC):
         # Error handling:
         # - Catch pytesseract.TesseractNotFoundError
         # - Raise RuntimeError with helpful message
-        raise NotImplementedError("TODO: Implement process()")
+        try:
+            data=pytesseract.image_to_data(image,Output.DICT)
+        except Exception as e:
+            raise RuntimeError(f"OCR has fallen, and it's because of you and it: {e}")
+        except TesseractNotFoundError:
+            raise RuntimeError(
+            "Tesseract not found. "
+            "Please install Tesseract or provide it's path...or else..."
+        )
+        text_parts=[]
+        for text_item in data['text']:
+            if text_item is not None:
+                stripped=text.item.strip()
+                if stripped!="":
+                    text_parts.append(stripped)
+        
+        text=""
+        for part in text_parts:
+            if text=="":
+                text=part
+            else:
+                text=text+" "+part
+                
+        total_confidence=0
+        count_confidence=0
+        for conf in data['conf']:
+            conf_int=int(conf)
+            if conf_int != -1:
+                total_confidence+=conf_int
+                count_confidence+=1
+                
+        if count_confidence>0:
+            avg_confidence=total_confidence/count_confidence
+        else:
+            avg_confidence=0.0
+        return OCRResult(text,avg_confidence)

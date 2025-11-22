@@ -25,7 +25,8 @@ def get_tesseract_path() -> Path:
     """
 
     # TODO: Implement environment variable lookup with default fallback
-    raise NotImplementedError("TODO: Implement get_tesseract_path()")
+    tesseract_path=os.getenv("TESSERACT_PATH","tesseract")
+    return Path(tesseract_path)
 
 
 def get_data_dir() -> Path:
@@ -38,7 +39,10 @@ def get_data_dir() -> Path:
         Path to data directory
     """
     # TODO: Implement environment variable lookup with default fallback
-    raise NotImplementedError("TODO: Implement get_data_dir()")
+    data_dir=os.getenv("DATA_DIR","./data")
+    path=Path(data_dir)
+    path.mkdir(parents=True,exist_ok=True)
+    return path
 
 
 def get_output_dir() -> Path:
@@ -50,5 +54,8 @@ def get_output_dir() -> Path:
     Returns:
         Path to output directory
     """
-    # TODO: Implement and ensure the directory exists
-    raise NotImplementedError("TODO: Implement get_output_dir()")
+    output_dir=os.getenv("OUTPUT_DIR","./output")
+    path=Path(output_dir)
+    path.mkdir(parents=True,exist_ok=True)
+    return path
+    
