@@ -28,7 +28,7 @@ class TestFileType:
         ],
     )
     def test_get_value_class_returns_correct_type(
-        self, file_type: model.FileType, expected_value_class: model.OCRValueTypes
+        self, file_type: model.FileType, expected_value_class: type[model.OCRValueTypes]
     ):
         assert file_type.get_value_class() == expected_value_class
 
