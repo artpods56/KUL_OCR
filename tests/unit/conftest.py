@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from ocr_kul.adapters.repository import (
+from ocr_kul.adapters.database.repository import (
     FakeDocumentRepository,
     FakeOcrJobRepository,
     FakeOcrResultRepository,

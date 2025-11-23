@@ -33,10 +33,14 @@ def generate_ocr_jobs(
 def generate_document(
     dir_path: Path, file_type: model.FileType | None = None, file_size_in_bytes: int = 0
 ) -> model.Document:
+    file_type = file_type or random.choice(list(model.FileType))
+    document_id = generate_id()
+    document_path = Path(dir_path / document_id).with_suffix(file_type.dot_extension)
+
     return model.Document(
         id=generate_id(),
-        file_path=str(dir_path / generate_id()),
-        file_type=file_type or random.choice(list(model.FileType)),
+        file_path=str(document_path),
+        file_type=file_type,
         file_size_bytes=file_size_in_bytes,
     )
 

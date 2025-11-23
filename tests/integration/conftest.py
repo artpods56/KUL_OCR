@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from ocr_kul.adapters import orm
+from ocr_kul.adapters.database import orm
 from ocr_kul.service_layer.uow import SqlAlchemyUnitOfWork
 
 

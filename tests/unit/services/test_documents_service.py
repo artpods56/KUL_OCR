@@ -1,7 +1,9 @@
+import io
 from pathlib import Path
 
 import pytest
 
+from ocr_kul.adapters.storages.local import LocalFileStorage
 from ocr_kul.domain.model import FileType, JobStatus, SimpleOCRValue
 from ocr_kul.service_layer import services
 from ocr_kul.service_layer.uow import FakeUnitOfWork
@@ -15,26 +17,35 @@ from tests import factories
     "file_type", [FileType.JPEG, FileType.PNG, FileType.PDF, FileType.WEBP]
 )
 def test_upload_document(uow: FakeUnitOfWork, tmp_path: Path, file_type: FileType):
-    document_name = "test-document"
+    storage = LocalFileStorage(storage_root=tmp_path)
 
-    file_path = (tmp_path / document_name).with_suffix(f".{file_type.extension}")
+    file_content = b"test content"
+    file_stream = io.BytesIO(file_content)
 
     document = services.upload_document(
-        file_path=str(file_path), file_type=file_type, uow=uow
+        file_stream=file_stream,
+        file_size=0,
+        file_type=file_type,
+        storage=storage,
+        uow=uow,
     )
 
     assert uow.documents.get(document_id=document.id) is not None
     assert document.file_type == file_type
-    assert document.file_path == str(file_path)
     assert uow.commited
 
 
 def test_upload_document_auto_generates_id(uow: FakeUnitOfWork, tmp_path: Path):
     """Test that document ID is auto-generated."""
-    file_path = str(tmp_path / "test.pdf")
+    storage = LocalFileStorage(storage_root=tmp_path)
+    file_stream = io.BytesIO(b"test content")
 
     document = services.upload_document(
-        file_path=file_path, file_type=FileType.PDF, uow=uow
+        file_stream=file_stream,
+        file_size=0,
+        file_type=FileType.PDF,
+        storage=storage,
+        uow=uow,
     )
 
     assert document.id is not None
