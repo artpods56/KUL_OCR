@@ -24,7 +24,3 @@ def find_repository_root(start: str | Path | None = None) -> Path:
 
 
 REPO_ROOT: Path = find_repository_root()
-
-
-def test(a: int, b: int) -> bool:
-    return a == b
