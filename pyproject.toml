@@ -19,6 +19,7 @@ dependencies = [
     "pymupdf>=1.26.6",
     "pytesseract>=0.3.13",
     "pytest>=9.0.0",
+    "pytest-beartype",
     "pytest-env>=1.2.0",
     "sqlalchemy>=2.0.44",
     "structlog>=25.5.0",
@@ -31,6 +32,9 @@ where = ["src"]
 dev = [
     "basedpyright>=1.33.0",
 ]
+
+[tool.uv.sources]
+pytest-beartype = { git = "https://github.com/beartype/pytest-beartype", branch = "main" }
 
 [tools.pyright]
 reportExplicitAny = false
