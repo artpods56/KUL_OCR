@@ -1,14 +1,13 @@
 import abc
 from collections.abc import Sequence
-from typing import override, Any, final
+from typing import Any, final, override
 
 from sqlalchemy import select
 from sqlalchemy.orm.session import Session
 
-from ocr_kul.adapters import orm
+from ocr_kul.adapters.database import orm
 from ocr_kul.domain import model
 from ocr_kul.domain.model import JobStatus
-
 
 # --- Abstract Repositories ---
 
