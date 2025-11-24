@@ -1,7 +1,7 @@
 `uv pip install -e .` - installs the project locally in editable mode \
 `pytest -v` - running tests \
 `pre-commit run --all-files` - running all precommit hooks \
-`pyright src/ocr_kul` - running typing checks with pyright 
+`pyright src/ocr_kul` - running typing checks with pyright
 
 Run the CLI commands: \
 `ocr process <image>` - extracts text \
