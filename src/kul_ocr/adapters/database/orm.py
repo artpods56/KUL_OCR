@@ -1,27 +1,23 @@
-from typing import Any, final, override, cast
+from typing import Any, cast, final, override
 
 import msgspec
 from sqlalchemy import (
     Column,
     Date,
     Dialect,
-    Engine,
+    Enum,
     Integer,
     MetaData,
-    Table,
     String,
+    Table,
     Text,
-    Enum,
 )
-from sqlalchemy.engine.create import create_engine
 from sqlalchemy.orm import registry, relationship
-from sqlalchemy.orm.session import Session
 from sqlalchemy.sql.schema import ForeignKey
 from sqlalchemy.types import TypeDecorator
 
-from ocr_kul.domain import model
-from ocr_kul.domain.model import BaseOCRValue
-from ocr_kul.service_layer.config import get_sqlite3_uri
+from kul_ocr.domain import model
+from kul_ocr.domain.model import BaseOCRValue
 
 mapper_registry = registry()
 
@@ -121,23 +117,3 @@ def start_mappers():
             ),
         },
     )
-
-
-def create_database(db_uri: str | None = None) -> Engine:
-    engine = create_engine(
-        db_uri if db_uri is not None else get_sqlite3_uri(), echo=True, future=True
-    )
-
-    # Create all tables
-    metadata.create_all(engine)
-
-    return engine
-
-
-def get_session(engine: Engine) -> Session:
-    return Session(engine)
-
-
-def get_engine(db_uri: str | None = None) -> Engine:
-    db_uri = db_uri or get_sqlite3_uri()
-    return create_engine(db_uri)

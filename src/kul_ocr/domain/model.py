@@ -8,7 +8,6 @@ from typing import Any
 from msgspec import Struct
 from sqlalchemy.ext.hybrid import hybrid_property
 
-
 # --- Value Objects ---
 
 
@@ -30,6 +29,11 @@ class MultiPageOcrValue(BaseOCRValue[Sequence[SinglePageOcrValue]]):
 
 
 OCRValueTypes = SimpleOCRValue | SinglePageOcrValue | MultiPageOcrValue
+
+# class OCRDocumentTypes(Enum):
+#     SIMPLE_VALUE = SimpleOCRValue
+#     SINGLE_PAGE = SinglePageOcrValue
+#     MULTI_PAGE = MultiPageOcrValue
 
 
 # --- Entities ---
@@ -113,8 +117,27 @@ class FileType(Enum):
         return self.name.lower()
 
     @property
+    def dot_extension(self) -> str:
+        return "." + self.extension
+
+    @property
     def is_image(self) -> bool:
         return self.value.split("/")[0] == "image"
+
+    def get_value_class(self) -> type[BaseOCRValue[Any]]:
+        value_class = FILE_TYPE_TO_VALUE_CLASS_MAPPING.get(self, None)
+        if value_class is None:
+            raise ValueError("This file type is not supported")
+        return value_class
+
+
+FILE_TYPE_TO_VALUE_CLASS_MAPPING: dict[FileType, type[OCRValueTypes]] = {
+    FileType.PDF: MultiPageOcrValue,
+    FileType.PNG: SimpleOCRValue,
+    FileType.JPG: SimpleOCRValue,
+    FileType.JPEG: SimpleOCRValue,
+    FileType.WEBP: SimpleOCRValue,
+}
 
 
 @dataclass
@@ -125,9 +148,19 @@ class Document:
     uploaded_at: datetime = field(default_factory=datetime.now)
     file_size_bytes: int = 0
 
+    def __post_init__(self):
+        if self.file_type.dot_extension != self.file_extension:
+            raise ValueError(
+                f"Document expected {self.file_type.dot_extension} but got {self.file_extension}",
+            )
+
     @property
     def name(self) -> str:
         return Path(self.file_path).name
+
+    @property
+    def file_extension(self) -> str:
+        return Path(self.file_path).suffix
 
     @property
     def mime_type(self) -> str:

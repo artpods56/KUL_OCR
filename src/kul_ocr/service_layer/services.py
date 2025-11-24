@@ -1,8 +1,11 @@
 import uuid
+from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
-from ocr_kul.domain import model
-from ocr_kul.service_layer import uow
+from kul_ocr.domain import exceptions, model, ports
+from kul_ocr.entrypoints import schemas
+from kul_ocr.service_layer.uow import AbstractUnitOfWork
 
 
 def generate_id() -> str:
@@ -13,23 +16,43 @@ def generate_id() -> str:
 
 
 def upload_document(
-    file_path: str, file_type: model.FileType, uow: uow.AbstractUnitOfWork
-) -> model.Document:
+    file_stream: ports.FileStreamProtocol,
+    file_size: int,
+    file_type: model.FileType,
+    storage: ports.FileStorage,
+    uow: AbstractUnitOfWork,
+) -> schemas.DocumentResponse:
     with uow:
-        document = model.Document(
-            id=generate_id(), file_path=file_path, file_type=file_type
-        )
-        uow.documents.add(document)
-        uow.commit()
-        return document
+        document_uuid = generate_id()
+        storage_file_path = Path(document_uuid + file_type.dot_extension)
+
+        try:
+            document = model.Document(
+                id=document_uuid,
+                file_path=str(storage_file_path),
+                file_type=file_type,
+                file_size_bytes=file_size,
+            )
+
+            uow.documents.add(document)
+
+            storage.save(stream=file_stream, file_path=storage_file_path)
+
+            uow.commit()
+
+            return schemas.DocumentResponse.from_domain(document)
+
+        except exceptions.FileUploadError:
+            uow.rollback()
+            raise
 
 
 # --- OCR Jobs Services ---
 
 
 def get_ocr_jobs_by_status(
-    status: model.JobStatus, uow: uow.AbstractUnitOfWork
-) -> list[model.OCRJob]:
+    status: model.JobStatus, uow: AbstractUnitOfWork
+) -> Sequence[model.OCRJob]:
     with uow:
         ocr_jobs = uow.jobs.list_by_status(status)
         uow.commit()
@@ -37,22 +60,22 @@ def get_ocr_jobs_by_status(
 
 
 def get_ocr_jobs_by_document_id(
-    document_id: str, uow: uow.AbstractUnitOfWork
-) -> list[model.OCRJob]:
+    document_id: str, uow: AbstractUnitOfWork
+) -> Sequence[model.OCRJob]:
     with uow:
         ocr_jobs = uow.jobs.list_by_document_id(document_id)
         uow.commit()
         return ocr_jobs
 
 
-def get_terminal_ocr_jobs(uow: uow.AbstractUnitOfWork) -> list[model.OCRJob]:
+def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.OCRJob]:
     with uow:
         ocr_jobs = uow.jobs.list_terminal_jobs()
         uow.commit()
         return ocr_jobs
 
 
-def submit_ocr_job(document_id: str, uow: uow.AbstractUnitOfWork) -> model.OCRJob:
+def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
     """
     Submit a new OCR job for a document.
     Business process: validates document exists, creates job, and persists it.
@@ -71,7 +94,7 @@ def submit_ocr_job(document_id: str, uow: uow.AbstractUnitOfWork) -> model.OCRJo
         return ocr_job
 
 
-def start_ocr_job_processing(job_id: str, uow: uow.AbstractUnitOfWork) -> model.OCRJob:
+def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
     """
     Mark a job as processing.
     Business process: retrieves job, validates state, marks as processing.
@@ -88,7 +111,7 @@ def start_ocr_job_processing(job_id: str, uow: uow.AbstractUnitOfWork) -> model.
         return ocr_job
 
 
-def retry_failed_job(failed_job_id: str, uow: uow.AbstractUnitOfWork) -> model.OCRJob:
+def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
     """
     Create a new job to retry a failed OCR job.
     Business process: validates original job failed, creates new job for same document.
@@ -113,7 +136,7 @@ def retry_failed_job(failed_job_id: str, uow: uow.AbstractUnitOfWork) -> model.O
 
 
 def get_latest_result_for_document(
-    document_id: str, uow: uow.AbstractUnitOfWork
+    document_id: str, uow: AbstractUnitOfWork
 ) -> model.OCRResult[Any] | None:
     """
     Get the most recent successful OCR result for a document.
@@ -142,8 +165,8 @@ def get_latest_result_for_document(
 
 
 def get_document_with_latest_result(
-    document_id: str, uow: uow.AbstractUnitOfWork
-) -> tuple[model.Document, model.OCRResult | None]:
+    document_id: str, uow: AbstractUnitOfWork
+) -> tuple[model.Document, model.OCRResult[Any] | None]:
     """
     Get a document along with its latest OCR result if available.
     Business process: retrieves document and coordinates getting latest result.

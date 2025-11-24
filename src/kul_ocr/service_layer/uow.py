@@ -1,23 +1,16 @@
 import abc
 from types import TracebackType
-from typing import final, override, Self
+from typing import Self, final, override
 
-from sqlalchemy.engine.create import create_engine
-from sqlalchemy.orm.session import sessionmaker, Session
+from sqlalchemy.orm.session import Session, sessionmaker
 
-from ocr_kul.adapters import repository
-from ocr_kul.adapters.repository import (
-    AbstractDocumentRepository,
-    AbstractOCRJobRepository,
-    AbstractOCRResultRepository,
-)
-from ocr_kul.service_layer.config import get_sqlite3_uri
+from kul_ocr.adapters.database import repository
 
 
 class AbstractUnitOfWork(abc.ABC):
-    jobs: AbstractOCRJobRepository
-    documents: AbstractDocumentRepository
-    results: AbstractOCRResultRepository
+    jobs: repository.AbstractOCRJobRepository
+    documents: repository.AbstractDocumentRepository
+    results: repository.AbstractOCRResultRepository
 
     @abc.abstractmethod
     def rollback(self) -> None:
@@ -61,19 +54,9 @@ class FakeUnitOfWork(AbstractUnitOfWork):
         self.commited = True
 
 
-DEFAULT_SESSION_FACTORY = sessionmaker(
-    bind=create_engine(
-        get_sqlite3_uri(),
-        isolation_level="SERIALIZABLE",
-    )
-)
-
-
 @final
 class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
-    def __init__(
-        self, session_factory: sessionmaker[Session] = DEFAULT_SESSION_FACTORY
-    ):
+    def __init__(self, session_factory: sessionmaker[Session]):
         self.session_factory = session_factory
         self.session: Session
 

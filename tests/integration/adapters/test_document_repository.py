@@ -1,6 +1,6 @@
-from ocr_kul.domain.model import Document, FileType
-from ocr_kul.service_layer.services import generate_id
-from ocr_kul.service_layer.uow import SqlAlchemyUnitOfWork
+from kul_ocr.domain.model import Document, FileType
+from kul_ocr.service_layer.services import generate_id
+from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
 
 
 def test_can_add_and_retrieve_document(uow: SqlAlchemyUnitOfWork):

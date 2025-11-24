@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from ocr_kul.domain.model import OCRJob, JobStatus
+from kul_ocr.domain.model import OCRJob, JobStatus
 
 
 class TestOCRJob:

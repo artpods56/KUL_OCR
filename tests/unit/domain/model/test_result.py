@@ -3,7 +3,7 @@
 import time
 from datetime import datetime
 
-from ocr_kul.domain.model import (
+from kul_ocr.domain.model import (
     OCRResult,
     SimpleOCRValue,
     SinglePageOcrValue,

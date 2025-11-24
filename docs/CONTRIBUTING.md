@@ -41,7 +41,7 @@ pre-commit run --all-files
 uv run pytest
 
 # Run with coverage
-uv run pytest --cov=ocr_kul
+uv run pytest --cov=kul_ocr
 ```
 
 ## Submission Guidelines
