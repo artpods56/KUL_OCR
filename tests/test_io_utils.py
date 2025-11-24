@@ -19,34 +19,22 @@ def test_load_image_raises_on_missing_file():
 
 def test_load_image_returns_pil_image():
     """load_image must return a PIL Image object."""
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-        # Create a test image
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_path = Path(tmpdir) / "test_image.png"
         img = Image.new("RGB", (100, 100), color="white")
-        img.save(tmp.name)
-        test_path = Path(tmp.name)
-
-        try:
-            result = load_image(test_path)
-            assert isinstance(result, Image.Image)
-        except NotImplementedError:
-            pytest.skip("load_image() not implemented")
-        finally:
-            test_path.unlink()
+        img.save(test_path)
+        result = load_image(test_path)
+        assert isinstance(result, Image.Image)
 
 
 def test_load_image_raises_on_invalid_image():
     """load_image must raise ValueError for invalid image files."""
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-        # Write non-image data
-        tmp.write(b"This is not an image")
-        tmp.flush()
-        test_path = Path(tmp.name)
-
-        try:
-            with pytest.raises(ValueError):
-                load_image(test_path)
-        finally:
-            test_path.unlink()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_path = Path(tmpdir) / "not_image.png"
+        with open(test_path, "wb") as f:
+            f.write(b"This is not an image")
+        with pytest.raises(ValueError):
+            load_image(test_path)
 
 
 def test_save_image_creates_file():
