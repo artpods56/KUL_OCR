@@ -10,7 +10,7 @@ DEFAULT_LEVEL = logging.INFO
 
 
 def setup_logging() -> None:
-    logs_dir = app_config.storage_logs_dir
+    logs_dir = app_config.logs_dir
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     foreign_pre_chain = [

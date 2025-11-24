@@ -4,60 +4,38 @@ stages:
   - security
 
 variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+  PIP_ROOT_USER_ACTION: "ignore"
+  UV_CACHE_DIR: ".uv-cache"
+  PRE_COMMIT_HOME: ".pre-commit-cache"
 
 cache:
+  key: "$CI_COMMIT_REF_SLUG"
   paths:
-    - .cache/pip
-    - .cache/uv
-    - .venv/
+    - .uv-cache/
+    - .pre-commit-cache/
 
 .python-base:
   image: python:3.12
   before_script:
     - pip install uv
-    - uv venv
+    - uv venv --cache-dir $UV_CACHE_DIR
+    - uv pip install -e .
     - source .venv/bin/activate
-    - uv pip install -e ".[dev]"
 
-ruff-check:
+lint-all:
   extends: .python-base
   stage: lint
   script:
-    - pip install ruff==0.14.4
-    - ruff check .
-  allow_failure: false
+    - uv pip install ruff pre-commit
 
-ruff-format:
-  extends: .python-base
-  stage: lint
-  script:
-    - pip install ruff==0.14.4
-    - ruff format --check .
-  allow_failure: false
+    - echo "Running Ruff Check..."
+    - ruff check ./src/ ./scripts/ ./tests/
+    - echo "Running Ruff Format..."
+    - ruff format --check ./src/ ./scripts/ ./tests/
 
-yaml-check:
-  extends: .python-base
-  stage: lint
-  script:
-    - pip install pre-commit==4.4.0
+    - echo "Running Pre-commit hooks..."
     - pre-commit run check-yaml --all-files
-  allow_failure: false
-
-trailing-whitespace:
-  extends: .python-base
-  stage: lint
-  script:
-    - pip install pre-commit==4.4.0
     - pre-commit run trailing-whitespace --all-files
-  allow_failure: false
-
-end-of-file-fixer:
-  extends: .python-base
-  stage: lint
-  script:
-    - pip install pre-commit==4.4.0
     - pre-commit run end-of-file-fixer --all-files
   allow_failure: false
 
@@ -65,7 +43,7 @@ detect-secrets:
   extends: .python-base
   stage: security
   script:
-    - pip install detect-secrets==1.5.0
+    - uv pip install detect-secrets
     - detect-secrets scan --baseline .secrets.baseline
   allow_failure: false
 
@@ -73,6 +51,7 @@ test-unit:
   extends: .python-base
   stage: test
   script:
+    - uv pip install -e .
     - uv run pytest tests/unit -v --tb=short
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
@@ -80,11 +59,14 @@ test-unit:
       junit: test-results.xml
     when: always
 
+
 test-integration:
   extends: .python-base
   stage: test
   script:
+    - uv pip install -e .
     - uv run pytest tests/integration -v --tb=short
+
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     reports:
@@ -96,7 +78,7 @@ test-all:
   stage: test
   script:
     - uv pip install pytest-cov
-    - uv run pytest tests/ -v --cov=src --cov-report=term --cov-report=html
+    - uv run pytest tests/ -v --tb=short --cov=src --cov-report=term --cov-report=html
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     paths:

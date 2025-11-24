@@ -59,11 +59,9 @@ class AppConfig(DatabaseSettings):
     storage_type: str
     storage_root: Path
 
-    storage_logs_dir: Path
-
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+    logs_dir: Path
 
 
 app_config = AppConfig()  # pyright: ignore[reportCallIssue]
-
-print(app_config.model_dump())
