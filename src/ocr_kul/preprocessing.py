@@ -4,7 +4,8 @@ This module provides image enhancement functions that work on PIL Images.
 All functions take a PIL Image and return a modified PIL Image.
 """
 
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL.Image import Image
+from PIL import ImageEnhance, ImageFilter
 
 
 def enhance_image(image: Image.Image) -> Image.Image:
@@ -22,13 +23,20 @@ def enhance_image(image: Image.Image) -> Image.Image:
     Returns:
         Enhanced PIL Image (grayscale)
     """
-    # TODO: Implement image enhancement
     # 1. Convert to grayscale: image.convert('L')
+    img = image.convert("L")
+
     # 2. Enhance contrast: ImageEnhance.Contrast(img).enhance(1.5)
+    img = ImageEnhance.Contrast(img).enhance(1.5)
+
     # 3. Enhance sharpness: ImageEnhance.Sharpness(img).enhance(2.0)
+    img = ImageEnhance.Sharpness(img).enhance(2.0)
+
     # 4. Apply denoising: img.filter(ImageFilter.MedianFilter(size=3))
+    img = img.filter(ImageFilter.MedianFilter(size=3))
+
     # 5. Return the enhanced image
-    raise NotImplementedError("TODO: Implement enhance_image()")
+    return img
 
 
 def resize_image(image: Image.Image, scale_factor: float = 2.0) -> Image.Image:
@@ -44,12 +52,18 @@ def resize_image(image: Image.Image, scale_factor: float = 2.0) -> Image.Image:
     Raises:
         ValueError: If scale_factor <= 0
     """
-    # TODO: Implement image resizing
     # 1. Validate scale_factor > 0, raise ValueError if not
+    if scale_factor <= 0:
+        raise ValueError("scale_factor must be greater than 0")
+
     # 2. Calculate new size: (width * scale_factor, height * scale_factor)
+    new_size = (int(image.width * scale_factor), int(image.height * scale_factor))
+
     # 3. Resize using Image.Resampling.LANCZOS
+    resized_image = image.resize(new_size, Image.Resampling.LANCZOS)
+
     # 4. Return resized image
-    raise NotImplementedError("TODO: Implement resize_image()")
+    return resized_image
 
 
 def binarize_image(image: Image.Image, threshold: int = 128) -> Image.Image:
@@ -65,9 +79,17 @@ def binarize_image(image: Image.Image, threshold: int = 128) -> Image.Image:
     Raises:
         ValueError: If threshold not in range 0-255
     """
-    # TODO: Implement image binarization
     # 1. Validate threshold in range 0-255
+    if not (0 <= threshold <= 255):
+        raise ValueError("threshold must be in range 0-255")
+
     # 2. Convert to grayscale if not already
+    img = image.convert("L")
+
     # 3. Apply threshold: img.point(lambda x: 0 if x < threshold else 255, '1')
+    from typing import cast
+
+    binarized_img = img.point(lambda x: 0 if cast(int, x) < threshold else 255, "1")
+
     # 4. Return binarized image
-    raise NotImplementedError("TODO: Implement binarize_image()")
+    return binarized_img
