@@ -22,7 +22,14 @@ dependencies = [
 [project.scripts]
 ocr = "ocr_kul.cli:main"
 
-[tools.setuptools.packages.find]
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
 where = ["src"]
 
 [dependency-groups]
@@ -30,5 +37,5 @@ dev = [
     "basedpyright>=1.33.0",
 ]
 
-[tools.pyright]
+[tool.pyright]
 reportExplicitAny = false

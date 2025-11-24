@@ -7,7 +7,6 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 from PIL import Image
-
 from ocr_kul.cli import cli
 from ocr_kul.engine import OCRResult
 
