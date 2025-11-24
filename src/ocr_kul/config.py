@@ -13,6 +13,7 @@ _ = load_dotenv()
 # You will have to figure out how to load variables using os module.
 # Environment variables should be saved in .env file in the root of the repository.
 
+
 def get_tesseract_path() -> Path:
     """Get the Tesseract executable path from environment or use system default.
 
@@ -23,9 +24,10 @@ def get_tesseract_path() -> Path:
         Path to tesseract executable
 
     """
+    key = "TESSERACT_PATH"
+    value = os.getenv(key, "tesseract")
 
-    # TODO: Implement environment variable lookup with default fallback
-    raise NotImplementedError("TODO: Implement get_tesseract_path()")
+    return Path(value)
 
 
 def get_data_dir() -> Path:
@@ -37,8 +39,10 @@ def get_data_dir() -> Path:
     Returns:
         Path to data directory
     """
-    # TODO: Implement environment variable lookup with default fallback
-    raise NotImplementedError("TODO: Implement get_data_dir()")
+    key = "DATA_DIR"
+    value = os.getenv(key, "./data")
+
+    return Path(value)
 
 
 def get_output_dir() -> Path:
@@ -50,5 +54,11 @@ def get_output_dir() -> Path:
     Returns:
         Path to output directory
     """
-    # TODO: Implement and ensure the directory exists
-    raise NotImplementedError("TODO: Implement get_output_dir()")
+    key = "OUTPUT_DIR"
+    value = os.getenv(key, "./output")
+
+    # Ensure the output directory exists
+    path = Path(value)
+    path.mkdir(parents=True, exist_ok=True)
+
+    return path
