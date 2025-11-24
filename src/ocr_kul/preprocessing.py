@@ -1,8 +1,8 @@
-from typing import Union, Any
+from typing import Union, List
 
 from PIL import Image, ImageEnhance, ImageFilter
 
-RESAMPLE_LANCZOS: Any
+RESAMPLE_LANCZOS: int
 
 try:
     RESAMPLE_LANCZOS = Image.Resampling.LANCZOS
@@ -11,9 +11,9 @@ except AttributeError:
 
 
 def enhance_image(image: Image.Image) -> Image.Image:
-    CONTRAST_FACTOR = 1.5
-    SHARPNESS_FACTOR = 2.0
-    MEDIAN_FILTER_SIZE = 3
+    CONTRAST_FACTOR: float = 1.5
+    SHARPNESS_FACTOR: float = 2.0
+    MEDIAN_FILTER_SIZE: int = 3
 
     enhanced_img = image.convert("L")
 
@@ -51,8 +51,10 @@ def binarize_image(image: Image.Image, threshold: int = 128) -> Image.Image:
             f"Threshold must be between 0 and 255 (inclusive), got {threshold}"
         )
 
-    img_gray = image if image.mode == "L" else image.convert("L")
+    img_gray = image.convert("L")
 
-    binarized_image = img_gray.point(lambda x: 0 if x < threshold else 255, "1")
+    lookup_table: List[int] = [0 if i < threshold else 255 for i in range(256)]
+
+    binarized_image = img_gray.point(lookup_table, "1")
 
     return binarized_image
