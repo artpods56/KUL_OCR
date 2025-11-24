@@ -4,6 +4,8 @@ This module provides image enhancement functions that work on PIL Images.
 All functions take a PIL Image and return a modified PIL Image.
 """
 
+from typing import Union
+
 from PIL import Image, ImageEnhance, ImageFilter
 
 
@@ -12,9 +14,9 @@ def enhance_image(image: Image.Image) -> Image.Image:
 
     Apply enhancements to improve OCR accuracy:
     - Convert to grayscale
-    - Increase contrast
-    - Sharpen
-    - Denoise
+    - Increase contrast (factor 1.5)
+    - Sharpen (factor 2.0)
+    - Denoise (Median Filter size 3)
 
     Args:
         image: PIL Image to enhance
@@ -22,34 +24,50 @@ def enhance_image(image: Image.Image) -> Image.Image:
     Returns:
         Enhanced PIL Image (grayscale)
     """
-    # TODO: Implement image enhancement
-    # 1. Convert to grayscale: image.convert('L')
-    # 2. Enhance contrast: ImageEnhance.Contrast(img).enhance(1.5)
-    # 3. Enhance sharpness: ImageEnhance.Sharpness(img).enhance(2.0)
-    # 4. Apply denoising: img.filter(ImageFilter.MedianFilter(size=3))
-    # 5. Return the enhanced image
-    raise NotImplementedError("TODO: Implement enhance_image()")
+    enhanced_img = image.convert("L")
+
+    contrast_enhancer = ImageEnhance.Contrast(enhanced_img)
+    enhanced_img = contrast_enhancer.enhance(1.5)
+
+    sharpness_enhancer = ImageEnhance.Sharpness(enhanced_img)
+    enhanced_img = sharpness_enhancer.enhance(2.0)
+
+    enhanced_img = enhanced_img.filter(ImageFilter.MedianFilter(size=3))
+
+    return enhanced_img
 
 
-def resize_image(image: Image.Image, scale_factor: float = 2.0) -> Image.Image:
+def resize_image(
+    image: Image.Image, scale_factor: Union[int, float] = 2.0
+) -> Image.Image:
     """Resize image by scale factor for better OCR on small text.
 
     Args:
         image: PIL Image to resize
-        scale_factor: Multiplication factor for resizing (default: 2.0)
+        scale_factor: Multiplication factor for resizing (default: 2.0).
+                      Uses LANCZOS resampling for high quality.
 
     Returns:
         Resized PIL Image
 
     Raises:
-        ValueError: If scale_factor <= 0
+        ValueError: If scale_factor is non-positive (<= 0).
     """
-    # TODO: Implement image resizing
-    # 1. Validate scale_factor > 0, raise ValueError if not
-    # 2. Calculate new size: (width * scale_factor, height * scale_factor)
-    # 3. Resize using Image.Resampling.LANCZOS
-    # 4. Return resized image
-    raise NotImplementedError("TODO: Implement resize_image()")
+    if scale_factor <= 0:
+        raise ValueError(f"Scale factor must be positive, got {scale_factor}")
+
+    width, height = image.size
+    new_width = int(width * scale_factor)
+    new_height = int(height * scale_factor)
+
+    try:
+        resample_method = Image.Resampling.LANCZOS
+    except AttributeError:
+        resample_method = Image.LANCZOS
+
+    resized_image = image.resize((new_width, new_height), resample=resample_method)
+
+    return resized_image
 
 
 def binarize_image(image: Image.Image, threshold: int = 128) -> Image.Image:
@@ -57,17 +75,24 @@ def binarize_image(image: Image.Image, threshold: int = 128) -> Image.Image:
 
     Args:
         image: PIL Image to binarize
-        threshold: Pixel value threshold (0-255)
+        threshold: Pixel value threshold (0-255). Pixels below this value become black (0).
 
     Returns:
         Binarized PIL Image (mode '1' - pure black and white)
 
     Raises:
-        ValueError: If threshold not in range 0-255
+        ValueError: If threshold not in range 0-255.
     """
-    # TODO: Implement image binarization
-    # 1. Validate threshold in range 0-255
-    # 2. Convert to grayscale if not already
-    # 3. Apply threshold: img.point(lambda x: 0 if x < threshold else 255, '1')
-    # 4. Return binarized image
-    raise NotImplementedError("TODO: Implement binarize_image()")
+    if not 0 <= threshold <= 255:
+        raise ValueError(
+            f"Threshold must be between 0 and 255 (inclusive), got {threshold}"
+        )
+
+    if image.mode != "L":
+        img_gray = image.convert("L")
+    else:
+        img_gray = image
+
+    binarized_image = img_gray.point(lambda x: 0 if x < threshold else 255, "1")
+
+    return binarized_image
