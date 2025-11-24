@@ -5,8 +5,11 @@ This module defines the OCR engine abstraction and concrete implementations.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-
+from typing import Union, List
+import pytesseract
 from PIL import Image
+from . import config
+from pytesseract import Output
 
 
 @dataclass
@@ -17,9 +20,9 @@ class OCRResult:
         text: Extracted text from the image
         confidence: Average confidence score (0.0 to 100.0)
     """
+
     text: str
-    # huh what is confidence supposed to be..
-    confidence:
+    confidence: float
 
 
 class OCREngine(ABC):
@@ -44,46 +47,70 @@ class OCREngine(ABC):
         """
         pass
 
-# there was a TesseractOCREngine class here that was implementation of the OCREngine but not its gone.. how sad..
-# write a new one
+
+class TesseractOCREngine(OCREngine):
     """Tesseract OCR engine implementation.
 
     Uses pytesseract to extract text from images.
     """
 
-    def __init__(self, tesseract_cmd: = None):
-        # that arg is either str or None, fill the missing type
+    def __init__(self, tesseract_cmd: str | None = None):
         """Initialize Tesseract OCR engine.
+
+        Configures the path to the Tesseract executable for pytesseract.
 
         Args:
             tesseract_cmd (str | None): Path to tesseract executable.
-                If None, uses system default from config.
+                If None, uses the system default path retrieved from config.
         """
-        # TODO: Store tesseract_cmd
-        # TODO: Import and configure pytesseract.pytesseract.tesseract_cmd
-        # Hint: Use config.get_tesseract_path() if tesseract_cmd is None
-        raise NotImplementedError("TODO: Implement __init__")
+        if tesseract_cmd is None:
+            tesseract_cmd = config.get_tesseract_path()
 
-    def process(self, image:) -> OCRResult:
-        #and this one was doing something with a PIL Image
+        self._tesseract_cmd = tesseract_cmd
+        pytesseract.pytesseract.tesseract_cmd = self._tesseract_cmd
+
+    def process(self, image: Image.Image) -> OCRResult:
         """Extract text from image using Tesseract.
 
         Args:
             image: PIL Image to process
 
         Returns:
-            OCRResult with extracted text and confidence
+            OCRResult with extracted text and average confidence.
 
         Raises:
-            RuntimeError: If Tesseract is not installed or processing fails
+            RuntimeError: If Tesseract is not installed or processing fails.
         """
-        # TODO: Implement Tesseract OCR processing
-        # 1. Use pytesseract.image_to_data() with Output.DICT
-        # 2. Extract text and confidence scores
-        # 3. Calculate average confidence (ignore -1 values)
-        # 4. Return OCRResult(text=..., confidence=...)
-        #
-        # Error handling:
-        # - Catch pytesseract.TesseractNotFoundError
-        # - Raise RuntimeError with helpful message
-        raise NotImplementedError("TODO: Implement process()")
+        try:
+            data = pytesseract.image_to_data(image, output_type=Output.DICT)
+
+            confidences: List[Union[int, str]] = data.get("conf", [])
+            text_words: List[str] = data.get("text", [])
+
+            valid_confidences = [
+                float(c)
+                for c in confidences
+                if isinstance(c, (int, str)) and float(c) != -1.0
+            ]
+
+            if valid_confidences:
+                avg_confidence = sum(valid_confidences) / len(valid_confidences)
+            else:
+                avg_confidence = 0.0
+
+            full_text = " ".join(
+                word.strip() for word in text_words if word and word.strip()
+            )
+
+            return OCRResult(text=full_text, confidence=round(avg_confidence, 2))
+
+        except pytesseract.TesseractNotFoundError as e:
+            raise RuntimeError(
+                f"Tesseract executable not found at '{self._tesseract_cmd}'. "
+                "Please ensure Tesseract is installed and the correct path is configured."
+            ) from e
+
+        except Exception as e:
+            raise RuntimeError(
+                f"OCR processing failed due to an unexpected error: {e}"
+            ) from e
