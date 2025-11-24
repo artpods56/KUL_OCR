@@ -1,6 +1,6 @@
-from ocr_kul.adapters.database.repository import FakeOcrJobRepository
-from ocr_kul.domain import model
-from ocr_kul.domain.model import JobStatus
+from kul_ocr.adapters.database.repository import FakeOcrJobRepository
+from kul_ocr.domain import model
+from kul_ocr.domain.model import JobStatus
 from tests import factories
 
 

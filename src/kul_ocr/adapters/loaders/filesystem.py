@@ -3,7 +3,7 @@ from typing import Iterator, cast, override
 import pymupdf  # PyMuPDF
 from PIL import Image
 
-from ocr_kul.domain import model, ports, structs
+from kul_ocr.domain import model, ports, structs
 
 
 class FileSystemDocumentLoader(ports.DocumentLoader):

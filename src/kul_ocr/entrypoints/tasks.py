@@ -4,8 +4,8 @@ import celery
 from billiard.einfo import ExceptionInfo
 from celery.utils.log import get_task_logger
 
-from ocr_kul.entrypoints.celery_app import app
-from ocr_kul.service_layer import services, uow
+from kul_ocr.entrypoints.celery_app import app
+from kul_ocr.service_layer import services, uow
 
 logger = get_task_logger(__name__)
 

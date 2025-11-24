@@ -1,7 +1,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ocr_kul.entrypoints.api import app
+from kul_ocr.entrypoints.api import app
 
 
 @pytest.fixture

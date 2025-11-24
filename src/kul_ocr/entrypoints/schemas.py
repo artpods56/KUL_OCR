@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from ocr_kul.domain import model
+from kul_ocr.domain import model
 
 
 class DocumentResponse(BaseModel):

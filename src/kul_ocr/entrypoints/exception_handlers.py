@@ -3,7 +3,7 @@ from typing import final
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from ocr_kul.domain import exceptions
+from kul_ocr.domain import exceptions
 
 
 @final

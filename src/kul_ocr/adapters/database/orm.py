@@ -16,8 +16,8 @@ from sqlalchemy.orm import registry, relationship
 from sqlalchemy.sql.schema import ForeignKey
 from sqlalchemy.types import TypeDecorator
 
-from ocr_kul.domain import model
-from ocr_kul.domain.model import BaseOCRValue
+from kul_ocr.domain import model
+from kul_ocr.domain.model import BaseOCRValue
 
 mapper_registry = registry()
 

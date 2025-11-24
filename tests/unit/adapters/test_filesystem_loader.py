@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from ocr_kul.adapters.loaders.filesystem import FileSystemDocumentLoader
-from ocr_kul.domain import model
+from kul_ocr.adapters.loaders.filesystem import FileSystemDocumentLoader
+from kul_ocr.domain import model
 from tests import factories
 
 

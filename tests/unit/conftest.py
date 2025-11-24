@@ -2,12 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from ocr_kul.adapters.database.repository import (
+from kul_ocr.adapters.database.repository import (
     FakeDocumentRepository,
     FakeOcrJobRepository,
     FakeOcrResultRepository,
 )
-from ocr_kul.service_layer.uow import FakeUnitOfWork
+from kul_ocr.service_layer.uow import FakeUnitOfWork
 from tests import factories
 
 
@@ -44,7 +44,7 @@ def fake_ocr_result_repository() -> FakeOcrResultRepository:
 @pytest.fixture
 def simple_ocr_result():
     """OCR result with SimpleOCRValue content."""
-    from ocr_kul.domain.model import SimpleOCRValue
+    from kul_ocr.domain.model import SimpleOCRValue
 
     return factories.generate_ocr_result(value_type=SimpleOCRValue)
 
@@ -52,7 +52,7 @@ def simple_ocr_result():
 @pytest.fixture
 def single_page_ocr_result():
     """OCR result with SinglePageOcrValue content."""
-    from ocr_kul.domain.model import SinglePageOcrValue
+    from kul_ocr.domain.model import SinglePageOcrValue
 
     return factories.generate_ocr_result(value_type=SinglePageOcrValue)
 
@@ -60,6 +60,6 @@ def single_page_ocr_result():
 @pytest.fixture
 def multi_page_ocr_result():
     """OCR result with MultiPageOcrValue content."""
-    from ocr_kul.domain.model import MultiPageOcrValue
+    from kul_ocr.domain.model import MultiPageOcrValue
 
     return factories.generate_ocr_result(value_type=MultiPageOcrValue)

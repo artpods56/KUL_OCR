@@ -4,8 +4,8 @@ from unittest.mock import Mock, patch
 import pytest
 from PIL import Image
 
-from ocr_kul.adapters.ocr.tesseract import TesseractEngineConfig, TesseractOCREngine
-from ocr_kul.domain import model, ports, structs
+from kul_ocr.adapters.ocr.tesseract import TesseractEngineConfig, TesseractOCREngine
+from kul_ocr.domain import model, ports, structs
 from tests import factories
 
 
@@ -42,7 +42,7 @@ class TestTesseractEngineConfig:
 
 
 class TestTesseractOCREngine:
-    @patch("ocr_kul.adapters.ocr.tesseract.pytesseract")
+    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
     def test_initialization_sets_tesseract_cmd(
         self, mock_pytesseract, config: TesseractEngineConfig, mock_loader: Mock
     ):
@@ -52,7 +52,7 @@ class TestTesseractOCREngine:
 
         assert mock_pytesseract.pytesseract.tesseract_cmd == config.cmd
 
-    @patch("ocr_kul.adapters.ocr.tesseract.pytesseract")
+    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
     def test_validate_engine_raises_on_invalid_tesseract(
         self, mock_pytesseract, config: TesseractEngineConfig, mock_loader: Mock
     ):
@@ -65,7 +65,7 @@ class TestTesseractOCREngine:
         ):
             TesseractOCREngine(config, mock_loader)
 
-    @patch("ocr_kul.adapters.ocr.tesseract.pytesseract")
+    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
     def test_engine_name_property(
         self, mock_pytesseract, config: TesseractEngineConfig, mock_loader: Mock
     ):
@@ -75,7 +75,7 @@ class TestTesseractOCREngine:
 
         assert engine.engine_name == "tesseract"
 
-    @patch("ocr_kul.adapters.ocr.tesseract.pytesseract")
+    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
     def test_engine_version_property(
         self, mock_pytesseract, config: TesseractEngineConfig, mock_loader: Mock
     ):
@@ -96,7 +96,7 @@ class TestTesseractOCREngine:
             (model.FileType.WEBP, False),
         ],
     )
-    @patch("ocr_kul.adapters.ocr.tesseract.pytesseract")
+    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
     def test_supports_file_type(
         self,
         mock_pytesseract,
@@ -110,7 +110,7 @@ class TestTesseractOCREngine:
 
         assert engine.supports_file_type(file_type) is expected_support
 
-    @patch("ocr_kul.adapters.ocr.tesseract.pytesseract")
+    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
     def test_process_image_calls_pytesseract(
         self,
         mock_pytesseract,
@@ -128,7 +128,7 @@ class TestTesseractOCREngine:
         mock_pytesseract.image_to_string.assert_called_once_with(image=sample_image)
         assert result == expected_text
 
-    @patch("ocr_kul.adapters.ocr.tesseract.pytesseract")
+    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
     def test_process_document_simple_image(
         self,
         mock_pytesseract,
@@ -157,7 +157,7 @@ class TestTesseractOCREngine:
         assert isinstance(result, model.SimpleOCRValue)
         assert result.content == expected_text
 
-    @patch("ocr_kul.adapters.ocr.tesseract.pytesseract")
+    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
     def test_process_document_pdf(
         self,
         mock_pytesseract,
@@ -190,7 +190,7 @@ class TestTesseractOCREngine:
             assert result.content[i].page_number == i + 1
             assert result.content[i].content == expected_text
 
-    @patch("ocr_kul.adapters.ocr.tesseract.pytesseract")
+    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
     def test_process_document_raises_on_empty_content(
         self,
         mock_pytesseract,
@@ -219,7 +219,7 @@ class TestTesseractOCREngine:
             (model.FileType.PDF, model.MultiPageOcrValue),
         ],
     )
-    @patch("ocr_kul.adapters.ocr.tesseract.pytesseract")
+    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
     def test_process_document_uses_correct_value_class(
         self,
         mock_pytesseract,

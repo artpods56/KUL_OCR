@@ -1,7 +1,7 @@
 import pytest
 
-from ocr_kul.domain import exceptions, model
-from ocr_kul.service_layer import parsing
+from kul_ocr.domain import exceptions, model
+from kul_ocr.service_layer import parsing
 
 
 class TestParseFileType:

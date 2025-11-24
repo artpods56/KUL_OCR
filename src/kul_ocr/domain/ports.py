@@ -6,8 +6,8 @@ from typing import Protocol, Self, runtime_checkable
 
 from PIL import Image
 
-from ocr_kul import config
-from ocr_kul.domain import model, structs
+from kul_ocr import config
+from kul_ocr.domain import model, structs
 
 
 @runtime_checkable

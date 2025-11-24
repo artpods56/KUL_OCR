@@ -2,8 +2,8 @@ import time
 
 import pytest
 
-from ocr_kul.domain import model
-from ocr_kul.domain.model import Document, FileType, SimpleOCRValue, MultiPageOcrValue
+from kul_ocr.domain import model
+from kul_ocr.domain.model import Document, FileType, SimpleOCRValue, MultiPageOcrValue
 
 
 class TestFileType:

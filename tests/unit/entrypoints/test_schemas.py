@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 
-from ocr_kul.domain import model
-from ocr_kul.entrypoints import schemas
+from kul_ocr.domain import model
+from kul_ocr.entrypoints import schemas
 from tests import factories
 
 

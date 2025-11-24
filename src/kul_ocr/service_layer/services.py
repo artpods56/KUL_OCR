@@ -3,9 +3,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from ocr_kul.domain import exceptions, model, ports
-from ocr_kul.entrypoints import schemas
-from ocr_kul.service_layer.uow import AbstractUnitOfWork
+from kul_ocr.domain import exceptions, model, ports
+from kul_ocr.entrypoints import schemas
+from kul_ocr.service_layer.uow import AbstractUnitOfWork
 
 
 def generate_id() -> str:

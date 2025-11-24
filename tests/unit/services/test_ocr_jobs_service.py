@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from ocr_kul.domain.model import JobStatus, FileType, SimpleOCRValue
-from ocr_kul.service_layer import services
-from ocr_kul.service_layer.uow import FakeUnitOfWork
+from kul_ocr.domain.model import JobStatus, FileType, SimpleOCRValue
+from kul_ocr.service_layer import services
+from kul_ocr.service_layer.uow import FakeUnitOfWork
 from tests import factories
 
 

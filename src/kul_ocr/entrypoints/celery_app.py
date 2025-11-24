@@ -32,7 +32,7 @@ if BROKER_URL is None:
     )
 
 
-app = Celery("ocr_kul", broker=BROKER_URL)
+app = Celery("kul_ocr", broker=BROKER_URL)
 
 app.conf.update(
     task_serializer="json",

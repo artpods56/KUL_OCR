@@ -6,8 +6,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Self, final, override
 
-from ocr_kul import config
-from ocr_kul.domain import exceptions, ports
+from kul_ocr import config
+from kul_ocr.domain import exceptions, ports
 
 
 @final

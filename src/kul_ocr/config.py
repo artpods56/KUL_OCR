@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from ocr_kul.utils.misc import nobeartype
-from ocr_kul.utils.shared import REPO_ROOT
+from kul_ocr.utils.misc import nobeartype
+from kul_ocr.utils.shared import REPO_ROOT
 
 _ = load_dotenv()
 
@@ -53,7 +53,7 @@ class DatabaseSettings(BaseSettings):
 
 class AppConfig(DatabaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="OCR_KUL_", env_file=REPO_ROOT / ".env", extra="allow"
+        env_prefix="KUL_OCR_", env_file=REPO_ROOT / ".env", extra="allow"
     )
 
     storage_type: str

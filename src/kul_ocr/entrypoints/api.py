@@ -3,10 +3,10 @@ from typing import Annotated
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, File, UploadFile
 
-from ocr_kul.adapters.database import orm
-from ocr_kul.domain import ports
-from ocr_kul.entrypoints import dependencies, exception_handlers, schemas
-from ocr_kul.service_layer import parsing, services, uow
+from kul_ocr.adapters.database import orm
+from kul_ocr.domain import ports
+from kul_ocr.entrypoints import dependencies, exception_handlers, schemas
+from kul_ocr.service_layer import parsing, services, uow
 
 _ = load_dotenv()
 

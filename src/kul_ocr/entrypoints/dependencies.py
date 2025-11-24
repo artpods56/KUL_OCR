@@ -5,11 +5,11 @@ from sqlalchemy.engine.base import Engine
 from sqlalchemy.engine.create import create_engine
 from sqlalchemy.orm.session import Session, sessionmaker
 
-from ocr_kul import config
-from ocr_kul.adapters.storages import local
-from ocr_kul.domain import ports
-from ocr_kul.domain.ports import FileStorage
-from ocr_kul.service_layer import uow
+from kul_ocr import config
+from kul_ocr.adapters.storages import local
+from kul_ocr.domain import ports
+from kul_ocr.domain.ports import FileStorage
+from kul_ocr.service_layer import uow
 
 STORAGE_TYPES = Literal["local"]
 SUPPORTED_STORAGE_TYPES: dict[str, type[FileStorage]] = {

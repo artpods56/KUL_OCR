@@ -4,9 +4,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Callable, overload
 
-from ocr_kul.domain import model
-from ocr_kul.domain.model import BaseOCRValue, OCRValueTypes, OCRResult
-from ocr_kul.service_layer.services import generate_id
+from kul_ocr.domain import model
+from kul_ocr.domain.model import BaseOCRValue, OCRValueTypes, OCRResult
+from kul_ocr.service_layer.services import generate_id
 
 
 # --- OCR Jobs Factories ---

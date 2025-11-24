@@ -4,7 +4,7 @@ from typing import Self, final, override
 
 from sqlalchemy.orm.session import Session, sessionmaker
 
-from ocr_kul.adapters.database import repository
+from kul_ocr.adapters.database import repository
 
 
 class AbstractUnitOfWork(abc.ABC):

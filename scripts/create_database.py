@@ -3,11 +3,11 @@
 from dotenv import load_dotenv
 from sqlalchemy.engine import Engine
 
-from ocr_kul.adapters.database import orm
-from ocr_kul.config import app_config
-from ocr_kul.entrypoints.dependencies import get_engine
+from kul_ocr.adapters.database import orm
+from kul_ocr.config import app_config
+from kul_ocr.entrypoints.dependencies import get_engine
 
-from ocr_kul.utils.logger import setup_logging, Logger
+from kul_ocr.utils.logger import setup_logging, Logger
 from structlog import get_logger
 
 setup_logging()
@@ -39,4 +39,4 @@ def setup_database():
 
 
 if __name__ == "__main__":
-    setup_database()
+    _ = setup_database()

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from ocr_kul.config import app_config
+from kul_ocr.config import app_config
 
 DEFAULT_LEVEL = logging.INFO
 

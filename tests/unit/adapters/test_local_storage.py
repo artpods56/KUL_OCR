@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from ocr_kul.adapters.storages.local import LocalFileStorage
+from kul_ocr.adapters.storages.local import LocalFileStorage
 
 
 class TestLocalFileStorage:

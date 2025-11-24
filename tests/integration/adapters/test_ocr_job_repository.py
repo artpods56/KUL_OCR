@@ -1,8 +1,8 @@
 import pytest
 
-from ocr_kul.domain.model import Document, FileType, OCRJob, JobStatus
-from ocr_kul.service_layer.services import generate_id
-from ocr_kul.service_layer.uow import SqlAlchemyUnitOfWork
+from kul_ocr.domain.model import Document, FileType, OCRJob, JobStatus
+from kul_ocr.service_layer.services import generate_id
+from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture

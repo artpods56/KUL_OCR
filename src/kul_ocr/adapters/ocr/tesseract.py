@@ -6,8 +6,8 @@ import pytesseract
 from PIL import Image
 from structlog import get_logger
 
-from ocr_kul.domain import model, ports
-from ocr_kul.utils.logger import Logger
+from kul_ocr.domain import model, ports
+from kul_ocr.utils.logger import Logger
 
 logger: Logger = get_logger()
 

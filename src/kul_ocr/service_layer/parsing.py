@@ -1,4 +1,4 @@
-from ocr_kul.domain import exceptions, model
+from kul_ocr.domain import exceptions, model
 
 
 def parse_file_type(content_type: str | None) -> model.FileType:
