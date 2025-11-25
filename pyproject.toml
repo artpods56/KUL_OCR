@@ -4,10 +4,31 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pytesseract",
+    "opencv-python",
+    "pillow",
+    "sqlalchemy",
+    "python-dotenv",
+    "structlog",
+    "fastapi",
+    "celery",
+    "pydantic",
+    "pydantic-settings",
+    "pytest",
+    "httpx",
+    "msgspec>=0.20.0",
+    "pymupdf>=1.26.6",
+    "beartype>=0.22.6",
+]
 
 [tool.uv.sources]
 ocr-kul = { workspace = true }
 
 [tool.uv.workspace]
 members = ["."]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.407",
+]
