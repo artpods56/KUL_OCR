@@ -1,4 +1,4 @@
-from kul_ocr.adapters.database.repository import FakeOcrResultRepository
+from tests.fakes.repositories import FakeOcrResultRepository
 from kul_ocr.domain.model import (
     OCRResult,
     SimpleOCRValue,

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from kul_ocr.adapters.database.repository import FakeDocumentRepository
+from tests.fakes.repositories import FakeDocumentRepository
 from kul_ocr.domain.model import Document, FileType
 from tests import factories
 

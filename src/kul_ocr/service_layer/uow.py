@@ -34,27 +34,6 @@ class AbstractUnitOfWork(abc.ABC):
 
 
 @final
-class FakeUnitOfWork(AbstractUnitOfWork):
-    def __init__(self):
-        self.jobs = repository.FakeOcrJobRepository()
-        self.documents = repository.FakeDocumentRepository()
-        self.results = repository.FakeOcrResultRepository()
-        self.commited: bool = False
-
-    @override
-    def rollback(self):
-        pass
-
-    @override
-    def __enter__(self) -> Self:
-        return self
-
-    @override
-    def commit(self) -> None:
-        self.commited = True
-
-
-@final
 class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
     def __init__(self, session_factory: sessionmaker[Session]):
         self.session_factory = session_factory

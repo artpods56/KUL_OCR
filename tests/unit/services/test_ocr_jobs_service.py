@@ -4,7 +4,7 @@ import pytest
 
 from kul_ocr.domain.model import JobStatus, FileType, SimpleOCRValue
 from kul_ocr.service_layer import services
-from kul_ocr.service_layer.uow import FakeUnitOfWork
+from tests.fakes.uow import FakeUnitOfWork
 from tests import factories
 
 
@@ -35,7 +35,7 @@ def test_get_ocr_jobs_by_status(
 
     jobs_by_status = services.get_ocr_jobs_by_status(status, uow)
     assert len(jobs_by_status) == expected_count
-    assert uow.commited
+    assert uow.committed
 
 
 def test_get_ocr_jobs_by_status_empty_when_no_matches(uow: FakeUnitOfWork):
@@ -81,7 +81,7 @@ def test_get_ocr_jobs_by_document_id(uow: FakeUnitOfWork):
 
     assert len(jobs) == 3
     assert all(job.document_id == document_id for job in jobs)
-    assert uow.commited
+    assert uow.committed
 
 
 def test_get_ocr_jobs_by_document_id_empty_when_no_matches(uow: FakeUnitOfWork):
@@ -117,7 +117,7 @@ def test_get_terminal_ocr_jobs(uow: FakeUnitOfWork):
     # Should get 4 completed + 1 failed = 5 total
     assert len(terminal_jobs) == 5
     assert all(job.is_terminal for job in terminal_jobs)
-    assert uow.commited
+    assert uow.committed
 
 
 def test_get_terminal_ocr_jobs_empty_when_none_terminal(uow: FakeUnitOfWork):
@@ -150,7 +150,7 @@ def test_submit_ocr_job_success(uow: FakeUnitOfWork, tmp_path: Path):
     assert job.document_id == document.id
     assert job.status == JobStatus.PENDING
     assert uow.jobs.get(job.id) is not None
-    assert uow.commited
+    assert uow.committed
 
 
 def test_submit_ocr_job_document_not_found(uow: FakeUnitOfWork):
@@ -173,7 +173,7 @@ def test_start_ocr_job_processing_success(uow: FakeUnitOfWork):
 
     assert updated_job.status == JobStatus.PROCESSING
     assert updated_job.started_at is not None
-    assert uow.commited
+    assert uow.committed
 
 
 def test_start_ocr_job_processing_job_not_found(uow: FakeUnitOfWork):
@@ -210,7 +210,7 @@ def test_retry_failed_job_success(uow: FakeUnitOfWork):
     assert new_job.document_id == failed_job.document_id
     assert new_job.status == JobStatus.PENDING
     assert new_job.error_message is None
-    assert uow.commited
+    assert uow.committed
 
 
 def test_retry_failed_job_not_found(uow: FakeUnitOfWork):
@@ -268,7 +268,7 @@ def test_get_latest_result_for_document_success(uow: FakeUnitOfWork):
     # Should get the result from the most recent job (job2)
     assert latest_result is not None
     assert latest_result.job_id == job2.id
-    assert uow.commited
+    assert uow.committed
 
 
 def test_get_latest_result_for_document_no_completed_jobs(uow: FakeUnitOfWork):

@@ -6,7 +6,7 @@ import pytest
 from kul_ocr.adapters.storages.local import LocalFileStorage
 from kul_ocr.domain.model import FileType, JobStatus, SimpleOCRValue
 from kul_ocr.service_layer import services
-from kul_ocr.service_layer.uow import FakeUnitOfWork
+from tests.fakes.uow import FakeUnitOfWork
 from tests import factories
 
 
@@ -32,7 +32,7 @@ def test_upload_document(uow: FakeUnitOfWork, tmp_path: Path, file_type: FileTyp
 
     assert uow.documents.get(document_id=document.id) is not None
     assert document.file_type == file_type
-    assert uow.commited
+    assert uow.committed
 
 
 def test_upload_document_auto_generates_id(uow: FakeUnitOfWork, tmp_path: Path):
@@ -87,7 +87,7 @@ def test_get_document_with_latest_result_success(uow: FakeUnitOfWork, tmp_path: 
     assert result is not None
     assert result.job_id == job2.id
     assert isinstance(result.content, SimpleOCRValue)
-    assert uow.commited
+    assert uow.committed
 
 
 def test_get_document_with_latest_result_no_results(

@@ -2,12 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from kul_ocr.adapters.database.repository import (
+from tests.fakes.repositories import (
     FakeDocumentRepository,
     FakeOcrJobRepository,
     FakeOcrResultRepository,
 )
-from kul_ocr.service_layer.uow import FakeUnitOfWork
+from tests.fakes.uow import FakeUnitOfWork
 from tests import factories
 
 

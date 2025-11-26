@@ -1,4 +1,4 @@
-from kul_ocr.adapters.database.repository import FakeOcrJobRepository
+from tests.fakes.repositories import FakeOcrJobRepository
 from kul_ocr.domain import model
 from kul_ocr.domain.model import JobStatus
 from tests import factories
