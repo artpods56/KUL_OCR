@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Iterator
+from typing import Iterator, cast
 
 import pytest
 from httpx import AsyncClient
@@ -7,6 +7,7 @@ from httpx import AsyncClient
 from kul_ocr.domain import model
 from kul_ocr.entrypoints.api import app
 from kul_ocr.entrypoints import dependencies
+from tests.fakes.repositories import FakeDocumentRepository
 from tests.fakes.storages import FakeFileStorage
 from tests.fakes.uow import FakeUnitOfWork
 
@@ -53,5 +54,8 @@ async def test_upload_document_success(
     assert all(key in data for key in ["id", "file_path", "uploaded_at"])
 
     assert fake_storage.save_call_count == 1
-    assert len(fake_uow.documents.added) == 1
+    fake_uow_docs = cast(
+        FakeDocumentRepository, fake_uow.documents
+    )  # to satisfy type checker
+    assert len(fake_uow_docs.added) == 1
     assert fake_uow.committed is True
