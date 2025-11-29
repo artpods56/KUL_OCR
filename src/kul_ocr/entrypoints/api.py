@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, File, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, File, UploadFile, HTTPException
 
 from kul_ocr.adapters.database import orm
 from kul_ocr.domain import ports
@@ -30,8 +30,15 @@ def upload_document(
         uow=uow,
     )
     return document
-
-
+@router.get("/documents/{document_id}", response_model=schemas.DocumentWithResultResponses,)
+def get_document(document_id:str,
+                 uow: Annotated[uow.AbstractUnitOfWork, Depends(dependencies.get_uow)],
+                 ) ->schemas.DocumentWithResultResponses:
+    document, ocr_result=services.get_document_with_latest_result(document_id, uow)
+    
+    if document is None:
+        raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
+    return schemas.DocumentWithResultResponses.from_domain(document,ocr_result)
 app.include_router(router)
 
 exception_handlers.register_handlers(app)
