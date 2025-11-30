@@ -65,7 +65,6 @@ class AppConfig(DatabaseSettings):
     logs_dir: Path
 
 
-
 @lru_cache()
 def get_app_config():
-    return AppConfig()
+    return AppConfig()  # pyright: ignore[reportCallIssue]
