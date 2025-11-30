@@ -4,13 +4,13 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from kul_ocr.config import app_config
+from kul_ocr.config import get_app_config
 
 DEFAULT_LEVEL = logging.INFO
 
 
 def setup_logging() -> None:
-    logs_dir = app_config.logs_dir
+    logs_dir = config.logs_dir
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     foreign_pre_chain = [
@@ -37,7 +37,7 @@ def setup_logging() -> None:
     )
 
     logging.basicConfig(
-        level=app_config.log_level,
+        level=config.log_level,
         handlers=[console_handler, file_handler],
         force=True,
     )
@@ -53,7 +53,7 @@ def setup_logging() -> None:
             structlog.processors.format_exc_info,
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(app_config.log_level),
+        wrapper_class=structlog.make_filtering_bound_logger(config.log_level),
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )

@@ -10,6 +10,7 @@ from kul_ocr.adapters.storages import local
 from kul_ocr.domain import ports
 from kul_ocr.domain.ports import FileStorage
 from kul_ocr.service_layer import uow
+from kul_ocr.config import get_app_config
 
 STORAGE_TYPES = Literal["local"]
 SUPPORTED_STORAGE_TYPES: dict[str, type[FileStorage]] = {
@@ -19,7 +20,7 @@ SUPPORTED_STORAGE_TYPES: dict[str, type[FileStorage]] = {
 
 @lru_cache
 def get_config() -> config.AppConfig:
-    return config.app_config
+    return get_app_config()
 
 
 @lru_cache
@@ -60,4 +61,5 @@ def get_session_factory(engine: Engine | None = None) -> sessionmaker[Session]:
     return sessionmaker(bind=engine)
 
 
-DEFAULT_SESSION_FACTORY = get_session_factory()
+DEFAULT_SESSION_FACTORY = None
+

@@ -11,9 +11,9 @@ from kul_ocr.domain.ports import FileStreamProtocol
 
 @dataclass
 class FakeFileStorage(ports.FileStorage):
-    """Type-safe fake that implements the FileStorage protocol."""
+    """Simple in-memory Fake storage used in tests."""
 
-    saved_files: list[tuple[str, bytes]] = field(default_factory=list)
+    files: dict[str, bytes] = field(default_factory=dict)
 
     @classmethod
     @override
@@ -23,25 +23,21 @@ class FakeFileStorage(ports.FileStorage):
     @override
     def save(self, stream: FileStreamProtocol, file_path: pathlib.Path) -> None:
         content = stream.read()
-        self.saved_files.append((str(file_path), content))
+        self.files[str(file_path)] = content
 
     @override
     @contextmanager
     def load(self, file_path: pathlib.Path) -> Iterator[FileStreamProtocol]:
-        for path, content in self.saved_files:
-            if path == str(file_path):
-                yield BytesIO(content)
-                return
-        raise FileNotFoundError(f"File not found: {file_path}")
+        path = str(file_path)
+        if path not in self.files:
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        yield BytesIO(self.files[path])
 
     @override
     def delete(self, file_path: pathlib.Path) -> None:
-        self.saved_files = [
-            (path, content)
-            for path, content in self.saved_files
-            if path != str(file_path)
-        ]
+        self.files.pop(str(file_path), None)
 
     @property
     def save_call_count(self) -> int:
-        return len(self.saved_files)
+        return len(self.files)
