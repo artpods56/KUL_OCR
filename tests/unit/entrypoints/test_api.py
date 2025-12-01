@@ -6,7 +6,7 @@ from httpx import AsyncClient
 
 from kul_ocr.domain import model
 from kul_ocr.entrypoints.api import app
-from kul_ocr.entrypoints import dependencies
+from kul_ocr.entrypoints import dependencies, schemas
 from tests.fakes.repositories import FakeDocumentRepository
 from tests.fakes.storages import FakeFileStorage
 from tests.fakes.uow import FakeUnitOfWork
@@ -46,12 +46,12 @@ async def test_upload_document_success(
 
     response = await client.post("/documents", files=files)
 
-    assert response.status_code == 200
-    data: dict[str, object] = response.json()
+    document = schemas.DocumentResponse(**response.json())
 
-    assert data["file_type"] == model.FileType.PDF.value
-    assert data["file_size_bytes"] == len(file_content)
-    assert all(key in data for key in ["id", "file_path", "uploaded_at"])
+    assert response.status_code == 200
+
+    assert document.file_type.value == model.FileType.PDF.value
+    assert document == len(file_content)
 
     assert fake_storage.save_call_count == 1
     fake_uow_docs = cast(
