@@ -59,3 +59,46 @@ async def test_upload_document_success(
     )  # to satisfy type checker
     assert len(fake_uow_docs.added) == 1
     assert fake_uow.committed is True
+
+
+@pytest.mark.asyncio
+async def test_get_document_not_found(client: AsyncClient, override_dependencies):
+    """Should return 404 when document does not exist."""
+    response = await client.get("/documents/999999")
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_document_with_ocr(
+    client: AsyncClient, fake_uow: FakeUnitOfWork, override_dependencies
+):
+    """Document exists and has OCR result attached."""
+    repo: FakeDocumentRepository = fake_uow.documents  # type: ignore
+    doc = repo.create_dummy_document(with_ocr=True)
+    fake_uow.commit()
+
+    response = await client.get(f"/documents/{doc.id}")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["ocr_result"]["text"] == doc.ocr_result.text
+    assert data["ocr_result"]["id"] == doc.ocr_result.id
+
+
+@pytest.mark.asyncio
+async def test_get_document_without_ocr(
+    client: AsyncClient, fake_uow: FakeUnitOfWork, override_dependencies
+):
+    """Document exists but has no OCR result."""
+    repo: FakeDocumentRepository = fake_uow.documents  # type: ignore
+    doc = repo.create_dummy_document(with_ocr=False)
+    fake_uow.commit()
+
+    response = await client.get(f"/documents/{doc.id}")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["ocr_result"] is None
