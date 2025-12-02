@@ -1,6 +1,5 @@
 from typing import Annotated
 from uuid import UUID
-from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, File, UploadFile, HTTPException
@@ -38,26 +37,19 @@ def upload_document(
 @router.get("/documents/{document_id}/download")
 def download_document(
     document_id: UUID,
-    storage: Annotated[ports.FileStorage, Depends(dependencies.get_file_storage)],
-    uow: Annotated[uow.AbstractUnitOfWork, Depends(dependencies.get_uow)],
+    storage: ports.FileStorage = Depends(dependencies.get_file_storage),
+    uow: uow.AbstractUnitOfWork = Depends(dependencies.get_uow),
 ):
-    with uow:
-        document = uow.documents.get(str(document_id))
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
+    result = services.download_document(
+        document_id=str(document_id), storage=storage, uow=uow
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Document not found")
 
-        storage_path_str = document.file_path
-        content_type = document.file_type.value
-        filename = f"{document.id}{document.file_type.dot_extension}"
-
-    file_path = Path(storage_path_str)
-
-    def file_iterator():
-        with storage.load(file_path) as file_stream:
-            yield from file_stream
+    file_stream, content_type, filename = result
 
     return StreamingResponse(
-        file_iterator(),
+        file_stream,
         media_type=content_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
