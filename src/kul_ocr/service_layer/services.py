@@ -330,8 +330,10 @@ def download_document(
         filename = f"{document.id}{document.file_type.dot_extension}"
         content_type = document.file_type.value
 
-        def file_iterator():
+        def stream_chunks() -> Iterator[bytes]:
+            CHUNK_SIZE = 65536  # 64KB
             with storage.load(file_path) as file_stream:
-                yield from file_stream
+                while chunk := file_stream.read(CHUNK_SIZE):
+                    yield chunk
 
-        return file_iterator(), content_type, filename
+        return stream_chunks(), content_type, filename
