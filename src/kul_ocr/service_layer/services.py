@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from kul_ocr.domain import exceptions, model, ports
 from kul_ocr.entrypoints import schemas
@@ -316,3 +316,24 @@ def get_document_with_latest_result(
 
         uow.commit()
         return document, latest_result
+
+
+def download_document(
+    document_id: str, storage: ports.FileStorage, uow: AbstractUnitOfWork
+) -> tuple[Iterator[bytes], str, str] | None:
+    with uow:
+        document = uow.documents.get(document_id)
+        if not document:
+            return None
+
+        file_path = Path(document.file_path)
+        filename = f"{document.id}{document.file_type.dot_extension}"
+        content_type = document.file_type.value
+
+        def stream_chunks() -> Iterator[bytes]:
+            CHUNK_SIZE = 65536  # 64KB
+            with storage.load(file_path) as file_stream:
+                while chunk := file_stream.read(CHUNK_SIZE):
+                    yield chunk
+
+        return stream_chunks(), content_type, filename
