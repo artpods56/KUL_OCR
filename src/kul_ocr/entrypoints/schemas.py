@@ -16,7 +16,6 @@ class DocumentResponse(BaseModel):
     def from_domain(
         cls,
         document: model.Document,
-        result: model.Document | None,
         ) -> "DocumentResponse":
         return cls(
             id=document.id,

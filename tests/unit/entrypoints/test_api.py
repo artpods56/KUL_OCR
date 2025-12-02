@@ -1,5 +1,6 @@
 from io import BytesIO
 from typing import Iterator, cast
+from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
@@ -10,7 +11,7 @@ from kul_ocr.entrypoints import dependencies, schemas
 from tests.fakes.repositories import FakeDocumentRepository
 from tests.fakes.storages import FakeFileStorage
 from tests.fakes.uow import FakeUnitOfWork
-
+from tests.factories import generate_document, generate_ocr_result
 
 @pytest.fixture
 def fake_storage() -> FakeFileStorage:
@@ -74,8 +75,11 @@ async def test_get_document_with_ocr(
     client: AsyncClient, fake_uow: FakeUnitOfWork, override_dependencies
 ):
     """Document exists and has OCR result attached."""
-    repo: FakeDocumentRepository = fake_uow.documents  # type: ignore
-    doc = repo.create_dummy_document(with_ocr=True)
+    ocr_result = generate_ocr_result(value_type=str)
+    doc = generate_document(dir_path=Path("fake_dir"), file_size_in_bytes=1234)
+    doc.ocr_result = ocr_result
+
+    fake_uow.documents.add(doc)
     fake_uow.commit()
 
     response = await client.get(f"/documents/{doc.id}")
@@ -83,8 +87,10 @@ async def test_get_document_with_ocr(
     assert response.status_code == 200
     data = response.json()
 
-    assert data["ocr_result"]["text"] == doc.ocr_result.text
-    assert data["ocr_result"]["id"] == doc.ocr_result.id
+    ocr_data = data.get("ocr_result")
+    assert ocr_data is not None
+    assert ocr_data["id"] == ocr_result.id
+    assert ocr_data["text"] == ocr_result.content
 
 
 @pytest.mark.asyncio
@@ -92,8 +98,8 @@ async def test_get_document_without_ocr(
     client: AsyncClient, fake_uow: FakeUnitOfWork, override_dependencies
 ):
     """Document exists but has no OCR result."""
-    repo: FakeDocumentRepository = fake_uow.documents  # type: ignore
-    doc = repo.create_dummy_document(with_ocr=False)
+    doc = generate_document(dir_path=Path("fake_dir"), file_size_in_bytes=1234)
+    fake_uow.documents.add(doc)
     fake_uow.commit()
 
     response = await client.get(f"/documents/{doc.id}")
@@ -101,4 +107,4 @@ async def test_get_document_without_ocr(
     assert response.status_code == 200
     data = response.json()
 
-    assert data["ocr_result"] is None
+    assert data.get("ocr_result") is None
