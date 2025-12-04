@@ -21,7 +21,7 @@ SUPPORTED_STORAGE_TYPES: dict[str, type[FileStorage]] = {
 @lru_cache
 def get_config() -> config.AppConfig:
     """Retrieve the application configuration
-    
+
     Returns:
         The cached AppConfig instance
     """
@@ -57,7 +57,7 @@ def get_file_storage() -> ports.FileStorage:
 @lru_cache
 def get_uow() -> uow.AbstractUnitOfWork:
     """Get a Unit of Work instance using SQLAlchemy.
-    
+
     Returns:
         An instance of SqlAlchemyUnitOfWork
     """
@@ -84,13 +84,13 @@ def get_engine(database_uri: str | None = None) -> Engine:
 
 def get_session_factory(engine: Engine | None = None) -> sessionmaker[Session]:
     """Get SQLAlchemy session factory.
-    
+
     This factory is used to generate session objects for database operations.
-    Ifno engine is provided, the default engine from the application configuration is used.
-    
+    If no engine is provided, the default engine from the application configuration is used.
+
     Args:
         engine: Optional SQLAlchemy Engine. Defaults to engine from get_engine().
-        
+
     Returns:
         A SQLAlchemy sessionmaker bound to the provided engine."""
     if engine is None:
@@ -99,4 +99,3 @@ def get_session_factory(engine: Engine | None = None) -> sessionmaker[Session]:
 
 
 DEFAULT_SESSION_FACTORY = None
-
