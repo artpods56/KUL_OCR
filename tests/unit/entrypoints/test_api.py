@@ -1,6 +1,5 @@
 from io import BytesIO
 from typing import Iterator
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -56,7 +55,6 @@ def stored_document(fake_storage: FakeFileStorage, fake_uow: FakeUnitOfWork):
     return document_id_str, filename, file_bytes
 
 
-
 @pytest.mark.asyncio
 async def test_upload_document_success(
     client: AsyncClient,
@@ -80,6 +78,7 @@ async def test_upload_document_success(
     assert fake_storage.save_call_count == 1
     assert len(fake_uow.documents.added) == 1
     assert fake_uow.committed is True
+
 
 @pytest.mark.asyncio
 async def test_download_document_success(
@@ -150,4 +149,3 @@ async def test_download_document_content_correct(
 
     assert response.status_code == 200
     assert response.content == expected_bytes
-
