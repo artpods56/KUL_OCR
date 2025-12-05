@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Literal
+from functools import lru_cache
 
 from dotenv import load_dotenv
 from pydantic import ValidationInfo, field_validator
@@ -64,4 +65,6 @@ class AppConfig(DatabaseSettings):
     logs_dir: Path
 
 
-app_config = AppConfig()  # pyright: ignore[reportCallIssue]
+@lru_cache()
+def get_app_config():
+    return AppConfig()  # pyright: ignore[reportCallIssue]
