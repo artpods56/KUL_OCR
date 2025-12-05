@@ -25,7 +25,7 @@ class TestOCRJob:
     def test_mark_job_as_completed(self):
         job = OCRJob(document_id="test-doc", id="test-job-completion")
         job.mark_as_processing()
-
+        time.sleep(0.001)
         job.complete()
 
         assert job.status == JobStatus.COMPLETED
@@ -85,6 +85,7 @@ class TestOCRJob:
         job2 = OCRJob(document_id="test-doc", id="test-timing-job-2")
 
         job1.mark_as_processing()
+        time.sleep(0.0001)
         job2.mark_as_processing()
 
         job2.complete()
