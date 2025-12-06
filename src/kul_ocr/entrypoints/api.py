@@ -62,10 +62,14 @@ def get_document(
     document_id: str,
     uow: Annotated[uow.AbstractUnitOfWork, Depends(dependencies.get_uow)],
 ) -> schemas.DocumentWithResultResponses:
-    document, ocr_result = services.get_document_with_latest_result(document_id, uow)
-
-    if document is None:
-        raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
+    try:
+        document, ocr_result = services.get_document_with_latest_result(
+            document_id, uow
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404, detail=f"Document {document_id} not found, error: {str(e)}"
+        )
 
     return schemas.DocumentWithResultResponses.from_domain(document, ocr_result)
 
