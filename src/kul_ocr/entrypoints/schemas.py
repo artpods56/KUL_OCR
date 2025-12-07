@@ -1,6 +1,7 @@
 from datetime import datetime
+from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from kul_ocr.domain import model
 
@@ -14,13 +15,47 @@ class DocumentResponse(BaseModel):
 
     @classmethod
     def from_domain(cls, document: model.Document) -> "DocumentResponse":
-        """Convert a domain Document to a response DTO."""
         return cls(
             id=document.id,
             file_path=document.file_path,
             file_type=document.file_type,
             uploaded_at=document.uploaded_at,
             file_size_bytes=document.file_size_bytes,
+        )
+
+
+class CreateOCRJobRequest(BaseModel):
+    document_id: str = Field(..., description="ID of the document to process")
+
+    @field_validator("document_id")
+    @classmethod
+    def validate_uuid(cls, v: str) -> str:
+        try:
+            UUID(v)
+            return v
+        except ValueError:
+            raise ValueError("Invalid UUID format")
+
+
+class OCRJobResponse(BaseModel):
+    id: str
+    document_id: str
+    status: str
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    error_message: str | None = None
+
+    @classmethod
+    def from_domain(cls, job: model.OCRJob) -> "OCRJobResponse":
+        return cls(
+            id=job.id,
+            document_id=job.document_id,
+            status=job.status.value,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            completed_at=job.completed_at,
+            error_message=job.error_message,
         )
 
     class Config:
