@@ -42,6 +42,12 @@ class TestFileType:
         for file_type in image_types:
             assert file_type.get_value_class() == SimpleOCRValue
 
+    def test_file_type_extension_without_dot(self):
+        assert FileType.PDF.extension == "pdf"
+        assert FileType.PNG.extension == "png"
+        assert FileType.JPG.extension == "jpg"
+        assert FileType.JPEG.extension == "jpg"
+        assert FileType.WEBP.extension == "webp"
 
 class TestDocument:
     def test_document_creation(self):
@@ -80,3 +86,34 @@ class TestDocument:
         doc2 = Document(id="2", file_path="/b.pdf", file_type=FileType.PDF)
 
         assert doc1.uploaded_at < doc2.uploaded_at
+
+    def test_document_rejects_mismatched_file_extension(self):
+        """Raises ValueError when file_type does not match file extension"""
+        with pytest.raises(ValueError, match="expected .pdf but got .png"):
+            Document(id="1", file_path="file.png", file_type=FileType.PDF)
+
+    def test_document_rejects_pdf_with_jpg_extension(self):
+        with pytest.raises(ValueError, match="expected .pdf but got .jpg"):
+            Document(id="2", file_path="file.jpg", file_type=FileType.PDF)
+
+    def test_document_rejects_png_with_pdf_extension(self):
+        with pytest.raises(ValueError, match="expected .png but got .pdf"):
+            Document(id="3", file_path="file.pdf", file_type=FileType.PNG)
+
+    def test_document_with_zero_file_size(self):
+        doc = Document(id="4", file_path="empty.png", file_type=FileType.PNG, file_size_bytes=0)
+        assert doc.file_size_bytes == 0
+
+    def test_document_with_large_file_size(self):
+        doc = Document(id="5", file_path="big.pdf", file_type=FileType.PDF, file_size_bytes= 10 ** 9)
+        assert doc.file_size_bytes == 10 ** 9
+
+    def test_document_with_path_having_special_characters(self):
+        path = "файл-документ_123.pdf"
+        doc = Document(id="6", file_path=path, file_type=FileType.PDF)
+        assert doc.name == path
+
+    def test_document_with_spaces_in_path(self):
+        path = "my file with spaces.pdf"
+        doc = Document(id="7", file_path=path, file_type=FileType.PDF)
+        assert doc.name == path
