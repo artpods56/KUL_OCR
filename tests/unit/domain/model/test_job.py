@@ -2,6 +2,7 @@ import time
 
 import pytest
 
+from datetime import datetime
 from kul_ocr.domain.model import OCRJob, JobStatus
 
 
@@ -101,3 +102,38 @@ class TestOCRJob:
         assert job1.completed_at > job2.completed_at, "job2 got completed first"
         assert job1.started_at < job2.started_at, "job2 started before job1"
         assert job1.duration > job2.duration, "job1 run longer than job2"
+
+    def test_job_duration_raises_when_pending(self):
+        job = OCRJob(id="1", document_id="doc-1", status=JobStatus.PENDING)
+        with pytest.raises(ValueError, match="Cannot calculate duration for job 1"):
+            _ = job.duration
+
+    def test_job_duration_raises_when_processing(self):
+        job = OCRJob(id="2", document_id="doc-2", status=JobStatus.PROCESSING)
+        with pytest.raises(ValueError, match="Cannot calculate duration for job 2"):
+            _ = job.duration
+
+    def test_job_cannot_fail_after_completed(self):
+        job = OCRJob(id="3", document_id="doc-3", status=JobStatus.COMPLETED, started_at=datetime.now(),
+                     completed_at=datetime.now())
+        with pytest.raises(RuntimeError, match="Cannot fail job 3 - job is already in a terminal state JobStatus.COMPLETED"):
+            job.fail("error")
+
+    def test_job_cannot_fail_after_failed(self):
+        job = OCRJob(id="4", document_id="doc-4", status=JobStatus.FAILED, started_at=datetime.now(),
+                     completed_at=datetime.now())
+        with pytest.raises(RuntimeError, match="Cannot fail job 4 - job is already in a terminal state JobStatus.FAILED"):
+            job.fail("error")
+
+    def test_job_fail_with_empty_error_message(self):
+        job = OCRJob(id="5", document_id="doc-5")
+        job.fail("")
+        assert job.status == JobStatus.FAILED
+        assert job.error_message == ""
+
+    def test_job_fail_with_very_long_error_message(self):
+        long_msg = "x" * 10000
+        job = OCRJob(id="6", document_id="doc-6")
+        job.fail(long_msg)
+        assert job.status == JobStatus.FAILED
+        assert job.error_message == long_msg
