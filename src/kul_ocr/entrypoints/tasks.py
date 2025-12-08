@@ -10,7 +10,7 @@ from kul_ocr.service_layer import services, uow
 logger = get_task_logger(__name__)
 
 
-class BaseTask(celery.Task[Any, Any]):
+class BaseTask(celery.Task):
     @override
     def on_failure(
         self,
