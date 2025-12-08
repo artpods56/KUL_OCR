@@ -141,9 +141,10 @@ def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.OCRJob]:
 def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
     """Submits a new OCR processing job for a document.
 
-    Creates a new OCR job in PENDING status for the specified document. The job
+    Creates a new OCR job in PENDING status for the specified document.The job
     will be picked up by a Celery worker for processing. Validates that the
     document exists before creating the job.
+
 
     Args:
         document_id: The unique identifier of the document to process.
@@ -154,18 +155,39 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
 
     Raises:
         ValueError: If the document with the given ID does not exist.
+        RuntimeError: If the document already has an active OCR job.
     """
     with uow:
-        # Verify document exists
         document = uow.documents.get(document_id)
         if document is None:
             raise ValueError(f"Document {document_id} not found")
 
-        # Create new OCR job
+        existing_jobs = uow.jobs.list_by_document_id(document_id)
+        active_jobs = [
+            j
+            for j in existing_jobs
+            if j.status in (model.JobStatus.PENDING, model.JobStatus.PROCESSING)
+        ]
+
+        if active_jobs:
+            raise RuntimeError(
+                f"Document {document_id} already has a pending or processing OCR job"
+            )
+
         ocr_job = model.OCRJob(id=generate_id(), document_id=document_id)
 
         uow.jobs.add(ocr_job)
         uow.commit()
+
+        # SQLAlchemy objects expire on commit. We need to refresh and expunge the object
+        # so it remains accessible after the session closes (outside this block).
+        # use getattr because AbstractUnitOfWork doesn't expose the session,
+        # and FakeUnitOfWork used in tests doesn't need this step
+        session = getattr(uow, "session", None)
+        if session:
+            session.refresh(ocr_job)
+            session.expunge(ocr_job)
+
         return ocr_job
 
 
@@ -297,18 +319,15 @@ def get_document_with_latest_result(
         if document is None:
             raise ValueError(f"Document {document_id} not found")
 
-        # Get all completed jobs for this document
         jobs = uow.jobs.list_by_document_id(document_id)
         completed_jobs = [j for j in jobs if j.status == model.JobStatus.COMPLETED]
 
         latest_result = None
         if completed_jobs:
-            # Get the most recent completed job
             latest_job = max(
                 completed_jobs, key=lambda j: j.completed_at or j.created_at
             )
 
-            # Get all results and find the one for this job
             all_results = uow.results.list_all()
             latest_result = next(
                 (r for r in all_results if r.job_id == latest_job.id), None
