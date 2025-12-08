@@ -1,16 +1,19 @@
 from typing import Annotated
 from uuid import UUID
+import logging
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, File, UploadFile, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from kul_ocr.adapters.database import orm
 from kul_ocr.domain import ports
-from kul_ocr.entrypoints import dependencies, exception_handlers, schemas
+from kul_ocr.entrypoints import dependencies, exception_handlers, schemas, tasks
 from kul_ocr.service_layer import parsing, services, uow
 
 _ = load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 orm.start_mappers()
 
@@ -53,6 +56,30 @@ def download_document(
         media_type=content_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post(
+    "/ocr/jobs",
+    response_model=schemas.OCRJobResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_ocr_job(
+    request: schemas.CreateOCRJobRequest,
+    uow: Annotated[uow.AbstractUnitOfWork, Depends(dependencies.get_uow)],
+) -> schemas.OCRJobResponse:
+    try:
+        job = services.submit_ocr_job(request.document_id, uow)
+        try:
+            tasks.process_ocr_job_task.delay(job.id)
+        except Exception as e:
+            logger.error(f"Failed to trigger Celery task for job {job.id}: {e}")
+
+        return schemas.OCRJobResponse.from_domain(job)
+
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 app.include_router(router)

@@ -1,15 +1,15 @@
 from io import BytesIO
 from typing import Iterator
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from unittest.mock import patch
 
 from kul_ocr.domain import model
 from kul_ocr.entrypoints.api import app
 from kul_ocr.entrypoints import dependencies
-from kul_ocr.domain.model import Document, FileType
+from kul_ocr.domain.model import Document, FileType, JobStatus, OCRJob
 from tests.fakes.storages import FakeFileStorage
 from tests.fakes.uow import FakeUnitOfWork
 
@@ -56,7 +56,6 @@ def stored_document(fake_storage: FakeFileStorage, fake_uow: FakeUnitOfWork):
     return document_id_str, filename, file_bytes
 
 
-
 @pytest.mark.asyncio
 async def test_upload_document_success(
     client: AsyncClient,
@@ -80,6 +79,7 @@ async def test_upload_document_success(
     assert fake_storage.save_call_count == 1
     assert len(fake_uow.documents.added) == 1
     assert fake_uow.committed is True
+
 
 @pytest.mark.asyncio
 async def test_download_document_success(
@@ -151,3 +151,90 @@ async def test_download_document_content_correct(
     assert response.status_code == 200
     assert response.content == expected_bytes
 
+
+@pytest.mark.asyncio
+async def test_create_ocr_job_returns_pending_job(
+    client: AsyncClient,
+    fake_uow: FakeUnitOfWork,
+    override_dependencies: None,
+) -> None:
+    document_id = str(uuid4())
+    doc = Document(
+        id=document_id,
+        file_path="test.pdf",
+        file_type=model.FileType.PDF,
+        file_size_bytes=123,
+    )
+    fake_uow.documents.add(doc)
+    fake_uow.commit()
+
+    with patch("kul_ocr.entrypoints.tasks.process_ocr_job_task.delay") as mock_delay:
+        response = await client.post("/ocr/jobs", json={"document_id": document_id})
+
+        assert response.status_code == 201
+        data = response.json()
+
+        assert data["document_id"] == document_id
+        assert data["status"] == "pending"
+        assert "id" in data
+
+        saved_job = fake_uow.jobs.get(data["id"])
+        assert saved_job is not None
+        assert saved_job.document_id == document_id
+
+        mock_delay.assert_called_once_with(data["id"])
+
+
+@pytest.mark.asyncio
+async def test_create_ocr_job_returns_404_for_nonexistent_document(
+    client: AsyncClient,
+    fake_uow: FakeUnitOfWork,
+    override_dependencies: None,
+) -> None:
+    non_existent_id = str(uuid4())
+
+    response = await client.post("/ocr/jobs", json={"document_id": non_existent_id})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == f"Document {non_existent_id} not found"
+
+    assert len(fake_uow.jobs.list_all()) == 0
+
+
+@pytest.mark.asyncio
+async def test_create_ocr_job_returns_409_when_job_already_pending(
+    client: AsyncClient,
+    fake_uow: FakeUnitOfWork,
+    override_dependencies: None,
+) -> None:
+    document_id = str(uuid4())
+    doc = Document(
+        id=document_id,
+        file_path="test.pdf",
+        file_type=model.FileType.PDF,
+        file_size_bytes=123,
+    )
+    fake_uow.documents.add(doc)
+
+    existing_job = OCRJob(
+        id="job-123", document_id=document_id, status=JobStatus.PENDING
+    )
+    fake_uow.jobs.add(existing_job)
+    fake_uow.commit()
+
+    with patch("kul_ocr.entrypoints.tasks.process_ocr_job_task.delay") as mock_delay:
+        response = await client.post("/ocr/jobs", json={"document_id": document_id})
+
+    assert response.status_code == 409
+    assert "already has a pending" in response.json()["detail"]
+
+    mock_delay.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_ocr_job_validates_request_body(
+    client: AsyncClient,
+    override_dependencies: None,
+) -> None:
+    response = await client.post("/ocr/jobs", json={})
+    assert response.status_code == 422
