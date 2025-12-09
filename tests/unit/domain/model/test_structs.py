@@ -2,6 +2,8 @@ import pytest
 from PIL import Image
 from kul_ocr.domain.structs import PageInput
 
+# [TODO] original_document_id references attribute on Document model that is an UUID field. Currently we assume that it can be any string.
+
 
 class TestPageInput:
     """Comprehensive tests for the PageInput dataclass."""
@@ -93,7 +95,7 @@ class TestPageInput:
         image = Image.new("RGB", (10, 10))
         page_input = PageInput(image=image, page_number=1, original_document_id="doc-1")
         with pytest.raises(AttributeError):
-            page_input.new_field = "not allowed"
+            page_input.new_field = "not allowed"  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_can_modify_existing_attributes(self):
         """Dataclass is mutable by default; existing fields can be modified."""
