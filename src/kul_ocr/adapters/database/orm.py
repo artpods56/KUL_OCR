@@ -59,7 +59,15 @@ class OCRValueType(TypeDecorator[model.OCRValueTypes]):
         self, value: BaseOCRValue[Any] | None, dialect: Dialect
     ) -> str | None:
         """
-        Encode object as a JSON string.
+        Encode a Python OCR value object into JSON string for storage.
+
+        Args:
+            value: OCR value object to encode.
+            dialect: The database dialect in use (provided by SQLAlchemy).
+
+        Returns:
+            A JSON encoded string reprezenting the OCR value, or 'None'
+            if input value is 'None'
         """
         if value is None:
             return None
@@ -70,7 +78,15 @@ class OCRValueType(TypeDecorator[model.OCRValueTypes]):
         self, value: str | None, dialect: Dialect
     ) -> model.OCRValueTypes | None:
         """
-        Decode object from a JSON string.
+        Decode a JSON string from the database to Python OCR value object.
+
+        Args:
+            value: The JSON string retrieved from the database.
+            dialect: The database dialect in use (provided by SQLAlchemy).
+
+        Returns:
+            A Python ORC value object , or 'None'
+            if input value is 'None'
         """
         if value is None:
             return None
@@ -88,6 +104,19 @@ ocr_results = Table(
 
 
 def start_mappers():
+    """
+    Inirialize ORM mappings for all database models.
+
+    Registers the relationshipb between Python classes and database tables
+    with the SQLAlchemy apper registry. Must be called before pergorming and databese
+    operations that rely on these mappings.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
     _ = mapper_registry.map_imperatively(
         model.Document,
         documents,

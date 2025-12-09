@@ -62,7 +62,7 @@ class DocumentWithResultResponses(BaseModel):
     def from_domain(
         cls,
         document: model.Document,
-        result: model.OCRResult[model.SimpleOCRValue],
+        result: model.OCRResult[model.SimpleOCRValue] | None = None,
     ) -> "DocumentWithResultResponses":
         return cls(
             id=document.id,
