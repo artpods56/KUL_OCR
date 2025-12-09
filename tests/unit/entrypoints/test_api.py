@@ -67,6 +67,7 @@ async def test_upload_document_success(
 @pytest.mark.asyncio
 async def test_get_document_not_found(client: AsyncClient, override_dependencies):
     """Should return 404 when document does not exist."""
+
     response = await client.get("/documents/999999")
 
     assert response.status_code == 404
