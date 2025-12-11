@@ -12,3 +12,11 @@ class FileDownloadError(OCRDomainException):
 
 class UnsupportedFileTypeError(OCRDomainException):
     pass
+
+
+class DocumentNotFoundError(OCRDomainException):
+    pass
+
+
+class DuplicateOCRJobError(OCRDomainException):
+    pass

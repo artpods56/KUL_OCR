@@ -196,7 +196,7 @@ async def test_create_ocr_job_returns_404_for_nonexistent_document(
     response = await client.post("/ocr/jobs", json={"document_id": non_existent_id})
 
     assert response.status_code == 404
-    assert response.json()["detail"] == f"Document {non_existent_id} not found"
+    assert response.json()["message"] == f"Document with ID {non_existent_id} not found"
 
     assert len(fake_uow.jobs.list_all()) == 0
 
@@ -226,7 +226,7 @@ async def test_create_ocr_job_returns_409_when_job_already_pending(
         response = await client.post("/ocr/jobs", json={"document_id": document_id})
 
     assert response.status_code == 409
-    assert "already has a pending" in response.json()["detail"]
+    assert "already has a pending" in response.json()["message"]
 
     mock_delay.assert_not_called()
 
@@ -238,3 +238,4 @@ async def test_create_ocr_job_validates_request_body(
 ) -> None:
     response = await client.post("/ocr/jobs", json={})
     assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "missing"

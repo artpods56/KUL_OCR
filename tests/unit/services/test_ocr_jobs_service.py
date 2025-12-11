@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from kul_ocr.domain.model import JobStatus, FileType, SimpleOCRValue
+from kul_ocr.domain import exceptions
 from kul_ocr.service_layer import services
 from tests.fakes.uow import FakeUnitOfWork
 from tests import factories
@@ -140,22 +141,25 @@ def test_get_terminal_ocr_jobs_empty_when_none_terminal(uow: FakeUnitOfWork):
 
 def test_submit_ocr_job_success(uow: FakeUnitOfWork, tmp_path: Path):
     """Test successfully submitting an OCR job for a document."""
-    # First create a document
+
     document = factories.generate_document(tmp_path, file_type=FileType.PDF)
     uow.documents.add(document)
 
-    # Submit OCR job
-    job = services.submit_ocr_job(document.id, uow)
+    job_response = services.submit_ocr_job(document.id, uow)
 
-    assert job.document_id == document.id
-    assert job.status == JobStatus.PENDING
-    assert uow.jobs.get(job.id) is not None
+    assert str(job_response.document_id) == document.id
+
+    assert job_response.status == JobStatus.PENDING.value
+
+    saved_job = uow.jobs.get(str(job_response.id))
+    assert saved_job is not None
+    assert saved_job.status == JobStatus.PENDING
     assert uow.committed
 
 
 def test_submit_ocr_job_document_not_found(uow: FakeUnitOfWork):
     """Test that submitting a job for non-existent document raises error."""
-    with pytest.raises(ValueError, match="Document .* not found"):
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
         _ = services.submit_ocr_job("nonexistent-doc", uow)
 
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from kul_ocr.domain import model
 
@@ -25,16 +25,7 @@ class DocumentResponse(BaseModel):
 
 
 class CreateOCRJobRequest(BaseModel):
-    document_id: str = Field(..., description="ID of the document to process")
-
-    @field_validator("document_id")
-    @classmethod
-    def validate_uuid(cls, v: str) -> str:
-        try:
-            UUID(v)
-            return v
-        except ValueError:
-            raise ValueError("Invalid UUID format")
+    document_id: UUID = Field(..., description="ID of the document to process")
 
 
 class OCRJobResponse(BaseModel):

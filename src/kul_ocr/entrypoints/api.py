@@ -67,19 +67,16 @@ def create_ocr_job(
     request: schemas.CreateOCRJobRequest,
     uow: Annotated[uow.AbstractUnitOfWork, Depends(dependencies.get_uow)],
 ) -> schemas.OCRJobResponse:
+    job_response = services.submit_ocr_job(str(request.document_id), uow)
     try:
-        job = services.submit_ocr_job(request.document_id, uow)
-        try:
-            tasks.process_ocr_job_task.delay(job.id)
-        except Exception as e:
-            logger.error(f"Failed to trigger Celery task for job {job.id}: {e}")
+        tasks.process_ocr_job_task.delay(job_response.id)
+    except Exception as e:
+        logger.error(
+            f"Failed to trigger Celery task for job {job_response.id}: {e}",
+            exc_info=True,
+        )
 
-        return schemas.OCRJobResponse.from_domain(job)
-
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+    return job_response
 
 
 app.include_router(router)

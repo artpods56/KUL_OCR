@@ -1,6 +1,6 @@
 from typing import final
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from kul_ocr.domain import exceptions
@@ -21,4 +21,13 @@ class ExceptionResponseFactory:
 def register_handlers(app: FastAPI):
     app.add_exception_handler(
         exceptions.UnsupportedFileTypeError, ExceptionResponseFactory(400)
+    )
+    app.add_exception_handler(
+        exceptions.DocumentNotFoundError,
+        ExceptionResponseFactory(status.HTTP_404_NOT_FOUND),
+    )
+
+    app.add_exception_handler(
+        exceptions.DuplicateOCRJobError,
+        ExceptionResponseFactory(status.HTTP_409_CONFLICT),
     )

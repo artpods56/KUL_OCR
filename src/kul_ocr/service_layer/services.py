@@ -138,29 +138,29 @@ def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.OCRJob]:
         return ocr_jobs
 
 
-def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
+def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.OCRJobResponse:
     """Submits a new OCR processing job for a document.
 
-    Creates a new OCR job in PENDING status for the specified document.The job
-    will be picked up by a Celery worker for processing. Validates that the
-    document exists before creating the job.
-
+    Creates a new OCR job in PENDING status for the specified document.
+    Returns a DTO (Data Transfer Object) ensuring data is decoupled from the DB session.
 
     Args:
         document_id: The unique identifier of the document to process.
         uow: Unit of Work instance for managing database transactions.
 
     Returns:
-        The newly created OCRJob instance in PENDING status.
+        A Pydantic response model representing the created job.
 
     Raises:
-        ValueError: If the document with the given ID does not exist.
-        RuntimeError: If the document already has an active OCR job.
+        exceptions.DocumentNotFoundError: If the document with the given ID does not exist.
+        exceptions.DuplicateOCRJobError: If the document already has an active OCR job.
     """
     with uow:
         document = uow.documents.get(document_id)
         if document is None:
-            raise ValueError(f"Document {document_id} not found")
+            raise exceptions.DocumentNotFoundError(
+                f"Document with ID {document_id} not found"
+            )
 
         existing_jobs = uow.jobs.list_by_document_id(document_id)
         active_jobs = [
@@ -170,7 +170,7 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
         ]
 
         if active_jobs:
-            raise RuntimeError(
+            raise exceptions.DuplicateOCRJobError(
                 f"Document {document_id} already has a pending or processing OCR job"
             )
 
@@ -179,16 +179,7 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
         uow.jobs.add(ocr_job)
         uow.commit()
 
-        # SQLAlchemy objects expire on commit. We need to refresh and expunge the object
-        # so it remains accessible after the session closes (outside this block).
-        # use getattr because AbstractUnitOfWork doesn't expose the session,
-        # and FakeUnitOfWork used in tests doesn't need this step
-        session = getattr(uow, "session", None)
-        if session:
-            session.refresh(ocr_job)
-            session.expunge(ocr_job)
-
-        return ocr_job
+        return schemas.OCRJobResponse.from_domain(ocr_job)
 
 
 def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
