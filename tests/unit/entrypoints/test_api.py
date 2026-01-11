@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
+from tests import factories
 
 from kul_ocr.domain import model
 from kul_ocr.domain.model import SimpleOCRValue
@@ -136,3 +137,152 @@ async def test_get_document_without_ocr(
     parsed_document = schemas.DocumentWithResultResponses(**response.json())
 
     assert parsed_document.latest_result is None
+
+
+@pytest.fixture(autouse=True)
+def setup_override(fake_uow):
+    app.dependency_overrides[dependencies.get_uow] = lambda: fake_uow
+    yield
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_returns_all_jobs(client, fake_uow):
+    doc = factories.generate_document(dir_path=Path("/tmp"))
+    fake_uow.documents.add(doc)
+
+    job1 = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    job1.document_id = doc.id
+
+    job2 = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    job2.document_id = doc.id
+
+    fake_uow.jobs.add(job1)
+    fake_uow.jobs.add(job2)
+    fake_uow.commit()
+
+    response = await client.get("/ocr/jobs")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["total"] == 2
+    assert len(data["jobs"]) == 2
+
+    ids = [job["id"] for job in data["jobs"]]
+    assert job1.id in ids
+    assert job2.id in ids
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_filters_by_status(client, fake_uow):
+    doc = factories.generate_document(dir_path=Path("/tmp"))
+    fake_uow.documents.add(doc)
+
+    target_job = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    target_job.document_id = doc.id
+
+    other_job = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    other_job.document_id = doc.id
+
+    fake_uow.jobs.add(target_job)
+    fake_uow.jobs.add(other_job)
+    fake_uow.commit()
+
+    response = await client.get(f"/ocr/jobs?status={model.JobStatus.COMPLETED.value}")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["total"] == 1
+    assert data["jobs"][0]["id"] == target_job.id
+    assert data["jobs"][0]["status"] == model.JobStatus.COMPLETED.value
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_filters_by_document_id(client, fake_uow):
+    doc_target = factories.generate_document(dir_path=Path("/tmp"))
+    doc_other = factories.generate_document(dir_path=Path("/tmp"))
+    fake_uow.documents.add(doc_target)
+    fake_uow.documents.add(doc_other)
+
+    job1 = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    job1.document_id = doc_target.id
+
+    job2 = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    job2.document_id = doc_target.id
+
+    job_other = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    job_other.document_id = doc_other.id
+
+    fake_uow.jobs.add(job1)
+    fake_uow.jobs.add(job2)
+    fake_uow.jobs.add(job_other)
+    fake_uow.commit()
+
+    response = await client.get(f"/ocr/jobs?document_id={doc_target.id}")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["total"] == 2
+    returned_ids = {job["id"] for job in data["jobs"]}
+    assert returned_ids == {job1.id, job2.id}
+    assert job_other.id not in returned_ids
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_filters_by_both(client, fake_uow):
+    doc_a = factories.generate_document(dir_path=Path("/tmp"))
+    doc_b = factories.generate_document(dir_path=Path("/tmp"))
+    fake_uow.documents.add(doc_a)
+    fake_uow.documents.add(doc_b)
+
+    target_job = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    target_job.document_id = doc_a.id
+
+    wrong_status = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    wrong_status.document_id = doc_a.id
+
+    wrong_doc = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    wrong_doc.document_id = doc_b.id
+
+    fake_uow.jobs.add(target_job)
+    fake_uow.jobs.add(wrong_status)
+    fake_uow.jobs.add(wrong_doc)
+    fake_uow.commit()
+
+    url = f"/ocr/jobs?document_id={doc_a.id}&status={model.JobStatus.COMPLETED.value}"
+    response = await client.get(url)
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["total"] == 1
+    assert data["jobs"][0]["id"] == target_job.id
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_returns_empty_when_no_matches(client, fake_uow):
+    job = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    fake_uow.jobs.add(job)
+    fake_uow.commit()
+
+    response = await client.get(f"/ocr/jobs?status={model.JobStatus.FAILED.value}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 0
+    assert data["jobs"] == []
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_returns_400_for_invalid_status(client, fake_uow):
+    response = await client.get("/ocr/jobs?status=super_invalid_status")
+
+    assert response.status_code == 400
+    data = response.json()
+
+    assert "message" in data
+    error_msg = data["message"]
+    assert "Invalid status 'super_invalid_status'" in error_msg

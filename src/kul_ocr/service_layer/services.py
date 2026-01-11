@@ -120,6 +120,24 @@ def get_ocr_jobs_by_document_id(
         return ocr_jobs
 
 
+def get_ocr_jobs(
+    uow: AbstractUnitOfWork,
+    status: model.JobStatus | None = None,
+    document_id: str | None = None,
+) -> Sequence[schemas.OCRJobResponse]:
+    with uow:
+        jobs: Sequence[model.OCRJob]
+        if status:
+            jobs = uow.jobs.list_by_status(status)
+            if document_id:
+                jobs = [j for j in jobs if j.document_id == document_id]
+        elif document_id:
+            jobs = uow.jobs.list_by_document_id(document_id)
+        else:
+            jobs = uow.jobs.list_all()
+        return [schemas.OCRJobResponse.from_domain(job) for job in jobs]
+
+
 def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.OCRJob]:
     """Gets OCR jobs that are in a terminal state.
 
