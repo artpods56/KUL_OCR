@@ -29,9 +29,9 @@ def test_upload_document(uow: FakeUnitOfWork, tmp_path: Path, file_type: FileTyp
         storage=storage,
         uow=uow,
     )
-
+    
     assert uow.documents.get(document_id=document.id) is not None
-    assert document.file_type == file_type
+    assert document.file_type == file_type.value
     assert uow.committed
 
 

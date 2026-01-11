@@ -54,13 +54,14 @@ async def test_upload_document_success(
 
     assert response.status_code == 200
 
-    assert document.file_type.value == model.FileType.PDF.value
+    assert document.file_type == model.FileType.PDF.value
+    
     assert document.file_size_bytes == len(file_content)
 
     assert fake_storage.save_call_count == 1
     fake_uow_docs = cast(
         FakeDocumentRepository, fake_uow.documents
-    )  # to satisfy type checker
+    )
     assert len(fake_uow_docs.added) == 1
     assert fake_uow.committed is True
 
