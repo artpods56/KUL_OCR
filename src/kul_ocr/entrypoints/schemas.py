@@ -1,5 +1,10 @@
 import uuid
 from datetime import datetime
+from uuid import UUID
+
+from typing import Sequence
+from pydantic import BaseModel, Field
+
 from typing import ClassVar
 from pydantic import BaseModel, Field, field_validator
 from kul_ocr.domain import model
@@ -16,21 +21,21 @@ class DocumentResponse(BaseModel):
     }
 
     id: str = Field(..., description="Unique UUID of the document")
-    
+
     file_path: str = Field(
-        ..., 
-        min_length=1, 
-        max_length=500, 
+        ...,
+        min_length=1,
+        max_length=500,
         description="Path to the stored file"
     )
-    
+
     file_type: str = Field(..., description="MIME type of the file")
-    
+
     uploaded_at: datetime = Field(..., description="Upload timestamp")
-    
+
     file_size_bytes: int = Field(
-        ..., 
-        ge=0, 
+        ...,
+        ge=0,
         description="Size of the file in bytes (must be non-negative)"
     )
 
@@ -115,6 +120,9 @@ class OcrResultResponse(BaseModel):
             creation_time=result.creation_time,
         )
 
+    class Config:
+        use_enum_values = False
+
 
 class DocumentWithResultResponses(DocumentResponse):
     """
@@ -130,7 +138,7 @@ class DocumentWithResultResponses(DocumentResponse):
         result: model.OCRResult[model.SimpleOCRValue] | None = None,
     ) -> "DocumentWithResultResponses":
         base_doc = DocumentResponse.from_domain(document)
-        
+
         return cls(
             id=base_doc.id,
             file_path=base_doc.file_path,
@@ -141,4 +149,46 @@ class DocumentWithResultResponses(DocumentResponse):
         )
 
     class Config:
+        use_enum_values = False
+
+
+class CreateOCRJobRequest(BaseModel):
+    document_id: UUID = Field(..., description="ID of the document to process")
+
+
+class OCRJobResponse(BaseModel):
+    id: str
+    document_id: str
+    status: str
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    error_message: str | None = None
+
+    @classmethod
+    def from_domain(cls, job: model.OCRJob) -> "OCRJobResponse":
+        return cls(
+            id=job.id,
+            document_id=job.document_id,
+            status=job.status.value,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            completed_at=job.completed_at,
+            error_message=job.error_message,
+        )
+
+
+class OCRJobListResponse(BaseModel):
+    jobs: list[OCRJobResponse]
+    total: int
+
+    @classmethod
+    def from_domain(cls, jobs: Sequence[model.OCRJob]) -> "OCRJobListResponse":
+        return cls(
+            jobs=[OCRJobResponse.from_domain(job) for job in jobs], total=len(jobs)
+        )
+
+    class Config:
+        use_enum_values = False
+
         use_enum_values = True

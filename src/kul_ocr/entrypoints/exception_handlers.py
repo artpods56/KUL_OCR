@@ -22,3 +22,7 @@ def register_handlers(app: FastAPI):
     app.add_exception_handler(
         exceptions.UnsupportedFileTypeError, ExceptionResponseFactory(400)
     )
+
+    app.add_exception_handler(
+        exceptions.InvalidJobStatusError, ExceptionResponseFactory(400)
+    )

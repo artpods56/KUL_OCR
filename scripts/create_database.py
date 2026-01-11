@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from sqlalchemy.engine import Engine
 
 from kul_ocr.adapters.database import orm
-from kul_ocr.config import app_config
+from kul_ocr.config import get_app_config
 from kul_ocr.entrypoints.dependencies import get_engine
 
 from kul_ocr.utils.logger import setup_logging, Logger
@@ -30,7 +30,7 @@ def setup_database():
     orm.start_mappers()
 
     logger.info("Fetching configuration..")
-    database_uri = app_config.database_uri
+    database_uri = get_app_config.database_uri
     logger.info(f"Creating database at {database_uri}")
 
     engine = create_database(database_uri)

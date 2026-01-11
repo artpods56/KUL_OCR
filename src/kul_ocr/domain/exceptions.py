@@ -12,3 +12,11 @@ class FileDownloadError(OCRDomainException):
 
 class UnsupportedFileTypeError(OCRDomainException):
     pass
+
+
+class DomainException(Exception):
+    pass
+
+
+class InvalidJobStatusError(OCRDomainException):
+    pass
