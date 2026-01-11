@@ -4,13 +4,12 @@ import logging
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, File, UploadFile, HTTPException, status
-from fastapi import APIRouter, Depends, FastAPI, File, UploadFile, HTTPException, Query
+from fastapi import Query
 from fastapi.responses import StreamingResponse
 from kul_ocr.adapters.database import orm
 from kul_ocr.domain import ports
 from kul_ocr.entrypoints import dependencies, exception_handlers, schemas, tasks
-from kul_ocr.domain import ports, model, exceptions
-from kul_ocr.entrypoints import dependencies, exception_handlers, schemas
+from kul_ocr.domain import model, exceptions
 from kul_ocr.service_layer import parsing, services, uow
 
 _ = load_dotenv()
@@ -120,7 +119,7 @@ def list_ocr_jobs(
         uow=uow, status=parsed_status, document_id=document_id
     )
 
-    return schemas.OCRJobListResponse(jobs=list(job_dtos), total=len(job_dtos))
+    return schemas.OCRJobListResponse(jobs=job_dtos, total=len(job_dtos))
 
 
 def parse_job_status(status: str | None) -> model.JobStatus | None:
