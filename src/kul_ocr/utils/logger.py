@@ -6,10 +6,12 @@ import structlog
 
 from kul_ocr.config import get_app_config
 
+
 DEFAULT_LEVEL = logging.INFO
 
 
 def setup_logging() -> None:
+    config = get_app_config()
     logs_dir = config.logs_dir
     logs_dir.mkdir(parents=True, exist_ok=True)
 

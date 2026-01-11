@@ -31,3 +31,7 @@ def register_handlers(app: FastAPI):
         exceptions.DuplicateOCRJobError,
         ExceptionResponseFactory(status.HTTP_409_CONFLICT),
     )
+
+    app.add_exception_handler(
+        exceptions.InvalidJobStatusError, ExceptionResponseFactory(400)
+    )

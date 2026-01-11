@@ -29,6 +29,9 @@ uv sync
 # Set up environment
 cp .env.example .env
 
+# Create local storage directory (`storage` by default)
+mkdir storage
+
 # Install pre-commit hooks
 pre-commit install
 

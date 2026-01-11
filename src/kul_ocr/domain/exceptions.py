@@ -20,3 +20,11 @@ class DocumentNotFoundError(OCRDomainException):
 
 class DuplicateOCRJobError(OCRDomainException):
     pass
+
+
+class DomainException(Exception):
+    pass
+
+
+class InvalidJobStatusError(OCRDomainException):
+    pass

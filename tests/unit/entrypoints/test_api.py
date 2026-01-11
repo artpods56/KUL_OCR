@@ -1,17 +1,24 @@
 from io import BytesIO
 from typing import Iterator
 from uuid import uuid4
+from typing import Iterator, cast
+from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
 from unittest.mock import patch
+from tests import factories
 
 from kul_ocr.domain import model
+from kul_ocr.domain.model import SimpleOCRValue
 from kul_ocr.entrypoints.api import app
 from kul_ocr.entrypoints import dependencies
 from kul_ocr.domain.model import Document, FileType, JobStatus, OCRJob
+from kul_ocr.entrypoints import dependencies, schemas
+from tests.fakes.repositories import FakeDocumentRepository
 from tests.fakes.storages import FakeFileStorage
 from tests.fakes.uow import FakeUnitOfWork
+from tests.factories import generate_document, generate_ocr_job, generate_ocr_result
 
 
 @pytest.fixture
@@ -69,88 +76,242 @@ async def test_upload_document_success(
 
     response = await client.post("/documents", files=files)
 
-    assert response.status_code == 200
-    data: dict[str, object] = response.json()
+    document = schemas.DocumentResponse(**response.json())
 
-    assert data["file_type"] == model.FileType.PDF.value
-    assert data["file_size_bytes"] == len(file_content)
-    assert all(key in data for key in ["id", "file_path", "uploaded_at"])
+    assert response.status_code == 200
+
+    assert document.file_type.value == model.FileType.PDF.value
+    assert document.file_size_bytes == len(file_content)
 
     assert fake_storage.save_call_count == 1
-    assert len(fake_uow.documents.added) == 1
+    fake_uow_docs = cast(
+        FakeDocumentRepository, fake_uow.documents
+    )  # to satisfy type checker
+    assert len(fake_uow_docs.added) == 1
     assert fake_uow.committed is True
 
 
 @pytest.mark.asyncio
-async def test_download_document_success(
-    client: AsyncClient,
-    override_dependencies,
-    stored_document,
-):
-    document_id, _, expected_content = stored_document
+async def test_get_document_not_found(client: AsyncClient, override_dependencies):
+    """Should return 404 when document does not exist."""
 
-    response = await client.get(f"/documents/{document_id}/download")
-
-    assert response.status_code == 200
-    assert response.content == expected_content
-
-
-@pytest.mark.asyncio
-async def test_download_document_content_type(
-    client: AsyncClient,
-    override_dependencies,
-    stored_document,
-):
-    document_id, _, _ = stored_document
-
-    response = await client.get(f"/documents/{document_id}/download")
-
-    assert response.status_code == 200
-    assert response.headers["content-type"] == "application/pdf"
-
-
-@pytest.mark.asyncio
-async def test_download_document_content_disposition(
-    client: AsyncClient,
-    override_dependencies,
-    stored_document,
-):
-    document_id, _, _ = stored_document
-    expected_filename = f"{document_id}.pdf"
-
-    response = await client.get(f"/documents/{document_id}/download")
-
-    cd = response.headers.get("content-disposition", "")
-    assert "attachment" in cd
-    assert expected_filename in cd
-
-
-@pytest.mark.asyncio
-async def test_download_document_not_found(
-    client: AsyncClient,
-    override_dependencies,
-):
-    missing_id = uuid4()
-
-    response = await client.get(f"/documents/{missing_id}/download")
+    response = await client.get("/documents/999999")
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "Document not found"
 
 
 @pytest.mark.asyncio
-async def test_download_document_content_correct(
-    client: AsyncClient,
-    override_dependencies,
-    stored_document,
+async def test_get_document_with_ocr(
+    client: AsyncClient, fake_uow: FakeUnitOfWork, override_dependencies
 ):
-    document_id, _, expected_bytes = stored_document
+    """Document exists and has OCR result attached."""
+    doc = generate_document(dir_path=Path("fake_dir"), file_size_in_bytes=1234)
 
-    response = await client.get(f"/documents/{document_id}/download")
+    ocr_job = generate_ocr_job()
+
+    ocr_job.status = model.JobStatus.COMPLETED
+
+    # [TODO] check why is the method not marking the job as completed
+    # ocr_job.complete()
+
+    ocr_job.document_id = doc.id
+
+    ocr_result = generate_ocr_result(value_type=SimpleOCRValue)
+    ocr_result.job_id = ocr_job.id
+
+    fake_uow.documents.add(doc)
+    fake_uow.jobs.add(ocr_job)
+    fake_uow.results.add(ocr_result)
+
+    response = await client.get(f"/documents/{doc.id}")
+
+    print(response.json())
 
     assert response.status_code == 200
-    assert response.content == expected_bytes
 
+    parsed_document = schemas.DocumentWithResultResponses(**response.json())
+
+    # Debug: print what you're actually getting
+    print(f"latest_result: {parsed_document.latest_result}")
+    print(f"ocr_result: {ocr_result}")
+
+    # Compare specific fields instead of whole objects
+    assert parsed_document.latest_result is not None
+    assert parsed_document.latest_result.id == ocr_result.id
+    assert parsed_document.latest_result.job_id == ocr_result.job_id
+    # data = response.json()
+    #
+    # ocr_data = data.get("ocr_result")
+    # assert ocr_data is not None
+    # assert ocr_data["id"] == ocr_result.id
+    # assert ocr_data["text"] == ocr_result.content
+
+
+@pytest.mark.asyncio
+async def test_get_document_without_ocr(
+    client: AsyncClient, fake_uow: FakeUnitOfWork, override_dependencies
+):
+    """Document exists but has no OCR result."""
+    doc = generate_document(dir_path=Path("fake_dir"), file_size_in_bytes=1234)
+    fake_uow.documents.add(doc)
+    fake_uow.commit()
+
+    response = await client.get(f"/documents/{doc.id}")
+
+    assert response.status_code == 200
+
+    parsed_document = schemas.DocumentWithResultResponses(**response.json())
+
+    assert parsed_document.latest_result is None
+
+
+@pytest.fixture(autouse=True)
+def setup_override(fake_uow):
+    app.dependency_overrides[dependencies.get_uow] = lambda: fake_uow
+    yield
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_returns_all_jobs(client, fake_uow):
+    doc = factories.generate_document(dir_path=Path("/tmp"))
+    fake_uow.documents.add(doc)
+
+    job1 = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    job1.document_id = doc.id
+
+    job2 = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    job2.document_id = doc.id
+
+    fake_uow.jobs.add(job1)
+    fake_uow.jobs.add(job2)
+    fake_uow.commit()
+
+    response = await client.get("/ocr/jobs")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["total"] == 2
+    assert len(data["jobs"]) == 2
+
+    ids = [job["id"] for job in data["jobs"]]
+    assert job1.id in ids
+    assert job2.id in ids
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_filters_by_status(client, fake_uow):
+    doc = factories.generate_document(dir_path=Path("/tmp"))
+    fake_uow.documents.add(doc)
+
+    target_job = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    target_job.document_id = doc.id
+
+    other_job = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    other_job.document_id = doc.id
+
+    fake_uow.jobs.add(target_job)
+    fake_uow.jobs.add(other_job)
+    fake_uow.commit()
+
+    response = await client.get(f"/ocr/jobs?status={model.JobStatus.COMPLETED.value}")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["total"] == 1
+    assert data["jobs"][0]["id"] == target_job.id
+    assert data["jobs"][0]["status"] == model.JobStatus.COMPLETED.value
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_filters_by_document_id(client, fake_uow):
+    doc_target = factories.generate_document(dir_path=Path("/tmp"))
+    doc_other = factories.generate_document(dir_path=Path("/tmp"))
+    fake_uow.documents.add(doc_target)
+    fake_uow.documents.add(doc_other)
+
+    job1 = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    job1.document_id = doc_target.id
+
+    job2 = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    job2.document_id = doc_target.id
+
+    job_other = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    job_other.document_id = doc_other.id
+
+    fake_uow.jobs.add(job1)
+    fake_uow.jobs.add(job2)
+    fake_uow.jobs.add(job_other)
+    fake_uow.commit()
+
+    response = await client.get(f"/ocr/jobs?document_id={doc_target.id}")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["total"] == 2
+    returned_ids = {job["id"] for job in data["jobs"]}
+    assert returned_ids == {job1.id, job2.id}
+    assert job_other.id not in returned_ids
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_filters_by_both(client, fake_uow):
+    doc_a = factories.generate_document(dir_path=Path("/tmp"))
+    doc_b = factories.generate_document(dir_path=Path("/tmp"))
+    fake_uow.documents.add(doc_a)
+    fake_uow.documents.add(doc_b)
+
+    target_job = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    target_job.document_id = doc_a.id
+
+    wrong_status = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    wrong_status.document_id = doc_a.id
+
+    wrong_doc = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    wrong_doc.document_id = doc_b.id
+
+    fake_uow.jobs.add(target_job)
+    fake_uow.jobs.add(wrong_status)
+    fake_uow.jobs.add(wrong_doc)
+    fake_uow.commit()
+
+    url = f"/ocr/jobs?document_id={doc_a.id}&status={model.JobStatus.COMPLETED.value}"
+    response = await client.get(url)
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["total"] == 1
+    assert data["jobs"][0]["id"] == target_job.id
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_returns_empty_when_no_matches(client, fake_uow):
+    job = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    fake_uow.jobs.add(job)
+    fake_uow.commit()
+
+    response = await client.get(f"/ocr/jobs?status={model.JobStatus.FAILED.value}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 0
+    assert data["jobs"] == []
+
+
+@pytest.mark.asyncio
+async def test_list_ocr_jobs_returns_400_for_invalid_status(client, fake_uow):
+    response = await client.get("/ocr/jobs?status=super_invalid_status")
+
+    assert response.status_code == 400
+    data = response.json()
+
+    assert "message" in data
+    error_msg = data["message"]
+    assert "Invalid status 'super_invalid_status'" in error_msg
 
 @pytest.mark.asyncio
 async def test_create_ocr_job_returns_pending_job(

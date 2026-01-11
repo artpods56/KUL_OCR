@@ -120,6 +120,24 @@ def get_ocr_jobs_by_document_id(
         return ocr_jobs
 
 
+def get_ocr_jobs(
+    uow: AbstractUnitOfWork,
+    status: model.JobStatus | None = None,
+    document_id: str | None = None,
+) -> Sequence[schemas.OCRJobResponse]:
+    with uow:
+        jobs: Sequence[model.OCRJob]
+        if status:
+            jobs = uow.jobs.list_by_status(status)
+            if document_id:
+                jobs = [j for j in jobs if j.document_id == document_id]
+        elif document_id:
+            jobs = uow.jobs.list_by_document_id(document_id)
+        else:
+            jobs = uow.jobs.list_all()
+        return [schemas.OCRJobResponse.from_domain(job) for job in jobs]
+
+
 def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.OCRJob]:
     """Gets OCR jobs that are in a terminal state.
 
@@ -340,8 +358,10 @@ def download_document(
         filename = f"{document.id}{document.file_type.dot_extension}"
         content_type = document.file_type.value
 
-        def file_iterator():
+        def stream_chunks() -> Iterator[bytes]:
+            CHUNK_SIZE = 65536  # 64KB
             with storage.load(file_path) as file_stream:
-                yield from file_stream
+                while chunk := file_stream.read(CHUNK_SIZE):
+                    yield chunk
 
-        return file_iterator(), content_type, filename
+        return stream_chunks(), content_type, filename
