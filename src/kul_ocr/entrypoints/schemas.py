@@ -1,17 +1,16 @@
-import uuid
 from datetime import datetime
+from typing import ClassVar, Self
 from uuid import UUID
 
-from typing import Sequence
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from typing import ClassVar
-from pydantic import BaseModel, Field, field_validator
 from kul_ocr.domain import model
 
 
 class DocumentResponse(BaseModel):
     """Schema for document basic information with strict validation."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(use_enum_values=True)
 
     ALLOWED_MIME_TYPES: ClassVar[set[str]] = {
         "application/pdf",
@@ -20,35 +19,20 @@ class DocumentResponse(BaseModel):
         "image/webp"
     }
 
-    id: str = Field(..., description="Unique UUID of the document")
-
+    id: UUID = Field(..., description="Unique UUID of the document")
     file_path: str = Field(
         ...,
         min_length=1,
         max_length=500,
         description="Path to the stored file"
     )
-
     file_type: str = Field(..., description="MIME type of the file")
-
     uploaded_at: datetime = Field(..., description="Upload timestamp")
-
     file_size_bytes: int = Field(
         ...,
         ge=0,
         description="Size of the file in bytes (must be non-negative)"
     )
-
-    # --- Validators ---
-
-    @field_validator('id')
-    @classmethod
-    def validate_uuid_format(cls, v: str) -> str:
-        try:
-            uuid.UUID(v)
-        except ValueError:
-            raise ValueError('Invalid UUID format')
-        return v
 
     @field_validator('file_path')
     @classmethod
@@ -70,65 +54,40 @@ class DocumentResponse(BaseModel):
         return v
 
     @classmethod
-    def from_domain(
-        cls,
-        document: model.Document,
-    ) -> "DocumentResponse":
+    def from_domain(cls, document: model.Document) -> Self:
         return cls(
-            id=document.id,
+            id=UUID(document.id),
             file_path=document.file_path,
             file_type=str(document.file_type.value) if hasattr(document.file_type, 'value') else str(document.file_type),
             uploaded_at=document.uploaded_at,
             file_size_bytes=document.file_size_bytes,
         )
 
-    class Config:
-        use_enum_values = True
-
 
 class OcrResultResponse(BaseModel):
-    id: str = Field(..., description="Result UUID")
-    job_id: str = Field(..., description="Associated Job UUID")
+    """Schema for OCR result."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(use_enum_values=False)
+
+    id: UUID = Field(..., description="Result UUID")
+    job_id: UUID = Field(..., description="Associated Job UUID")
     content: str = Field(..., description="Extracted text content")
     creation_time: datetime
 
-    @field_validator('id', 'job_id')
     @classmethod
-    def validate_uuids(cls, v: str) -> str:
-        try:
-            uuid.UUID(v)
-        except ValueError:
-            raise ValueError('Invalid UUID format')
-        return v
-
-    @field_validator('content')
-    @classmethod
-    def validate_content(cls, v: str) -> str:
-        return v
-
-    @classmethod
-    def from_domain(
-        cls,
-        result: model.OCRResult[model.SimpleOCRValue],
-    ) -> "OcrResultResponse":
+    def from_domain(cls, result: model.OCRResult[model.SimpleOCRValue]) -> Self:
         return cls(
-            id=result.id,
-            job_id=result.job_id,
-            content=result.content.content
-            if hasattr(result.content, "content")
-            else str(result.content),
+            id=UUID(result.id),
+            job_id=UUID(result.job_id),
+            content=result.content.content if hasattr(result.content, "content") else str(result.content),
             creation_time=result.creation_time,
         )
 
-    class Config:
-        use_enum_values = False
 
+class DocumentWithResultResponse(BaseModel):
+    """Document with its latest OCR result using composition."""
 
-class DocumentWithResultResponses(DocumentResponse):
-    """
-    Inherits fields and validators from DocumentResponse.
-    Adds the latest_result field.
-    """
+    document: DocumentResponse
     latest_result: OcrResultResponse | None = None
 
     @classmethod
@@ -136,29 +95,24 @@ class DocumentWithResultResponses(DocumentResponse):
         cls,
         document: model.Document,
         result: model.OCRResult[model.SimpleOCRValue] | None = None,
-    ) -> "DocumentWithResultResponses":
-        base_doc = DocumentResponse.from_domain(document)
-
+    ) -> Self:
         return cls(
-            id=base_doc.id,
-            file_path=base_doc.file_path,
-            file_type=base_doc.file_type,
-            uploaded_at=base_doc.uploaded_at,
-            file_size_bytes=base_doc.file_size_bytes,
-            latest_result=(OcrResultResponse.from_domain(result) if result else None),
+            document=DocumentResponse.from_domain(document),
+            latest_result=OcrResultResponse.from_domain(result) if result else None,
         )
-
-    class Config:
-        use_enum_values = False
 
 
 class CreateOCRJobRequest(BaseModel):
+    """Request to create a new OCR job."""
+
     document_id: UUID = Field(..., description="ID of the document to process")
 
 
 class OCRJobResponse(BaseModel):
-    id: str
-    document_id: str
+    """Schema for OCR job status and metadata."""
+
+    id: UUID
+    document_id: UUID
     status: str
     created_at: datetime
     started_at: datetime | None = None
@@ -166,10 +120,10 @@ class OCRJobResponse(BaseModel):
     error_message: str | None = None
 
     @classmethod
-    def from_domain(cls, job: model.OCRJob) -> "OCRJobResponse":
+    def from_domain(cls, job: model.OCRJob) -> Self:
         return cls(
-            id=job.id,
-            document_id=job.document_id,
+            id=UUID(job.id),
+            document_id=UUID(job.document_id),
             status=job.status.value,
             created_at=job.created_at,
             started_at=job.started_at,
@@ -179,16 +133,16 @@ class OCRJobResponse(BaseModel):
 
 
 class OCRJobListResponse(BaseModel):
+    """Paginated list of OCR jobs."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(use_enum_values=False)
+
     jobs: list[OCRJobResponse]
     total: int
 
     @classmethod
-    def from_domain(cls, jobs: Sequence[model.OCRJob]) -> "OCRJobListResponse":
+    def from_domain(cls, jobs: list[model.OCRJob]) -> Self:
         return cls(
-            jobs=[OCRJobResponse.from_domain(job) for job in jobs], total=len(jobs)
+            jobs=[OCRJobResponse.from_domain(job) for job in jobs],
+            total=len(jobs)
         )
-
-    class Config:
-        use_enum_values = False
-
-        use_enum_values = True

@@ -13,7 +13,7 @@ class TestDocumentResponse:
         """Test that from_domain converts all Document fields correctly."""
         response = schemas.DocumentResponse.from_domain(document)
 
-        assert response.id == document.id
+        assert str(response.id) == document.id
         assert response.file_path == document.file_path
         assert response.file_type == document.file_type.value
         assert response.uploaded_at == document.uploaded_at
@@ -50,7 +50,7 @@ class TestDocumentResponseValidation:
     VALID_SIZE = 1024
 
     def test_rejects_invalid_uuid(self):
-        with pytest.raises(ValidationError, match="Invalid UUID"):
+        with pytest.raises(ValidationError, match="valid UUID"):
             schemas.DocumentResponse(
                 id="not-a-uuid",
                 file_path=self.VALID_PATH,
