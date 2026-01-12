@@ -130,22 +130,20 @@ async def test_get_document_with_ocr(
 
     assert response.status_code == 200
 
-    parsed_document = schemas.DocumentWithResultResponses(**response.json())
+    parsed_response = schemas.DocumentWithResultResponse(**response.json())
 
     # Debug: print what you're actually getting
-    print(f"latest_result: {parsed_document.latest_result}")
+    print(f"latest_result: {parsed_response.latest_result}")
     print(f"ocr_result: {ocr_result}")
 
-    # Compare specific fields instead of whole objects
-    assert parsed_document.latest_result is not None
-    assert parsed_document.latest_result.id == ocr_result.id
-    assert parsed_document.latest_result.job_id == ocr_result.job_id
-    # data = response.json()
-    #
-    # ocr_data = data.get("ocr_result")
-    # assert ocr_data is not None
-    # assert ocr_data["id"] == ocr_result.id
-    # assert ocr_data["text"] == ocr_result.content
+    # Verify document fields (comparing UUID to string)
+    assert str(parsed_response.document.id) == doc.id
+    assert parsed_response.document.file_path == doc.file_path
+
+    # Verify OCR result (comparing UUID to string)
+    assert parsed_response.latest_result is not None
+    assert str(parsed_response.latest_result.id) == ocr_result.id
+    assert str(parsed_response.latest_result.job_id) == ocr_result.job_id
 
 
 @pytest.mark.asyncio
@@ -161,9 +159,14 @@ async def test_get_document_without_ocr(
 
     assert response.status_code == 200
 
-    parsed_document = schemas.DocumentWithResultResponses(**response.json())
+    parsed_response = schemas.DocumentWithResultResponse(**response.json())
 
-    assert parsed_document.latest_result is None
+    # Verify document fields (comparing UUID to string)
+    assert str(parsed_response.document.id) == doc.id
+    assert parsed_response.document.file_path == doc.file_path
+
+    # Verify no OCR result
+    assert parsed_response.latest_result is None
 
 
 @pytest.fixture(autouse=True)

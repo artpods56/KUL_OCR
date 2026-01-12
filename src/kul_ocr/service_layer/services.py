@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from kul_ocr.domain import exceptions, model, ports
-from kul_ocr.entrypoints import schemas
 from kul_ocr.service_layer.uow import AbstractUnitOfWork
 
 
@@ -29,49 +28,39 @@ def upload_document(
     file_type: model.FileType,
     storage: ports.FileStorage,
     uow: AbstractUnitOfWork,
-) -> schemas.DocumentResponse:
+) -> model.Document:
     """Uploads a document to storage and saves it in the database.
 
     Saves the provided file stream to the storage system, generates a unique ID
-    for the document, and persists its metadata in the database. If saving the
-    file fails, the transaction is rolled back.
+    for the document, and persists its metadata in the database.
 
     Args:
         file_stream: A file-like object containing the document data.
         file_size: Size of the file in bytes.
         file_type: The type/format of the file (e.g., PDF, PNG).
         storage: Storage system used to save the file.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
-        A DocumentResponse schema representing the uploaded document.
+        The created Document domain model.
 
     Raises:
         exceptions.FileUploadError: If saving the file to storage fails.
     """
-    with uow:
-        document_uuid = generate_id()
-        storage_file_path = Path(document_uuid + file_type.dot_extension)
+    document_uuid = generate_id()
+    storage_file_path = Path(document_uuid + file_type.dot_extension)
 
-        try:
-            document = model.Document(
-                id=document_uuid,
-                file_path=str(storage_file_path),
-                file_type=file_type,
-                file_size_bytes=file_size,
-            )
+    document = model.Document(
+        id=document_uuid,
+        file_path=str(storage_file_path),
+        file_type=file_type,
+        file_size_bytes=file_size,
+    )
 
-            uow.documents.add(document)
+    uow.documents.add(document)
+    storage.save(stream=file_stream, file_path=storage_file_path)
 
-            storage.save(stream=file_stream, file_path=storage_file_path)
-
-            uow.commit()
-
-            return schemas.DocumentResponse.from_domain(document)
-
-        except exceptions.FileUploadError:
-            uow.rollback()
-            raise
+    return document
 
 
 # --- OCR Jobs Services ---
@@ -88,15 +77,12 @@ def get_ocr_jobs_by_status(
 
     Args:
         status: The status to filter OCR jobs by.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
         A sequence of OCRJob instances matching the given status.
     """
-    with uow:
-        ocr_jobs = uow.jobs.list_by_status(status)
-        uow.commit()
-        return ocr_jobs
+    return uow.jobs.list_by_status(status)
 
 
 def get_ocr_jobs_by_document_id(
@@ -109,33 +95,39 @@ def get_ocr_jobs_by_document_id(
 
     Args:
         document_id: The unique identifier of the document.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
         A sequence of OCRJob instances associated with the specified document.
     """
-    with uow:
-        ocr_jobs = uow.jobs.list_by_document_id(document_id)
-        uow.commit()
-        return ocr_jobs
+    return uow.jobs.list_by_document_id(document_id)
 
 
 def get_ocr_jobs(
     uow: AbstractUnitOfWork,
     status: model.JobStatus | None = None,
     document_id: str | None = None,
-) -> Sequence[schemas.OCRJobResponse]:
-    with uow:
-        jobs: Sequence[model.OCRJob]
-        if status:
-            jobs = uow.jobs.list_by_status(status)
-            if document_id:
-                jobs = [j for j in jobs if j.document_id == document_id]
-        elif document_id:
-            jobs = uow.jobs.list_by_document_id(document_id)
-        else:
-            jobs = uow.jobs.list_all()
-        return [schemas.OCRJobResponse.from_domain(job) for job in jobs]
+) -> Sequence[model.OCRJob]:
+    """Gets OCR jobs with optional filtering by status and/or document ID.
+
+    Args:
+        uow: Unit of Work instance (transaction management done by caller).
+        status: Optional status to filter by.
+        document_id: Optional document ID to filter by.
+
+    Returns:
+        A sequence of OCRJob domain models matching the filters.
+    """
+    jobs: Sequence[model.OCRJob]
+    if status:
+        jobs = uow.jobs.list_by_status(status)
+        if document_id:
+            jobs = [j for j in jobs if j.document_id == document_id]
+    elif document_id:
+        jobs = uow.jobs.list_by_document_id(document_id)
+    else:
+        jobs = uow.jobs.list_all()
+    return jobs
 
 
 def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.OCRJob]:
@@ -145,59 +137,52 @@ def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.OCRJob]:
     Useful for reporting and monitoring.
 
     Args:
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
         A sequence of OCRJob instances that have reached a terminal state.
     """
-    with uow:
-        ocr_jobs = uow.jobs.list_terminal_jobs()
-        uow.commit()
-        return ocr_jobs
+    return uow.jobs.list_terminal_jobs()
 
 
-def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.OCRJobResponse:
+def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
     """Submits a new OCR processing job for a document.
 
     Creates a new OCR job in PENDING status for the specified document.
-    Returns a DTO (Data Transfer Object) ensuring data is decoupled from the DB session.
 
     Args:
         document_id: The unique identifier of the document to process.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
-        A Pydantic response model representing the created job.
+        The created OCRJob domain model.
 
     Raises:
         exceptions.DocumentNotFoundError: If the document with the given ID does not exist.
         exceptions.DuplicateOCRJobError: If the document already has an active OCR job.
     """
-    with uow:
-        document = uow.documents.get(document_id)
-        if document is None:
-            raise exceptions.DocumentNotFoundError(
-                f"Document with ID {document_id} not found"
-            )
+    document = uow.documents.get(document_id)
+    if document is None:
+        raise exceptions.DocumentNotFoundError(
+            f"Document with ID {document_id} not found"
+        )
 
-        existing_jobs = uow.jobs.list_by_document_id(document_id)
-        active_jobs = [
-            j
-            for j in existing_jobs
-            if j.status in (model.JobStatus.PENDING, model.JobStatus.PROCESSING)
-        ]
+    existing_jobs = uow.jobs.list_by_document_id(document_id)
+    active_jobs = [
+        j
+        for j in existing_jobs
+        if j.status in (model.JobStatus.PENDING, model.JobStatus.PROCESSING)
+    ]
 
-        if active_jobs:
-            raise exceptions.DuplicateOCRJobError(
-                f"Document {document_id} already has a pending or processing OCR job"
-            )
+    if active_jobs:
+        raise exceptions.DuplicateOCRJobError(
+            f"Document {document_id} already has a pending or processing OCR job"
+        )
 
-        ocr_job = model.OCRJob(id=generate_id(), document_id=document_id)
+    ocr_job = model.OCRJob(id=generate_id(), document_id=document_id)
+    uow.jobs.add(ocr_job)
 
-        uow.jobs.add(ocr_job)
-        uow.commit()
-
-        return schemas.OCRJobResponse.from_domain(ocr_job)
+    return ocr_job
 
 
 def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
@@ -209,7 +194,7 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> model.OCRJ
 
     Args:
         job_id: The unique identifier of the OCR job to start processing.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
         The OCRJob instance with its status updated to PROCESSING.
@@ -217,16 +202,14 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> model.OCRJ
     Raises:
         ValueError: If the OCR job with the given ID does not exist.
     """
-    with uow:
-        ocr_job = uow.jobs.get(job_id)
-        if ocr_job is None:
-            raise ValueError(f"OCR Job {job_id} not found")
+    ocr_job = uow.jobs.get(job_id)
+    if ocr_job is None:
+        raise ValueError(f"OCR Job {job_id} not found")
 
-        # Domain model enforces business rules (must be PENDING)
-        ocr_job.mark_as_processing()
+    # Domain model enforces business rules (must be PENDING)
+    ocr_job.mark_as_processing()
 
-        uow.commit()
-        return ocr_job
+    return ocr_job
 
 
 def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
@@ -238,7 +221,7 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.OCRJo
 
     Args:
         failed_job_id: The unique identifier of the failed OCR job.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
         A new OCRJob instance in PENDING status for retrying the original job.
@@ -246,23 +229,21 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.OCRJo
     Raises:
         ValueError: If the original job does not exist or is not in FAILED status.
     """
-    with uow:
-        original_job = uow.jobs.get(failed_job_id)
-        if original_job is None:
-            raise ValueError(f"OCR Job {failed_job_id} not found")
+    original_job = uow.jobs.get(failed_job_id)
+    if original_job is None:
+        raise ValueError(f"OCR Job {failed_job_id} not found")
 
-        if original_job.status != model.JobStatus.FAILED:
-            raise ValueError(
-                f"Cannot retry job {failed_job_id} - job status is {original_job.status}, ",
-                "only failed jobs can be retried",
-            )
+    if original_job.status != model.JobStatus.FAILED:
+        raise ValueError(
+            f"Cannot retry job {failed_job_id} - job status is {original_job.status}, ",
+            "only failed jobs can be retried",
+        )
 
-        # Create new job for the same document
-        new_job = model.OCRJob(id=generate_id(), document_id=original_job.document_id)
+    # Create new job for the same document
+    new_job = model.OCRJob(id=generate_id(), document_id=original_job.document_id)
+    uow.jobs.add(new_job)
 
-        uow.jobs.add(new_job)
-        uow.commit()
-        return new_job
+    return new_job
 
 
 def get_latest_result_for_document(
@@ -276,28 +257,26 @@ def get_latest_result_for_document(
 
     Args:
         document_id: The unique identifier of the document.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
         The OCRResult of the latest completed job, or None if no completed jobs exist.
     """
-    with uow:
-        # Get all completed jobs for this document
-        jobs = uow.jobs.list_by_document_id(document_id)
-        completed_jobs = [j for j in jobs if j.status == model.JobStatus.COMPLETED]
+    # Get all completed jobs for this document
+    jobs = uow.jobs.list_by_document_id(document_id)
+    completed_jobs = [j for j in jobs if j.status == model.JobStatus.COMPLETED]
 
-        if not completed_jobs:
-            return None
+    if not completed_jobs:
+        return None
 
-        # Get the most recent completed job
-        latest_job = max(completed_jobs, key=lambda j: j.completed_at or j.created_at)
+    # Get the most recent completed job
+    latest_job = max(completed_jobs, key=lambda j: j.completed_at or j.created_at)
 
-        # Get all results and find the one for this job
-        all_results = uow.results.list_all()
-        job_result = next((r for r in all_results if r.job_id == latest_job.id), None)
+    # Get all results and find the one for this job
+    all_results = uow.results.list_all()
+    job_result = next((r for r in all_results if r.job_id == latest_job.id), None)
 
-        uow.commit()
-        return job_result
+    return job_result
 
 
 # --- Document Services ---
@@ -314,7 +293,7 @@ def get_document_with_latest_result(
 
     Args:
         document_id: The unique identifier of the document.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
         A tuple containing the Document instance and the latest OCRResult
@@ -323,45 +302,52 @@ def get_document_with_latest_result(
     Raises:
         ValueError: If the document with the given ID does not exist.
     """
-    with uow:
-        document = uow.documents.get(document_id)
-        if document is None:
-            raise ValueError(f"Document {document_id} not found")
+    document = uow.documents.get(document_id)
+    if document is None:
+        raise ValueError(f"Document {document_id} not found")
 
-        jobs = uow.jobs.list_by_document_id(document_id)
-        completed_jobs = [j for j in jobs if j.status == model.JobStatus.COMPLETED]
+    jobs = uow.jobs.list_by_document_id(document_id)
+    completed_jobs = [j for j in jobs if j.status == model.JobStatus.COMPLETED]
 
-        latest_result = None
-        if completed_jobs:
-            latest_job = max(
-                completed_jobs, key=lambda j: j.completed_at or j.created_at
-            )
+    latest_result = None
+    if completed_jobs:
+        latest_job = max(
+            completed_jobs, key=lambda j: j.completed_at or j.created_at
+        )
 
-            all_results = uow.results.list_all()
-            latest_result = next(
-                (r for r in all_results if r.job_id == latest_job.id), None
-            )
+        all_results = uow.results.list_all()
+        latest_result = next(
+            (r for r in all_results if r.job_id == latest_job.id), None
+        )
 
-        uow.commit()
-        return document, latest_result
+    return document, latest_result
 
 
 def download_document(
     document_id: str, storage: ports.FileStorage, uow: AbstractUnitOfWork
 ) -> tuple[Iterator[bytes], str, str] | None:
-    with uow:
-        document = uow.documents.get(document_id)
-        if not document:
-            return None
+    """Downloads a document as a streaming response.
 
-        file_path = Path(document.file_path)
-        filename = f"{document.id}{document.file_type.dot_extension}"
-        content_type = document.file_type.value
+    Args:
+        document_id: The unique identifier of the document.
+        storage: File storage implementation.
+        uow: Unit of Work instance (transaction management done by caller).
 
-        def stream_chunks() -> Iterator[bytes]:
-            CHUNK_SIZE = 65536  # 64KB
-            with storage.load(file_path) as file_stream:
-                while chunk := file_stream.read(CHUNK_SIZE):
-                    yield chunk
+    Returns:
+        Tuple of (stream_generator, content_type, filename) or None if not found.
+    """
+    document = uow.documents.get(document_id)
+    if not document:
+        return None
 
-        return stream_chunks(), content_type, filename
+    file_path = Path(document.file_path)
+    filename = f"{document.id}{document.file_type.dot_extension}"
+    content_type = document.file_type.value
+
+    def stream_chunks() -> Iterator[bytes]:
+        CHUNK_SIZE = 65536  # 64KB
+        with storage.load(file_path) as file_stream:
+            while chunk := file_stream.read(CHUNK_SIZE):
+                yield chunk
+
+    return stream_chunks(), content_type, filename

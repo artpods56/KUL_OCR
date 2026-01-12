@@ -29,10 +29,10 @@ def test_upload_document(uow: FakeUnitOfWork, tmp_path: Path, file_type: FileTyp
         storage=storage,
         uow=uow,
     )
-    
-    assert uow.documents.get(document_id=document.id) is not None
-    assert document.file_type == file_type.value
-    assert uow.committed
+
+    assert uow.documents.get(document_id=str(document.id)) is not None
+    assert document.file_type == file_type
+    # Service no longer commits - that's the caller's responsibility
 
 
 def test_upload_document_auto_generates_id(uow: FakeUnitOfWork, tmp_path: Path):
@@ -49,7 +49,7 @@ def test_upload_document_auto_generates_id(uow: FakeUnitOfWork, tmp_path: Path):
     )
 
     assert document.id is not None
-    assert len(document.id) > 0
+    assert len(str(document.id)) > 0
 
 
 # --- get_document_with_latest_result tests ---
@@ -87,7 +87,7 @@ def test_get_document_with_latest_result_success(uow: FakeUnitOfWork, tmp_path: 
     assert result is not None
     assert result.job_id == job2.id
     assert isinstance(result.content, SimpleOCRValue)
-    assert uow.committed
+    # Service no longer commits - that's the caller's responsibility
 
 
 def test_get_document_with_latest_result_no_results(
