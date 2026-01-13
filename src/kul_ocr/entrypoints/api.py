@@ -3,14 +3,13 @@ from uuid import UUID
 import logging
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, File, UploadFile, HTTPException, status
+from fastapi import APIRouter, FastAPI, File, UploadFile, HTTPException, status
 from fastapi import Query
 from fastapi.responses import StreamingResponse
 from kul_ocr.adapters.database import orm
-from kul_ocr.domain import ports
 from kul_ocr.entrypoints import dependencies, exception_handlers, schemas, tasks
-from kul_ocr.domain import model, exceptions
-from kul_ocr.service_layer import parsing, services, uow
+from kul_ocr.entrypoints.dependencies import UnitOfWorkDep
+from kul_ocr.service_layer import parsing, services
 
 _ = load_dotenv()
 
@@ -22,50 +21,92 @@ app = FastAPI()
 router = APIRouter()
 
 
+"""
+--- Documents API ---
+endpoints:
+[x] - POST /documents: Upload a document
+[x] - GET /documents/{document_id}: Get a document by ID
+[x] - GET /documents/{document_id}/latest-result: Get the latest OCR result for a document
+[x] - GET /documents/{document_id}/download: Download a document
+"""
+
+
 @router.post("/documents", response_model=schemas.DocumentResponse)
 def upload_document(
     file: Annotated[UploadFile, File()],
-    storage: Annotated[ports.FileStorage, Depends(dependencies.get_file_storage)],
-    uow: Annotated[uow.AbstractUnitOfWork, Depends(dependencies.get_uow)],
+    storage: dependencies.FileStorageDep,
+    uow: UnitOfWorkDep,
 ) -> schemas.DocumentResponse:
-    with uow:
-        try:
-            document = services.upload_document(
-                file_stream=file.file,
-                file_size=file.size or 0,
-                file_type=parsing.parse_file_type(file.content_type),
-                storage=storage,
-                uow=uow,
-            )
-            uow.commit()
-            return schemas.DocumentResponse.from_domain(document)
-        except exceptions.FileUploadError:
-            uow.rollback()
-            raise
+    return services.upload_document(
+        file_stream=file.file,
+        file_size=file.size or 0,
+        file_type=parsing.parse_file_type(file.content_type),
+        storage=storage,
+        uow=uow,
+    )
+
+
+@router.get(
+    "/documents/{document_id}",
+    response_model=schemas.DocumentResponse,
+)
+def get_document(
+    document_id: UUID,
+    uow: dependencies.UnitOfWorkDep,
+) -> schemas.DocumentResponse:
+    return services.get_document(document_id, uow)
+
+
+@router.get(
+    "/documents/{document_id}/latest-result",
+    response_model=schemas.OcrResultResponse,
+)
+def get_latest_result(
+    document_id: str,
+    uow: dependencies.UnitOfWorkDep,
+) -> schemas.OcrResultResponse:
+    result = services.get_latest_result_for_document(document_id, uow)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No OCR result found for document {document_id}",
+        )
+    return result
 
 
 @router.get("/documents/{document_id}/download")
 def download_document(
     document_id: UUID,
-    storage: ports.FileStorage = Depends(dependencies.get_file_storage),
-    uow: uow.AbstractUnitOfWork = Depends(dependencies.get_uow),
+    storage: dependencies.FileStorageDep,
+    uow: UnitOfWorkDep,
 ):
-    with uow:
-        result = services.download_document(
-            document_id=str(document_id), storage=storage, uow=uow
-        )
-        uow.commit()
+    result = services.download_document(
+        document_id=str(document_id), storage=storage, uow=uow
+    )
 
-        if result is None:
-            raise HTTPException(status_code=404, detail="Document not found")
+    if result is None:
+        raise HTTPException(status_code=404, detail="Document not found")
 
-        file_stream, content_type, filename = result
+    file_stream, content_type, filename = result
 
-        return StreamingResponse(
-            file_stream,
-            media_type=content_type,
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
+    return StreamingResponse(
+        file_stream,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+"""
+--- OCR Jobs API ---
+endpoints:
+[x] - POST /ocr/jobs: Submit a new OCR job
+[ ] - POST /ocr/jobs/{job_id}/start: Start execution of a pending OCR job
+[ ] - POST /ocr/jobs/{job_id}/cancel: Cancel pending or running OCR job (gracefully if possible)
+[ ] - POST /ocr/jobs/{job_id}/retry: Retry a failed OCR job
+[ ] - DELETE /ocr/jobs/{job_id}: Delete OCR Job in terminal state
+[x] - GET /ocr/jobs: List OCR jobs (supports filtering by status, pagination) [TODO] pagination
+[ ] - GET /ocr/jobs/{job_id}: Get an OCR job by ID
+"""
 
 
 @router.post(
@@ -75,47 +116,28 @@ def download_document(
 )
 def create_ocr_job(
     request: schemas.CreateOCRJobRequest,
-    uow: Annotated[uow.AbstractUnitOfWork, Depends(dependencies.get_uow)],
+    uow: UnitOfWorkDep,
 ) -> schemas.OCRJobResponse:
-    with uow:
-        job = services.submit_ocr_job(str(request.document_id), uow)
-        uow.commit()
+    return services.submit_ocr_job(str(request.document_id), uow)
 
-        try:
-            tasks.process_ocr_job_task.delay(str(job.id))
-        except Exception as e:
-            logger.error(
-                f"Failed to trigger Celery task for job {job.id}: {e}",
-                exc_info=True,
-            )
 
+@router.post("/ocr/jobs/{job_id}/start")
+def start_ocr_job(
+    job_id: UUID,
+    uow: UnitOfWorkDep,
+) -> schemas.OCRJobResponse:
+    try:
+        response = services.start_ocr_job_processing(job_id, uow=uow)
+        tasks.process_ocr_job_task.delay(str(job_id))
+        return response
+    except Exception as e:
+        job = services.fail_ocr_job(job_id, str(e), uow=uow)
         return schemas.OCRJobResponse.from_domain(job)
-
-
-@router.get(
-    "/documents/{document_id}",
-    response_model=schemas.DocumentWithResultResponse,
-)
-def get_document(
-    document_id: str,
-    uow: Annotated[uow.AbstractUnitOfWork, Depends(dependencies.get_uow)],
-) -> schemas.DocumentWithResultResponse:
-    with uow:
-        try:
-            document, ocr_result = services.get_document_with_latest_result(
-                document_id, uow
-            )
-            uow.commit()
-            return schemas.DocumentWithResultResponse.from_domain(document, ocr_result)
-        except ValueError as e:
-            raise HTTPException(
-                status_code=404, detail=f"Document {document_id} not found, error: {str(e)}"
-            )
 
 
 @router.get("/ocr/jobs", response_model=schemas.OCRJobListResponse)
 def list_ocr_jobs(
-    uow: Annotated[uow.AbstractUnitOfWork, Depends(dependencies.get_uow)],
+    uow: UnitOfWorkDep,
     status: Annotated[
         str | None,
         Query(
@@ -123,28 +145,10 @@ def list_ocr_jobs(
         ),
     ] = None,
     document_id: Annotated[
-        str | None, Query(description="Filter by document ID")
+        UUID | None, Query(description="Filter by document ID")
     ] = None,
 ) -> schemas.OCRJobListResponse:
-    parsed_status = parse_job_status(status)
-
-    with uow:
-        jobs = services.get_ocr_jobs(
-            uow=uow, status=parsed_status, document_id=document_id
-        )
-        uow.commit()
-        return schemas.OCRJobListResponse.from_domain(list(jobs))
-
-
-def parse_job_status(status: str | None) -> model.JobStatus | None:
-    if status is None:
-        return None
-    try:
-        return model.JobStatus(status)
-    except ValueError:
-        valid_options = [s.value for s in model.JobStatus]
-        msg = f"Invalid status '{status}'. Valid options: {valid_options}"
-        raise exceptions.InvalidJobStatusError(msg)
+    return services.get_ocr_jobs(uow=uow, status=status, document_id=document_id)
 
 
 app.include_router(router)
