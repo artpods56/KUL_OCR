@@ -3,40 +3,68 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Literal
 
-from msgspec import Struct
-from sqlalchemy.ext.hybrid import hybrid_property
-
-# --- Value Objects ---
+from kul_ocr.domain import exceptions
 
 
-class BaseOCRValue[BaseT](Struct, tag=True):
-    content: BaseT
+"""
+--- Value Objects ---
+"""
 
 
-class SimpleOCRValue(BaseOCRValue[str]):
-    content: str
+@dataclass(frozen=True)
+class BoundingBox:
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
 
 
-class SinglePageOcrValue(BaseOCRValue[str]):
+@dataclass(frozen=True)
+class TextPart:
+    text: str
+    bbox: BoundingBox
+    confidence: float | None = None
+    level: Literal["word", "line", "block"] = "block"
+
+
+@dataclass(frozen=True)
+class PageMetadata:
     page_number: int
-    content: str
+    width: int
+    height: int
+    rotation: int = 0
 
 
-class MultiPageOcrValue(BaseOCRValue[Sequence[SinglePageOcrValue]]):
-    content: Sequence[SinglePageOcrValue]
+@dataclass(frozen=True)
+class PagePart:
+    parts: Sequence[TextPart]
+    metadata: PageMetadata
+
+    @property
+    def full_text(self) -> str:
+        """Concatenated text from all TextParts."""
+        return "".join(part.text for part in self.parts)
 
 
-OCRValueTypes = SimpleOCRValue | SinglePageOcrValue | MultiPageOcrValue
+def wrap_text_in_page_part(
+    text: str, page_number: int, width: int, height: int
+) -> PagePart:
+    """Create a PagePart with a single TextPart containing the full OCR text."""
+    text_part = TextPart(
+        text=text,
+        bbox=BoundingBox(x_min=0.0, y_min=0.0, x_max=float(width), y_max=float(height)),
+        confidence=None,
+        level="block",
+    )
+    metadata = PageMetadata(page_number=page_number, width=width, height=height)
+    return PagePart(parts=[text_part], metadata=metadata)
 
-# class OCRDocumentTypes(Enum):
-#     SIMPLE_VALUE = SimpleOCRValue
-#     SINGLE_PAGE = SinglePageOcrValue
-#     MULTI_PAGE = MultiPageOcrValue
 
-
-# --- Entities ---
+"""
+--- Entities ---
+"""
 
 
 class JobStatus(Enum):
@@ -47,61 +75,53 @@ class JobStatus(Enum):
 
 
 @dataclass
-class OCRJob:
+class Job:
     id: str
     document_id: str
-    created_at: datetime = field(
-        default_factory=datetime.now
-    )  # so it gets current time when __init__ is called and not on function definition
+    created_at: datetime = field(default_factory=datetime.now)
     error_message: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     status: JobStatus = JobStatus.PENDING
 
-    @hybrid_property
+    @property
     def is_terminal(self) -> bool:
         return self.status in (JobStatus.FAILED, JobStatus.COMPLETED)
 
-    @hybrid_property
+    @property
     def duration(self) -> timedelta:
         if not self.is_terminal:
             raise ValueError(
-                f"Cannot calculate duration for job {self.id}",
-                f"job is still {self.status}",
+                f"Cannot calculate duration for job {self.id} - job is still {self.status}"
             )
-        assert self.completed_at is not None
-        assert self.started_at is not None
+        if self.completed_at is None or self.started_at is None:
+            raise ValueError(f"Job {self.id} is terminal but missing timestamps")
         return self.completed_at - self.started_at
 
     def mark_as_processing(self):
         if self.status != JobStatus.PENDING:
-            raise RuntimeError(
-                f"Job {self.id} has already been processed",
-                f"You can only start pending jobs, but job status is {self.status}",
+            raise exceptions.InvalidJobStatusError(
+                f"Job {self.id} has already been processed. Status is {self.status}"
             )
-        else:
-            self.started_at = datetime.now()
-            self.status = JobStatus.PROCESSING
+        self.started_at = datetime.now()
+        self.status = JobStatus.PROCESSING
 
     def complete(self):
         if self.status != JobStatus.PROCESSING:
-            raise RuntimeError(
-                f"Job {self.id} is not a processed job",
-                f"You can only complete processed jobs, but job status is {self.status}",
+            raise exceptions.InvalidJobStatusError(
+                f"Job {self.id} is not in processing state. Status is {self.status}"
             )
-        else:
-            self.status = JobStatus.COMPLETED
-            self.completed_at = datetime.now()
+        self.status = JobStatus.COMPLETED
+        self.completed_at = datetime.now()
 
     def fail(self, error_message: str):
         if self.is_terminal:
-            raise RuntimeError(
-                f"Cannot fail job {self.id} - job is already in a terminal state {self.status}"
+            raise exceptions.InvalidJobStatusError(
+                f"Cannot fail job {self.id} - job is already terminal ({self.status})"
             )
-        else:
-            self.status = JobStatus.FAILED
-            self.error_message = error_message
-            self.completed_at = datetime.now()
+        self.status = JobStatus.FAILED
+        self.error_message = error_message
+        self.completed_at = datetime.now()
 
 
 class FileType(Enum):
@@ -113,7 +133,6 @@ class FileType(Enum):
 
     @property
     def extension(self) -> str:
-        """Get file extension"""
         return self.name.lower()
 
     @property
@@ -122,22 +141,7 @@ class FileType(Enum):
 
     @property
     def is_image(self) -> bool:
-        return self.value.split("/")[0] == "image"
-
-    def get_value_class(self) -> type[BaseOCRValue[Any]]:
-        value_class = FILE_TYPE_TO_VALUE_CLASS_MAPPING.get(self, None)
-        if value_class is None:
-            raise ValueError("This file type is not supported")
-        return value_class
-
-
-FILE_TYPE_TO_VALUE_CLASS_MAPPING: dict[FileType, type[OCRValueTypes]] = {
-    FileType.PDF: MultiPageOcrValue,
-    FileType.PNG: SimpleOCRValue,
-    FileType.JPG: SimpleOCRValue,
-    FileType.JPEG: SimpleOCRValue,
-    FileType.WEBP: SimpleOCRValue,
-}
+        return self.value.startswith("image/")
 
 
 @dataclass
@@ -149,9 +153,11 @@ class Document:
     file_size_bytes: int = 0
 
     def __post_init__(self):
-        if self.file_type.dot_extension != self.file_extension:
+        path = Path(self.file_path)
+        if self.file_type.dot_extension != path.suffix:
             raise ValueError(
-                f"Document expected {self.file_type.dot_extension} but got {self.file_extension}",
+                f"Document extension mismatch: expected {self.file_type.dot_extension} ",
+                f"but got {path.suffix}",
             )
 
     @property
@@ -174,9 +180,20 @@ class Document:
 
 
 @dataclass
-class OCRResult[ContentT: BaseOCRValue[Any]]:
+class PageRef:
+    document_id: str
+    index: int
+
+
+@dataclass
+class ProcessedPage:
+    ref: PageRef
+    result: PagePart
+
+
+@dataclass
+class Result:
     id: str
     job_id: str
-
-    content: ContentT
+    content: Sequence[ProcessedPage]
     creation_time: datetime = field(default_factory=datetime.now)
