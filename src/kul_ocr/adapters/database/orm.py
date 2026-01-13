@@ -1,4 +1,5 @@
-from typing import Any, cast, final, override
+from datetime import datetime
+from typing import final, override
 
 import msgspec
 from sqlalchemy import (
@@ -17,7 +18,6 @@ from sqlalchemy.sql.schema import ForeignKey
 from sqlalchemy.types import TypeDecorator
 
 from kul_ocr.domain import model
-from kul_ocr.domain.model import BaseOCRValue
 
 mapper_registry = registry()
 
@@ -47,51 +47,116 @@ ocr_jobs = Table(
 
 
 @final
-class OCRValueType(TypeDecorator[model.OCRValueTypes]):
+class OCRValueType(TypeDecorator[model.Result]):
     impl = Text
     cache_ok = True
 
-    decoder = msgspec.json.Decoder(type=model.OCRValueTypes)
     encoder = msgspec.json.Encoder()
 
     @override
     def process_bind_param(
-        self, value: BaseOCRValue[Any] | None, dialect: Dialect
+        self, value: model.Result | None, dialect: Dialect
     ) -> str | None:
         """
-        Encode a Python OCR value object into JSON string for storage.
-
-        Args:
-            value: OCR value object to encode.
-            dialect: The database dialect in use (provided by SQLAlchemy).
-
-        Returns:
-            A JSON encoded string reprezenting the OCR value, or 'None'
-            if input value is 'None'
+        Encode a Result object into JSON string for storage.
         """
         if value is None:
             return None
-        return self.encoder.encode(value).decode("utf-8")
+
+        # Convert Result to a dict for JSON serialization
+        data = {
+            "id": value.id,
+            "job_id": value.job_id,
+            "creation_time": value.creation_time.isoformat(),
+            "content": [
+                {
+                    "ref": {
+                        "document_id": page.ref.document_id,
+                        "index": page.ref.index,
+                    },
+                    "result": {
+                        "parts": [
+                            {
+                                "text": part.text,
+                                "bbox": {
+                                    "x_min": part.bbox.x_min,
+                                    "y_min": part.bbox.y_min,
+                                    "x_max": part.bbox.x_max,
+                                    "y_max": part.bbox.y_max,
+                                },
+                                "confidence": part.confidence,
+                                "level": part.level,
+                            }
+                            for part in page.result.parts
+                        ],
+                        "metadata": {
+                            "page_number": page.result.metadata.page_number,
+                            "width": page.result.metadata.width,
+                            "height": page.result.metadata.height,
+                            "rotation": page.result.metadata.rotation,
+                        },
+                    },
+                }
+                for page in value.content
+            ],
+        }
+
+        return self.encoder.encode(data).decode("utf-8")
 
     @override
     def process_result_value(
         self, value: str | None, dialect: Dialect
-    ) -> model.OCRValueTypes | None:
+    ) -> model.Result | None:
         """
-        Decode a JSON string from the database to Python OCR value object.
-
-        Args:
-            value: The JSON string retrieved from the database.
-            dialect: The database dialect in use (provided by SQLAlchemy).
-
-        Returns:
-            A Python ORC value object , or 'None'
-            if input value is 'None'
+        Decode a JSON string from the database to a Result object.
         """
         if value is None:
             return None
 
-        return cast(model.OCRValueTypes, self.decoder.decode(value))
+        data = msgspec.json.decode(value)
+        if not isinstance(data, dict):
+            return None
+
+        content = []
+        for page_data in data.get("content", []):
+            ref = model.PageRef(
+                document_id=page_data["ref"]["document_id"],
+                index=page_data["ref"]["index"],
+            )
+
+            parts = []
+            for part_data in page_data["result"]["parts"]:
+                bbox = model.BoundingBox(
+                    x_min=part_data["bbox"]["x_min"],
+                    y_min=part_data["bbox"]["y_min"],
+                    x_max=part_data["bbox"]["x_max"],
+                    y_max=part_data["bbox"]["y_max"],
+                )
+                text_part = model.TextPart(
+                    text=part_data["text"],
+                    bbox=bbox,
+                    confidence=part_data.get("confidence"),
+                    level=part_data["level"],
+                )
+                parts.append(text_part)
+
+            metadata = model.PageMetadata(
+                page_number=page_data["result"]["metadata"]["page_number"],
+                width=page_data["result"]["metadata"]["width"],
+                height=page_data["result"]["metadata"]["height"],
+                rotation=page_data["result"]["metadata"].get("rotation", 0),
+            )
+
+            page_part = model.PagePart(parts=parts, metadata=metadata)
+            processed_page = model.ProcessedPage(ref=ref, result=page_part)
+            content.append(processed_page)
+
+        return model.Result(
+            id=data["id"],
+            job_id=data["job_id"],
+            creation_time=datetime.fromisoformat(data["creation_time"]),
+            content=content,
+        )
 
 
 ocr_results = Table(
@@ -105,18 +170,11 @@ ocr_results = Table(
 
 def start_mappers():
     """
-    Inirialize ORM mappings for all database models.
-
-    Registers the relationshipb between Python classes and database tables
-    with the SQLAlchemy apper registry. Must be called before pergorming and databese
-    operations that rely on these mappings.
-
-    Args:
-        None
-
-    Returns:
-        None
+    Initialize ORM mappings for all database models.
     """
+    if mapper_registry.mappers:
+        return
+
     _ = mapper_registry.map_imperatively(
         model.Document,
         documents,
@@ -127,7 +185,7 @@ def start_mappers():
     )
 
     _ = mapper_registry.map_imperatively(
-        model.OCRJob,
+        model.Job,
         ocr_jobs,
         properties={
             "status": ocr_jobs.c.status,
@@ -138,11 +196,11 @@ def start_mappers():
     )
 
     _ = mapper_registry.map_imperatively(
-        model.OCRResult,
+        model.Result,
         ocr_results,
         properties={
             "job": relationship(
-                model.OCRJob, backref="result", foreign_keys=[ocr_results.c.job_id]
+                model.Job, backref="result", foreign_keys=[ocr_results.c.job_id]
             ),
         },
     )
