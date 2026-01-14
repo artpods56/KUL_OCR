@@ -1,8 +1,10 @@
+import uuid
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 
-from kul_ocr.domain.model import JobStatus, FileType, SimpleOCRValue
+from kul_ocr.domain.model import JobStatus, FileType
 from kul_ocr.domain import exceptions
 from kul_ocr.service_layer import services
 from tests.fakes.uow import FakeUnitOfWork
@@ -147,10 +149,10 @@ def test_submit_ocr_job_success(uow: FakeUnitOfWork, tmp_path: Path):
 
     job = services.submit_ocr_job(document.id, uow)
 
-    assert job.document_id == document.id
+    assert str(job.document_id) == document.id
     assert job.status == JobStatus.PENDING
 
-    saved_job = uow.jobs.get(job.id)
+    saved_job = uow.jobs.get(str(job.id))
     assert saved_job is not None
     assert saved_job.status == JobStatus.PENDING
     # Service no longer commits - that's the caller's responsibility
@@ -171,8 +173,7 @@ def test_start_ocr_job_processing_success(uow: FakeUnitOfWork):
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     uow.jobs.add(job)
 
-    # Start processing
-    updated_job = services.start_ocr_job_processing(job.id, uow)
+    updated_job = services.start_ocr_job_processing(UUID(job.id), uow)
 
     assert updated_job.status == JobStatus.PROCESSING
     assert updated_job.started_at is not None
@@ -181,8 +182,8 @@ def test_start_ocr_job_processing_success(uow: FakeUnitOfWork):
 
 def test_start_ocr_job_processing_job_not_found(uow: FakeUnitOfWork):
     """Test that starting non-existent job raises error."""
-    with pytest.raises(ValueError, match="OCR Job .* not found"):
-        _ = services.start_ocr_job_processing("nonexistent-job", uow)
+    with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR Job .* not found"):
+        _ = services.start_ocr_job_processing(uuid.uuid4(), uow)
 
 
 def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
@@ -192,8 +193,10 @@ def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
     uow.jobs.add(job)
 
     # Attempting to start it again should fail
-    with pytest.raises(RuntimeError, match="has already been processed"):
-        _ = services.start_ocr_job_processing(job.id, uow)
+    with pytest.raises(
+        exceptions.InvalidJobStatusError, match="has already been processed"
+    ):
+        _ = services.start_ocr_job_processing(UUID(job.id), uow)
 
 
 # --- retry_failed_job tests ---
@@ -218,7 +221,7 @@ def test_retry_failed_job_success(uow: FakeUnitOfWork):
 
 def test_retry_failed_job_not_found(uow: FakeUnitOfWork):
     """Test that retrying non-existent job raises error."""
-    with pytest.raises(ValueError, match="OCR Job .* not found"):
+    with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR Job .* not found"):
         _ = services.retry_failed_job("nonexistent-job", uow)
 
 
@@ -235,16 +238,20 @@ def test_retry_failed_job_wrong_status(uow: FakeUnitOfWork, status: JobStatus):
     job = factories.generate_ocr_job(status=status)
     uow.jobs.add(job)
 
-    with pytest.raises(ValueError, match="only failed jobs can be retried"):
+    with pytest.raises(
+        exceptions.InvalidJobStatusError, match="only failed jobs can be retried"
+    ):
         _ = services.retry_failed_job(job.id, uow)
 
 
 # --- get_latest_result_for_document tests ---
 
 
-def test_get_latest_result_for_document_success(uow: FakeUnitOfWork):
+def test_get_latest_result_for_document_success(uow: FakeUnitOfWork, tmp_path: Path):
     """Test getting the latest result for a document with multiple completed jobs."""
-    document_id = "doc-123"
+    document = factories.generate_document(tmp_path, file_type=FileType.PDF)
+    uow.documents.add(document)
+    document_id = document.id
 
     # Create multiple completed jobs for the same document
     job1 = factories.generate_ocr_job(status=JobStatus.PENDING)
@@ -260,8 +267,10 @@ def test_get_latest_result_for_document_success(uow: FakeUnitOfWork):
     uow.jobs.add(job2)
 
     # Create results for both jobs
-    result1 = factories.generate_ocr_result(value_type=SimpleOCRValue, job_id=job1.id)
-    result2 = factories.generate_ocr_result(value_type=SimpleOCRValue, job_id=job2.id)
+    result1 = factories.generate_ocr_result()
+    result1.job_id = job1.id
+    result2 = factories.generate_ocr_result()
+    result2.job_id = job2.id
     uow.results.add(result1)
     uow.results.add(result2)
 
@@ -270,13 +279,17 @@ def test_get_latest_result_for_document_success(uow: FakeUnitOfWork):
 
     # Should get the result from the most recent job (job2)
     assert latest_result is not None
-    assert latest_result.job_id == job2.id
+    assert latest_result.job_id == UUID(job2.id)
     # Service no longer commits - that's the caller's responsibility
 
 
-def test_get_latest_result_for_document_no_completed_jobs(uow: FakeUnitOfWork):
+def test_get_latest_result_for_document_no_completed_jobs(
+    uow: FakeUnitOfWork, tmp_path: Path
+):
     """Test that None is returned when document has no completed jobs."""
-    document_id = "doc-123"
+    document = factories.generate_document(tmp_path, file_type=FileType.PDF)
+    uow.documents.add(document)
+    document_id = document.id
 
     # Create only pending jobs
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
@@ -288,8 +301,7 @@ def test_get_latest_result_for_document_no_completed_jobs(uow: FakeUnitOfWork):
     assert result is None
 
 
-def test_get_latest_result_for_document_no_jobs(uow: FakeUnitOfWork):
-    """Test that None is returned when document has no jobs."""
-    result = services.get_latest_result_for_document("nonexistent-doc", uow)
-
-    assert result is None
+def test_get_latest_result_for_document_document_not_found(uow: FakeUnitOfWork):
+    """Test that DocumentNotFoundError is raised when document has no jobs."""
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
+        services.get_latest_result_for_document("nonexistent-doc", uow)
