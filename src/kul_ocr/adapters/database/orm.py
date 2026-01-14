@@ -15,7 +15,6 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm.session import Session
-from sqlalchemy.sql.schema import TypeDecorator
 
 from kul_ocr.domain import model
 
