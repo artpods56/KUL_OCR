@@ -2,11 +2,9 @@ import random
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Callable, overload
 
 from kul_ocr.domain import model
-from kul_ocr.domain.model import BaseOCRValue, OCRValueTypes, OCRResult
-from kul_ocr.service_layer.services import generate_id
+from kul_ocr.service_layer.helpers import generate_id
 
 
 # --- OCR Jobs Factories ---
@@ -14,19 +12,20 @@ from kul_ocr.service_layer.services import generate_id
 
 def generate_ocr_job(
     status: model.JobStatus | None = model.JobStatus.PENDING,
-) -> model.OCRJob:
+    document_id: str | None = None,
+) -> model.Job:
     job_status = status or random.choice(list(model.JobStatus))
 
-    return model.OCRJob(
+    return model.Job(
         id=generate_id(),
-        document_id=generate_id(),
+        document_id=document_id or generate_id(),
         status=job_status,
     )
 
 
 def generate_ocr_jobs(
     jobs_count: int = 10, status: model.JobStatus | None = None
-) -> Sequence[model.OCRJob]:
+) -> Sequence[model.Job]:
     return [generate_ocr_job(status=status) for _ in range(jobs_count)]
 
 
@@ -57,102 +56,71 @@ def generate_documents(
     ]
 
 
-# --- OCR Value Factories ---
+# --- OCR Results Factories ---
 
 
-def _generate_simple_ocr_result() -> model.SimpleOCRValue:
-    return model.SimpleOCRValue(
-        content=str(uuid.uuid4()),
+def generate_text_part(text: str | None = None) -> model.TextPart:
+    return model.TextPart(
+        text=text or str(uuid.uuid4()),
+        bbox=model.BoundingBox(x_min=0.0, y_min=0.0, x_max=100.0, y_max=100.0),
+        confidence=random.uniform(0.5, 1.0),
+        level=random.choice(["word", "line", "block"]),
     )
 
 
-def _generate_single_page_ocr_result() -> model.SinglePageOcrValue:
-    return model.SinglePageOcrValue(
-        page_number=random.randint(1, 100),
-        content=str(uuid.uuid4()),
+def generate_page_part(
+    page_number: int | None = None, width: int = 1000, height: int = 1200
+) -> model.PagePart:
+    parts_count = random.randint(1, 10)
+    parts = [generate_text_part() for _ in range(parts_count)]
+
+    return model.PagePart(
+        parts=parts,
+        metadata=model.PageMetadata(
+            page_number=page_number or random.randint(1, 10),
+            width=width,
+            height=height,
+        ),
     )
 
 
-def _generate_multi_page_ocr_result() -> model.MultiPageOcrValue:
-    return model.MultiPageOcrValue(
-        content=[
-            _generate_single_page_ocr_result() for _ in range(random.randint(1, 10))
-        ],
+def generate_processed_page(
+    document_id: str | None = None, index: int | None = None
+) -> model.ProcessedPage:
+    page_part = generate_page_part(page_number=index)
+
+    return model.ProcessedPage(
+        ref=model.PageRef(
+            document_id=document_id or generate_id(),
+            index=index or 0,
+        ),
+        result=page_part,
     )
 
 
-_OCR_RESULTS_FACTORY_MAP: dict[
-    type[model.BaseOCRValue[Any]], Callable[[], model.BaseOCRValue[Any]]
-] = {
-    model.SimpleOCRValue: _generate_simple_ocr_result,
-    model.SinglePageOcrValue: _generate_single_page_ocr_result,
-    model.MultiPageOcrValue: _generate_multi_page_ocr_result,
-}
+def generate_ocr_result(
+    document_id: str | None = None, pages_count: int | None = None
+) -> model.Result:
+    if pages_count is None:
+        pages_count = random.randint(1, 10)
 
+    doc_id = document_id or generate_id()
 
-@overload
-def ocr_value_factory(
-    value_type: type[model.SimpleOCRValue],
-) -> model.SimpleOCRValue: ...
+    content = [
+        generate_processed_page(document_id=doc_id, index=i) for i in range(pages_count)
+    ]
 
-
-@overload
-def ocr_value_factory(
-    value_type: type[model.SinglePageOcrValue],
-) -> model.SinglePageOcrValue: ...
-
-
-@overload
-def ocr_value_factory(
-    value_type: type[model.MultiPageOcrValue],
-) -> model.MultiPageOcrValue: ...
-
-
-@overload
-def ocr_value_factory[ValueT: BaseOCRValue[Any]](
-    value_type: type[ValueT],
-) -> ValueT: ...
-
-
-def ocr_value_factory(
-    value_type: type[BaseOCRValue[Any]],
-) -> model.BaseOCRValue[Any]:
-    try:
-        factory_func = _OCR_RESULTS_FACTORY_MAP[value_type]
-    except KeyError:
-        raise ValueError(
-            f"Unknown value type for OCR Results factory: {value_type}"
-        ) from None
-
-    result = factory_func()
-
-    # mypy/runtime safety net
-    if not isinstance(result, value_type):
-        raise TypeError(
-            f"Factory for {value_type.__name__} returned wrong type: {type(result).__name__}"
-        )
+    result = model.Result(
+        id=generate_id(),
+        job_id=generate_id(),
+        content=content,
+    )
 
     return result
 
 
-# --- OCR Results Factories ---
-
-
-def generate_ocr_result[ValueT: OCRValueTypes](
-    value_type: type[ValueT],
-    job_id: str | None = None,
-) -> OCRResult[ValueT]:
-    """Generate single OCR result for given value_type."""
-    return model.OCRResult(
-        id=generate_id(),
-        job_id=job_id or generate_id(),
-        content=ocr_value_factory(value_type=value_type),
-    )
-
-
-def generate_ocr_results[ValueT: OCRValueTypes](
-    value_type: type[ValueT],
+def generate_ocr_results(
     results_count: int = 10,
-) -> Sequence[OCRResult[ValueT]]:
-    """Generate multiple OCR results for given value_type."""
-    return [generate_ocr_result(value_type=value_type) for _ in range(results_count)]
+) -> Sequence[model.Result]:
+    """Generate multiple OCR results."""
+    return [generate_ocr_result() for _ in range(results_count)]
