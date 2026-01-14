@@ -24,7 +24,7 @@ class DocumentResponse(BaseModel):
     file_path: str = Field(
         ..., min_length=1, max_length=500, description="Path to the stored file"
     )
-    file_type: str = Field(..., description="MIME type of the file")
+    file_type: model.FileType = Field(..., description="MIME type of the file")
     uploaded_at: datetime = Field(..., description="Upload timestamp")
     file_size_bytes: int = Field(
         ..., ge=0, description="Size of the file in bytes (must be non-negative)"
@@ -54,45 +54,41 @@ class DocumentResponse(BaseModel):
         return cls(
             id=UUID(document.id),
             file_path=document.file_path,
-            file_type=(
-                str(document.file_type.value)
-                if hasattr(document.file_type, "value")
-                else str(document.file_type)
-            ),
+            file_type=document.file_type,
             uploaded_at=document.uploaded_at,
             file_size_bytes=document.file_size_bytes,
         )
 
 
-class OCRTextPartResponse(BaseModel):
+class TextPartResponse(BaseModel):
     text: str
     confidence: float | None = None
     level: str
 
 
-class OCRPagePartResponse(BaseModel):
+class PagePartResponse(BaseModel):
     page_number: int
     width: int
     height: int
-    parts: list[OCRTextPartResponse]
+    parts: list[TextPartResponse]
 
 
-class OCRResultContentResponse(BaseModel):
-    pages: list[OCRPagePartResponse]
+class ResultContentResponse(BaseModel):
+    pages: list[PagePartResponse]
 
     @classmethod
     def from_domain(cls, result: model.Result) -> Self:
         pages = []
         for processed_page in result.content:
             parts = [
-                OCRTextPartResponse(
+                TextPartResponse(
                     text=part.text,
                     confidence=part.confidence,
                     level=part.level,
                 )
                 for part in processed_page.result.parts
             ]
-            page_response = OCRPagePartResponse(
+            page_response = PagePartResponse(
                 page_number=processed_page.result.metadata.page_number,
                 width=processed_page.result.metadata.width,
                 height=processed_page.result.metadata.height,
@@ -102,14 +98,14 @@ class OCRResultContentResponse(BaseModel):
         return cls(pages=pages)
 
 
-class OcrResultResponse(BaseModel):
+class ResultResponse(BaseModel):
     """Schema for OCR result."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(use_enum_values=False)
 
     id: UUID = Field(..., description="Result UUID")
     job_id: UUID = Field(..., description="Associated Job UUID")
-    content: OCRResultContentResponse = Field(..., description="Extracted OCR content")
+    content: ResultContentResponse = Field(..., description="Extracted OCR content")
     creation_time: datetime
 
     @classmethod
@@ -117,7 +113,7 @@ class OcrResultResponse(BaseModel):
         return cls(
             id=UUID(result.id),
             job_id=UUID(result.job_id),
-            content=OCRResultContentResponse.from_domain(result),
+            content=ResultContentResponse.from_domain(result),
             creation_time=result.creation_time,
         )
 
@@ -126,7 +122,7 @@ class DocumentWithResultResponse(BaseModel):
     """Document with its latest OCR result using composition."""
 
     document: DocumentResponse
-    latest_result: OcrResultResponse | None = None
+    latest_result: ResultResponse | None = None
 
     @classmethod
     def from_domain(
@@ -136,17 +132,17 @@ class DocumentWithResultResponse(BaseModel):
     ) -> Self:
         return cls(
             document=DocumentResponse.from_domain(document),
-            latest_result=OcrResultResponse.from_domain(result) if result else None,
+            latest_result=ResultResponse.from_domain(result) if result else None,
         )
 
 
-class CreateOCRJobRequest(BaseModel):
+class CreateJobRequest(BaseModel):
     """Request to create a new OCR job."""
 
     document_id: UUID = Field(..., description="ID of the document to process")
 
 
-class OCRJobResponse(BaseModel):
+class JobResponse(BaseModel):
     """Schema for OCR job status and metadata."""
 
     id: UUID
@@ -170,18 +166,18 @@ class OCRJobResponse(BaseModel):
         )
 
 
-class OCRJobListResponse(BaseModel):
+class JobListResponse(BaseModel):
     """Paginated list of OCR jobs."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(use_enum_values=False)
 
-    jobs: list[OCRJobResponse]
+    jobs: list[JobResponse]
     total: int
 
     @classmethod
     def from_domain(cls, jobs: list[model.Job]) -> Self:
         return cls(
-            jobs=[OCRJobResponse.from_domain(job) for job in jobs], total=len(jobs)
+            jobs=[JobResponse.from_domain(job) for job in jobs], total=len(jobs)
         )
 
 
@@ -189,6 +185,6 @@ class TaskResponse(BaseModel):
     id: UUID = Field(..., description="UUID of the task")
 
 
-class ProcessOCRJobTaskResponse(TaskResponse):
+class ProcessJobTaskResponse(TaskResponse):
     job_id: UUID
     status: JobStatus

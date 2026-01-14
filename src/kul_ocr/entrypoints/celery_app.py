@@ -3,7 +3,11 @@ import os
 from celery import Celery
 from dotenv import load_dotenv
 
+from kul_ocr.adapters.database import orm
+
 _ = load_dotenv()
+
+orm.start_mappers()
 
 BROKER_REGISTRY = {
     "rabbitmq": "RABBITMQ_BROKER_URL",
@@ -32,7 +36,7 @@ if BROKER_URL is None:
     )
 
 
-app = Celery("kul_ocr", broker=BROKER_URL)
+app = Celery("kul_ocr", broker=BROKER_URL, include=["kul_ocr.entrypoints.tasks"])
 
 app.conf.update(
     task_serializer="json",

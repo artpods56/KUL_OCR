@@ -10,7 +10,7 @@ from kul_ocr.domain.model import JobStatus
 from kul_ocr.entrypoints.celery_app import app
 from kul_ocr.entrypoints import dependencies
 from kul_ocr.entrypoints.dependencies import fresh_uow
-from kul_ocr.entrypoints.schemas import ProcessOCRJobTaskResponse
+from kul_ocr.entrypoints.schemas import ProcessJobTaskResponse
 from kul_ocr.service_layer import services
 from kul_ocr.service_layer.helpers import generate_id
 
@@ -32,7 +32,7 @@ class BaseTask(celery.Task):  # pyright: ignore[reportMissingTypeArgument]
 
 
 @app.task(bind=True, max_retries=3, base=BaseTask)
-def process_ocr_job_task(self: BaseTask, job_id: str) -> ProcessOCRJobTaskResponse:
+def process_ocr_job_task(self: BaseTask, job_id: str) -> ProcessJobTaskResponse:
     """Process an OCR job asynchronously using split transactions."""
     ocr_engine = dependencies.get_ocr_engine()
     document_loader = dependencies.get_document_loader()
@@ -61,7 +61,7 @@ def process_ocr_job_task(self: BaseTask, job_id: str) -> ProcessOCRJobTaskRespon
             uow.commit()
 
         logger.info(f"Successfully processed job {job_id}")
-        return ProcessOCRJobTaskResponse(
+        return ProcessJobTaskResponse(
             id=UUID(generate_id()), status=JobStatus.COMPLETED, job_id=UUID(job_id)
         )
 

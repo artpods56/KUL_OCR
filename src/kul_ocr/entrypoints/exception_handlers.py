@@ -20,7 +20,8 @@ class ExceptionResponseFactory:
 
 def register_handlers(app: FastAPI):
     app.add_exception_handler(
-        exceptions.UnsupportedFileTypeError, ExceptionResponseFactory(400)
+        exceptions.UnsupportedFileTypeError,
+        ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
     )
     app.add_exception_handler(
         exceptions.DocumentNotFoundError,
@@ -33,5 +34,11 @@ def register_handlers(app: FastAPI):
     )
 
     app.add_exception_handler(
-        exceptions.InvalidJobStatusError, ExceptionResponseFactory(400)
+        exceptions.InvalidJobStatusError,
+        ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
+    )
+
+    app.add_exception_handler(
+        exceptions.OCRJobNotFoundError,
+        ExceptionResponseFactory(status.HTTP_404_NOT_FOUND),
     )

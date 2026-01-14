@@ -139,7 +139,7 @@ async def test_get_latest_result_success(
     response = await client.get(f"/documents/{doc.id}/latest-result")
 
     assert response.status_code == 200
-    parsed_response = schemas.OcrResultResponse(**response.json())
+    parsed_response = schemas.ResultResponse(**response.json())
     assert str(parsed_response.id) == ocr_result.id
 
 

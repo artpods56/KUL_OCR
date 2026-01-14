@@ -59,12 +59,12 @@ def get_document(
 
 @router.get(
     "/documents/{document_id}/latest-result",
-    response_model=schemas.OcrResultResponse,
+    response_model=schemas.ResultResponse,
 )
 def get_latest_result(
     document_id: str,
     uow: dependencies.UnitOfWorkDep,
-) -> schemas.OcrResultResponse:
+) -> schemas.ResultResponse:
     result = services.get_latest_result_for_document(document_id, uow)
     if result is None:
         raise HTTPException(
@@ -111,13 +111,13 @@ endpoints:
 
 @router.post(
     "/ocr/jobs",
-    response_model=schemas.OCRJobResponse,
+    response_model=schemas.JobResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def create_ocr_job(
-    request: schemas.CreateOCRJobRequest,
+    request: schemas.CreateJobRequest,
     uow: UnitOfWorkDep,
-) -> schemas.OCRJobResponse:
+) -> schemas.JobResponse:
     return services.submit_ocr_job(str(request.document_id), uow)
 
 
@@ -125,17 +125,17 @@ def create_ocr_job(
 def start_ocr_job(
     job_id: UUID,
     uow: UnitOfWorkDep,
-) -> schemas.OCRJobResponse:
+) -> schemas.JobResponse:
     try:
         response = services.start_ocr_job_processing(job_id, uow=uow)
         tasks.process_ocr_job_task.delay(str(job_id))
         return response
     except Exception as e:
         job = services.fail_ocr_job(job_id, str(e), uow=uow)
-        return schemas.OCRJobResponse.from_domain(job)
+        return schemas.JobResponse.from_domain(job)
 
 
-@router.get("/ocr/jobs", response_model=schemas.OCRJobListResponse)
+@router.get("/ocr/jobs", response_model=schemas.JobListResponse)
 def list_ocr_jobs(
     uow: UnitOfWorkDep,
     status: Annotated[
@@ -147,7 +147,7 @@ def list_ocr_jobs(
     document_id: Annotated[
         UUID | None, Query(description="Filter by document ID")
     ] = None,
-) -> schemas.OCRJobListResponse:
+) -> schemas.JobListResponse:
     return services.get_ocr_jobs(uow=uow, status=status, document_id=document_id)
 
 

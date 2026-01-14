@@ -31,11 +31,7 @@ def test_engine(test_db_path: Path) -> Generator[Engine, None, None]:
     engine = create_engine(db_uri, isolation_level="SERIALIZABLE")
 
     # Start mappers if not already started
-    try:
-        orm.start_mappers()
-    except Exception:
-        # Mappers already started
-        pass
+    orm.start_mappers()
 
     # Create all tables
     orm.metadata.create_all(engine)

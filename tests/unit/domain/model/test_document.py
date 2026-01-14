@@ -1,8 +1,6 @@
 import time
 
-import pytest
 
-from kul_ocr.domain import model
 from kul_ocr.domain.model import Document, FileType
 
 

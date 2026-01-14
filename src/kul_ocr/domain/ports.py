@@ -21,18 +21,7 @@ class OCREngine(abc.ABC):
     SUPPORTED_FILE_TYPES: set[model.FileType]
 
     @abc.abstractmethod
-    def _initialize_engine(self) -> None:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def _validate_engine(self) -> None:
-        raise NotImplementedError
-
-    def _process_image(self, image: Image.Image) -> str:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def process_document(self, document: model.Document) -> model.OCRValueTypes:
+    def process_image(self, image: Image.Image) -> str:
         raise NotImplementedError
 
     @property
@@ -54,7 +43,9 @@ class DocumentLoader(abc.ABC):
     """Port for loading document content as a stream of images."""
 
     @abc.abstractmethod
-    def load_pages(self, document: model.Document) -> Iterator[structs.PageInput]:
+    def load_pages(
+        self, doc_input: structs.DocumentInput
+    ) -> Iterator[structs.PageInput]:
         """
         Lazily loads pages from a document.
         Returns an Iterator to prevent loading entire PDFs into memory.

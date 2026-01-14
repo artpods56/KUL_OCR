@@ -260,7 +260,7 @@ def get_ocr_jobs(
     uow: AbstractUnitOfWork,
     status: str | None = None,
     document_id: UUID | None = None,
-) -> schemas.OCRJobListResponse:
+) -> schemas.JobListResponse:
     """Gets OCR jobs with optional filtering by status and/or document ID.
 
     Args:
@@ -284,7 +284,7 @@ def get_ocr_jobs(
             jobs = [
                 j for j in jobs if j.document_id == str(document_id)
             ]  # [TODO] this asks for trouble
-        return schemas.OCRJobListResponse.from_domain(list(jobs))
+        return schemas.JobListResponse.from_domain(list(jobs))
 
 
 def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.Job]:
@@ -302,7 +302,7 @@ def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.Job]:
     return uow.jobs.list_terminal_jobs()
 
 
-def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.OCRJobResponse:
+def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResponse:
     """Submits a new OCR processing job for a document.
 
     Creates a new OCR job in PENDING status for the specified document.
@@ -341,12 +341,12 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.OCRJobR
         uow.jobs.add(ocr_job)
         uow.commit()
 
-        return schemas.OCRJobResponse.from_domain(ocr_job)
+        return schemas.JobResponse.from_domain(ocr_job)
 
 
 def start_ocr_job_processing(
     job_id: UUID, uow: AbstractUnitOfWork
-) -> schemas.OCRJobResponse:
+) -> schemas.JobResponse:
     """Marks an OCR job as processing.
 
     Retrieves the OCR job by its ID, verifies that it exists, and updates its
@@ -372,7 +372,7 @@ def start_ocr_job_processing(
 
         uow.commit()
 
-        return schemas.OCRJobResponse.from_domain(ocr_job)
+        return schemas.JobResponse.from_domain(ocr_job)
 
 
 def complete_ocr_job(
@@ -465,7 +465,7 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.Job:
 
 def get_latest_result_for_document(
     document_id: str, uow: AbstractUnitOfWork
-) -> schemas.OcrResultResponse | None:
+) -> schemas.ResultResponse | None:
     """Gets the most recent successful OCR result for a document.
 
     Finds the most recently finished job for the given document and returns its result.
@@ -496,7 +496,7 @@ def get_latest_result_for_document(
         if not result:
             return None
 
-        return schemas.OcrResultResponse.from_domain(result)
+        return schemas.ResultResponse.from_domain(result)
 
 
 # --- Document Services ---

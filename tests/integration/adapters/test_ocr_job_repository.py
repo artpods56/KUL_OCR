@@ -1,7 +1,7 @@
 import pytest
 
-from kul_ocr.domain.model import Document, FileType, OCRJob, JobStatus
-from kul_ocr.service_layer.services import generate_id
+from kul_ocr.domain.model import Document, FileType, Job, JobStatus
+from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
 
 
@@ -26,7 +26,7 @@ def document_id(uow: SqlAlchemyUnitOfWork):
 def test_can_add_and_retrieve_ocr_job(uow: SqlAlchemyUnitOfWork, document_id: str):
     """Test adding an OCR job to the database and retrieving it"""
     job_id = generate_id()
-    job = OCRJob(id=job_id, document_id=document_id, status=JobStatus.PENDING)
+    job = Job(id=job_id, document_id=document_id, status=JobStatus.PENDING)
 
     with uow:
         uow.jobs.add(job)
@@ -45,7 +45,7 @@ def test_can_list_all_jobs(uow: SqlAlchemyUnitOfWork, document_id: str):
     """Test listing all OCR jobs from the database"""
     job_ids = [generate_id() for _ in range(3)]
     jobs = [
-        OCRJob(id=job_ids[i], document_id=document_id, status=JobStatus.PENDING)
+        Job(id=job_ids[i], document_id=document_id, status=JobStatus.PENDING)
         for i in range(3)
     ]
 
@@ -74,7 +74,7 @@ def test_can_list_jobs_by_status(uow: SqlAlchemyUnitOfWork, document_id: str):
     for status, count in jobs_data:
         for _ in range(count):
             all_jobs.append(
-                OCRJob(id=generate_id(), document_id=document_id, status=status)
+                Job(id=generate_id(), document_id=document_id, status=status)
             )
 
     with uow:
@@ -111,11 +111,11 @@ def test_can_list_jobs_by_document_id(uow: SqlAlchemyUnitOfWork):
 
     # Create jobs for each document
     jobs_doc1 = [
-        OCRJob(id=generate_id(), document_id=doc1_id, status=JobStatus.PENDING)
+        Job(id=generate_id(), document_id=doc1_id, status=JobStatus.PENDING)
         for _ in range(3)
     ]
     jobs_doc2 = [
-        OCRJob(id=generate_id(), document_id=doc2_id, status=JobStatus.PENDING)
+        Job(id=generate_id(), document_id=doc2_id, status=JobStatus.PENDING)
         for _ in range(2)
     ]
 
@@ -140,11 +140,11 @@ def test_can_list_jobs_by_document_id(uow: SqlAlchemyUnitOfWork):
 def test_can_list_terminal_jobs(uow: SqlAlchemyUnitOfWork, document_id: str):
     """Test listing terminal jobs (COMPLETED or FAILED)"""
     jobs = [
-        OCRJob(id=generate_id(), document_id=document_id, status=JobStatus.PENDING),
-        OCRJob(id=generate_id(), document_id=document_id, status=JobStatus.PROCESSING),
-        OCRJob(id=generate_id(), document_id=document_id, status=JobStatus.COMPLETED),
-        OCRJob(id=generate_id(), document_id=document_id, status=JobStatus.COMPLETED),
-        OCRJob(id=generate_id(), document_id=document_id, status=JobStatus.FAILED),
+        Job(id=generate_id(), document_id=document_id, status=JobStatus.PENDING),
+        Job(id=generate_id(), document_id=document_id, status=JobStatus.PROCESSING),
+        Job(id=generate_id(), document_id=document_id, status=JobStatus.COMPLETED),
+        Job(id=generate_id(), document_id=document_id, status=JobStatus.COMPLETED),
+        Job(id=generate_id(), document_id=document_id, status=JobStatus.FAILED),
     ]
 
     with uow:
@@ -172,7 +172,7 @@ def test_get_returns_none_for_nonexistent_job(uow: SqlAlchemyUnitOfWork):
 def test_job_status_updates_are_persisted(uow: SqlAlchemyUnitOfWork, document_id: str):
     """Test that job status updates are correctly persisted"""
     job_id = generate_id()
-    job = OCRJob(id=job_id, document_id=document_id, status=JobStatus.PENDING)
+    job = Job(id=job_id, document_id=document_id, status=JobStatus.PENDING)
 
     # Add job
     with uow:
