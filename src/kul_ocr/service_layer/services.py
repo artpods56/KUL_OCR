@@ -35,7 +35,18 @@ def upload_document(
 
     Raises:
         exceptions.FileUploadError: If saving the file to storage fails.
+        ValueError: If the file extension doesn't match the declared file type.
     """
+    file_stream.seek(0)
+    actual_filename = getattr(file_stream, "name", None) or ""
+    actual_extension = Path(actual_filename).suffix.lower()
+
+    if actual_extension and actual_extension != file_type.dot_extension:
+        raise ValueError(
+            f"Document extension mismatch: declared as {file_type.dot_extension} "
+            f"but got {actual_extension}"
+        )
+
     with uow:
         document_uuid = generate_id()
         storage_file_path = Path(document_uuid + file_type.dot_extension)

@@ -2,11 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from kul_ocr.domain import model, exceptions
+from kul_ocr.domain import exceptions
 from kul_ocr.domain.model import FileType, JobStatus
 from kul_ocr.service_layer import services
 from tests import factories
-from tests.fakes.repositories import FakeDocumentRepository
 from tests.fakes.uow import FakeUnitOfWork
 from tests.fakes.storages import FakeFileStorage
 
@@ -52,7 +51,7 @@ def test_upload_document(fake_uow: FakeUnitOfWork, tmp_path: Path):
     )
 
     assert result.id is not None
-    assert result.file_type == str(FileType.PDF)
+    assert result.file_type == FileType.PDF.value
 
 
 def test_upload_document_extension_mismatch(fake_uow: FakeUnitOfWork, tmp_path: Path):
@@ -60,6 +59,7 @@ def test_upload_document_extension_mismatch(fake_uow: FakeUnitOfWork, tmp_path: 
     from io import BytesIO
 
     file_stream = BytesIO(b"fake txt content")
+    file_stream.name = "test.txt"
     fake_storage = FakeFileStorage()
 
     with pytest.raises(ValueError, match="Document extension mismatch"):
@@ -105,18 +105,27 @@ def test_get_latest_result_for_document(fake_uow: FakeUnitOfWork, tmp_path: Path
     result = services.get_latest_result_for_document(document.id, fake_uow)
 
     assert result is not None
-    assert result.id == ocr_result.id
+    assert str(result.id) == str(ocr_result.id)
 
 
 def test_get_latest_result_for_document_not_found(
     fake_uow: FakeUnitOfWork, tmp_path: Path
 ):
     """Test that getting result for non-existent document raises exception."""
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
+        services.get_latest_result_for_document("nonexistent-doc", fake_uow)
+
+
+def test_get_latest_result_for_document_no_results(
+    fake_uow: FakeUnitOfWork, tmp_path: Path
+):
+    """Test that getting result for document with no completed jobs returns None."""
     document = factories.generate_document(tmp_path)
     fake_uow.documents.add(document)
 
-    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
-        services.get_latest_result_for_document(document.id, fake_uow)
+    result = services.get_latest_result_for_document(document.id, fake_uow)
+
+    assert result is None
 
 
 def test_get_document_with_latest_result(fake_uow: FakeUnitOfWork, tmp_path: Path):
