@@ -48,7 +48,7 @@ uv run pytest
 - [Installation Guide](docs/INSTALLATION.md) - Detailed setup instructions [TODO]
 - [Contributing](docs/CONTRIBUTING.md) - How to contribute to the project
 - [Conventional Commits](docs/CONVENTIONAL_COMMITS.md) - Commit message conventions
-- [Architecture](docs/ARCHITECTURE.md) - System design and structure [TODO]
+- [Architecture](docs/ARCHITECTURE.md) - System design and structure
 
 ## License
 

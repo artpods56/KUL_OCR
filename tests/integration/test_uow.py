@@ -1,12 +1,17 @@
 from kul_ocr.domain.model import (
+    BoundingBox,
     Document,
     FileType,
-    OCRJob,
+    Job,
     JobStatus,
-    OCRResult,
-    SimpleOCRValue,
+    PageMetadata,
+    PagePart,
+    PageRef,
+    ProcessedPage,
+    Result,
+    TextPart,
 )
-from kul_ocr.service_layer.services import generate_id
+from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
 
 
@@ -88,11 +93,24 @@ def test_uow_handles_multiple_operations_in_transaction(uow: SqlAlchemyUnitOfWor
         file_size_bytes=1024,
     )
 
-    job = OCRJob(id=job_id, document_id=document_id, status=JobStatus.PENDING)
+    job = Job(id=job_id, document_id=document_id, status=JobStatus.PENDING)
 
-    result = OCRResult(
-        id=result_id, job_id=job_id, content=SimpleOCRValue(content="OCR text content")
+    processed_page = ProcessedPage(
+        ref=PageRef(document_id=document_id, index=0),
+        result=PagePart(
+            parts=[
+                TextPart(
+                    text="OCR text content",
+                    bbox=BoundingBox(x_min=0.0, y_min=0.0, x_max=100.0, y_max=50.0),
+                    confidence=0.95,
+                    level="block",
+                )
+            ],
+            metadata=PageMetadata(page_number=1, width=100, height=50),
+        ),
     )
+
+    result = Result(id=result_id, job_id=job_id, content=[processed_page])
 
     with uow:
         uow.documents.add(document)
@@ -169,7 +187,7 @@ def test_uow_updates_are_persisted(uow: SqlAlchemyUnitOfWork):
         file_size_bytes=1024,
     )
 
-    job = OCRJob(id=job_id, document_id=document_id, status=JobStatus.PENDING)
+    job = Job(id=job_id, document_id=document_id, status=JobStatus.PENDING)
 
     # Create the job
     with uow:

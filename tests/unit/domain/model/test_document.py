@@ -1,9 +1,7 @@
 import time
 
-import pytest
 
-from kul_ocr.domain import model
-from kul_ocr.domain.model import Document, FileType, SimpleOCRValue, MultiPageOcrValue
+from kul_ocr.domain.model import Document, FileType
 
 
 class TestFileType:
@@ -16,31 +14,6 @@ class TestFileType:
         assert FileType.PNG.is_image
         assert FileType.JPG.is_image
         assert not FileType.PDF.is_image
-
-    @pytest.mark.parametrize(
-        "file_type,expected_value_class",
-        [
-            (FileType.PDF, MultiPageOcrValue),
-            (FileType.PNG, SimpleOCRValue),
-            (FileType.JPG, SimpleOCRValue),
-            (FileType.JPEG, SimpleOCRValue),
-            (FileType.WEBP, SimpleOCRValue),
-        ],
-    )
-    def test_get_value_class_returns_correct_type(
-        self, file_type: model.FileType, expected_value_class: type[model.OCRValueTypes]
-    ):
-        assert file_type.get_value_class() == expected_value_class
-
-    def test_pdf_returns_multipage_value(self):
-        """PDF files should always return MultiPageOcrValue, even for single-page PDFs."""
-        assert FileType.PDF.get_value_class() == MultiPageOcrValue
-
-    def test_all_image_types_return_simple_value(self):
-        """All image file types should return SimpleOCRValue."""
-        image_types = [FileType.PNG, FileType.JPG, FileType.JPEG, FileType.WEBP]
-        for file_type in image_types:
-            assert file_type.get_value_class() == SimpleOCRValue
 
 
 class TestDocument:

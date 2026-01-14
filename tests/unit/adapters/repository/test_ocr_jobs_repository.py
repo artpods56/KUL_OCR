@@ -6,7 +6,7 @@ from tests import factories
 
 class TestOcrJobRepository:
     def test_add_and_get_job(
-        self, fake_ocr_job_repository: FakeOcrJobRepository, ocr_job: model.OCRJob
+        self, fake_ocr_job_repository: FakeOcrJobRepository, ocr_job: model.Job
     ):
         fake_ocr_job_repository.add(ocr_job)
         retrieved = fake_ocr_job_repository.get(ocr_job.id)

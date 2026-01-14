@@ -30,7 +30,7 @@ def setup_database():
     orm.start_mappers()
 
     logger.info("Fetching configuration..")
-    database_uri = get_app_config.database_uri
+    database_uri = get_app_config().database_uri
     logger.info(f"Creating database at {database_uri}")
 
     engine = create_database(database_uri)

@@ -1,129 +1,171 @@
-import io
 from pathlib import Path
 
 import pytest
 
-from kul_ocr.adapters.storages.local import LocalFileStorage
-from kul_ocr.domain.model import FileType, JobStatus, SimpleOCRValue
+from kul_ocr.domain import exceptions
+from kul_ocr.domain.model import FileType, JobStatus
 from kul_ocr.service_layer import services
-from tests.fakes.uow import FakeUnitOfWork
 from tests import factories
+from tests.fakes.uow import FakeUnitOfWork
+from tests.fakes.storages import FakeFileStorage
 
 
-# --- upload_document tests ---
+@pytest.fixture
+def fake_uow() -> FakeUnitOfWork:
+    return FakeUnitOfWork()
 
 
-@pytest.mark.parametrize(
-    "file_type", [FileType.JPEG, FileType.PNG, FileType.PDF, FileType.WEBP]
-)
-def test_upload_document(uow: FakeUnitOfWork, tmp_path: Path, file_type: FileType):
-    storage = LocalFileStorage(storage_root=tmp_path)
+def test_get_document_returns_existing_document(
+    fake_uow: FakeUnitOfWork, tmp_path: Path
+):
+    """Test getting an existing document."""
+    document = factories.generate_document(dir_path=tmp_path)
+    fake_uow.documents.add(document)
 
-    file_content = b"test content"
-    file_stream = io.BytesIO(file_content)
+    retrieved = fake_uow.documents.get(document.id)
 
-    document = services.upload_document(
+    assert retrieved is not None
+    assert retrieved.id == document.id
+
+
+def test_get_document_not_found(fake_uow: FakeUnitOfWork):
+    """Test that getting non-existent document returns None."""
+    result = fake_uow.documents.get("nonexistent-doc")
+
+    assert result is None
+
+
+def test_upload_document(fake_uow: FakeUnitOfWork, tmp_path: Path):
+    """Test uploading a document."""
+    from io import BytesIO
+
+    file_stream = BytesIO(b"fake file content")
+    fake_storage = FakeFileStorage()
+
+    result = services.upload_document(
         file_stream=file_stream,
-        file_size=0,
-        file_type=file_type,
-        storage=storage,
-        uow=uow,
-    )
-    
-    assert uow.documents.get(document_id=document.id) is not None
-    assert document.file_type == file_type.value
-    assert uow.committed
-
-
-def test_upload_document_auto_generates_id(uow: FakeUnitOfWork, tmp_path: Path):
-    """Test that document ID is auto-generated."""
-    storage = LocalFileStorage(storage_root=tmp_path)
-    file_stream = io.BytesIO(b"test content")
-
-    document = services.upload_document(
-        file_stream=file_stream,
-        file_size=0,
+        file_size=18,
         file_type=FileType.PDF,
-        storage=storage,
-        uow=uow,
+        storage=fake_storage,
+        uow=fake_uow,
     )
 
-    assert document.id is not None
-    assert len(document.id) > 0
+    assert result.id is not None
+    assert result.file_type == FileType.PDF.value
 
 
-# --- get_document_with_latest_result tests ---
+def test_upload_document_extension_mismatch(fake_uow: FakeUnitOfWork, tmp_path: Path):
+    """Test that document with mismatched extension raises ValueError."""
+    from io import BytesIO
+
+    file_stream = BytesIO(b"fake txt content")
+    file_stream.name = "test.txt"
+    fake_storage = FakeFileStorage()
+
+    with pytest.raises(ValueError, match="Document extension mismatch"):
+        services.upload_document(
+            file_stream=file_stream,
+            file_size=16,
+            file_type=FileType.PDF,
+            storage=fake_storage,
+            uow=fake_uow,
+        )
 
 
-def test_get_document_with_latest_result_success(uow: FakeUnitOfWork, tmp_path: Path):
-    """Test getting document with its latest OCR result."""
-    # Create a document
-    document = factories.generate_document(tmp_path, file_type=FileType.PDF)
-    uow.documents.add(document)
+def test_get_document_for_processing(fake_uow: FakeUnitOfWork, tmp_path: Path):
+    """Test getting document for OCR processing."""
+    document = factories.generate_document(dir_path=tmp_path)
+    fake_uow.documents.add(document)
 
-    # Create multiple completed jobs for this document
-    job1 = factories.generate_ocr_job(status=JobStatus.PENDING)
-    job1.document_id = document.id
-    job1.mark_as_processing()
-    job1.complete()
-    uow.jobs.add(job1)
+    result = services.get_document_for_processing(document.id, fake_uow)
 
-    job2 = factories.generate_ocr_job(status=JobStatus.PENDING)
-    job2.document_id = document.id
-    job2.mark_as_processing()
-    job2.complete()
-    uow.jobs.add(job2)
+    assert result.id == document.id
+    assert result.file_path == document.file_path
 
-    # Create results for both jobs
-    result1 = factories.generate_ocr_result(value_type=SimpleOCRValue, job_id=job1.id)
-    result2 = factories.generate_ocr_result(value_type=SimpleOCRValue, job_id=job2.id)
-    uow.results.add(result1)
-    uow.results.add(result2)
 
-    # Get document with latest result
-    doc, result = services.get_document_with_latest_result(document.id, uow)
+def test_get_document_for_processing_not_found(fake_uow: FakeUnitOfWork):
+    """Test getting non-existent document raises exception."""
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
+        services.get_document_for_processing("nonexistent-doc", fake_uow)
+
+
+def test_get_latest_result_for_document(fake_uow: FakeUnitOfWork, tmp_path: Path):
+    """Test getting latest result for a document."""
+    document = factories.generate_document(tmp_path)
+    job = factories.generate_ocr_job()
+    job.status = JobStatus.COMPLETED
+    job.document_id = document.id
+    ocr_result = factories.generate_ocr_result()
+    ocr_result.job_id = job.id
+
+    fake_uow.documents.add(document)
+    fake_uow.jobs.add(job)
+    fake_uow.results.add(ocr_result)
+
+    result = services.get_latest_result_for_document(document.id, fake_uow)
+
+    assert result is not None
+    assert str(result.id) == str(ocr_result.id)
+
+
+def test_get_latest_result_for_document_not_found(
+    fake_uow: FakeUnitOfWork, tmp_path: Path
+):
+    """Test that getting result for non-existent document raises exception."""
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
+        services.get_latest_result_for_document("nonexistent-doc", fake_uow)
+
+
+def test_get_latest_result_for_document_no_results(
+    fake_uow: FakeUnitOfWork, tmp_path: Path
+):
+    """Test that getting result for document with no completed jobs returns None."""
+    document = factories.generate_document(tmp_path)
+    fake_uow.documents.add(document)
+
+    result = services.get_latest_result_for_document(document.id, fake_uow)
+
+    assert result is None
+
+
+def test_get_document_with_latest_result(fake_uow: FakeUnitOfWork, tmp_path: Path):
+    """Test getting document with its latest result."""
+    document = factories.generate_document(tmp_path)
+    job = factories.generate_ocr_job()
+    job.status = JobStatus.COMPLETED
+    job.document_id = document.id
+    ocr_result = factories.generate_ocr_result()
+    ocr_result.job_id = job.id
+
+    fake_uow.documents.add(document)
+    fake_uow.jobs.add(job)
+    fake_uow.results.add(ocr_result)
+
+    doc, result = services.get_document_with_latest_result(document.id, fake_uow)
 
     assert doc.id == document.id
     assert result is not None
-    assert result.job_id == job2.id
-    assert isinstance(result.content, SimpleOCRValue)
-    assert uow.committed
+    assert result.job_id == job.id
 
 
 def test_get_document_with_latest_result_no_results(
-    uow: FakeUnitOfWork, tmp_path: Path
+    fake_uow: FakeUnitOfWork, tmp_path: Path
 ):
     """Test getting document when it has no completed jobs."""
-    # Create a document
-    document = factories.generate_document(tmp_path, file_type=FileType.PDF)
-    uow.documents.add(document)
+    document = factories.generate_document(tmp_path)
+    fake_uow.documents.add(document)
 
-    # Create only a pending job (not completed)
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     job.document_id = document.id
-    uow.jobs.add(job)
+    fake_uow.jobs.add(job)
 
-    # Get document with latest result
-    doc, result = services.get_document_with_latest_result(document.id, uow)
-
-    assert doc.id == document.id
-    assert result is None
-
-
-def test_get_document_with_latest_result_document_not_found(uow: FakeUnitOfWork):
-    """Test that getting non-existent document raises error."""
-    with pytest.raises(ValueError, match="Document .* not found"):
-        services.get_document_with_latest_result("nonexistent-doc", uow)
-
-
-def test_get_document_with_latest_result_no_jobs(uow: FakeUnitOfWork, tmp_path: Path):
-    """Test getting document when it has no jobs at all."""
-    # Create a document
-    document = factories.generate_document(tmp_path, file_type=FileType.PDF)
-    uow.documents.add(document)
-
-    # Get document with latest result
-    doc, result = services.get_document_with_latest_result(document.id, uow)
+    doc, result = services.get_document_with_latest_result(document.id, fake_uow)
 
     assert doc.id == document.id
     assert result is None
+
+
+def test_get_document_with_latest_result_document_not_found(fake_uow: FakeUnitOfWork):
+    """Test that getting non-existent document raises DocumentNotFoundError."""
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
+        services.get_document_with_latest_result("nonexistent-doc", fake_uow)

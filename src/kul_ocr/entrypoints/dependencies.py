@@ -1,11 +1,14 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Annotated, TypeAlias
 
+from fastapi import Depends
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.engine.create import create_engine
 from sqlalchemy.orm.session import Session, sessionmaker
 
 from kul_ocr import config
+from kul_ocr.adapters.loaders.filesystem import FileSystemDocumentLoader
+from kul_ocr.adapters.ocr.tesseract import TesseractOCREngine, TesseractEngineConfig
 from kul_ocr.adapters.storages import local
 from kul_ocr.domain import ports
 from kul_ocr.domain.ports import FileStorage
@@ -66,6 +69,10 @@ def get_uow() -> uow.AbstractUnitOfWork:
     )
 
 
+def fresh_uow() -> uow.AbstractUnitOfWork:
+    return uow.SqlAlchemyUnitOfWork(session_factory=get_session_factory())
+
+
 @lru_cache
 def get_engine(database_uri: str | None = None) -> Engine:
     """Get a SQLAlchemy engine for database connection.
@@ -98,4 +105,18 @@ def get_session_factory(engine: Engine | None = None) -> sessionmaker[Session]:
     return sessionmaker(bind=engine)
 
 
+def get_ocr_engine() -> ports.OCREngine:
+    """Get an engine for OCR operations."""
+    return TesseractOCREngine(config=TesseractEngineConfig.from_env())
+
+
+def get_document_loader() -> ports.DocumentLoader:
+    """Get a loader for document content."""
+    return FileSystemDocumentLoader(storage=get_file_storage())
+
+
 DEFAULT_SESSION_FACTORY = None
+
+
+UnitOfWorkDep: TypeAlias = Annotated[uow.AbstractUnitOfWork, Depends(get_uow)]
+FileStorageDep: TypeAlias = Annotated[ports.FileStorage, Depends(get_file_storage)]

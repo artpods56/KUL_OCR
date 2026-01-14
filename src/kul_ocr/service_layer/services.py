@@ -1,23 +1,11 @@
-import uuid
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Any, Iterator
+from uuid import UUID
 
-from kul_ocr.domain import exceptions, model, ports
+from kul_ocr.domain import exceptions, model, ports, structs
 from kul_ocr.entrypoints import schemas
+from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import AbstractUnitOfWork
-
-
-def generate_id() -> str:
-    """Generates a unique identifier as a string.
-
-    Creates a random UUID (version 4) used as an identifier for documents
-    and OCR jobs within the system.
-
-    Returns:
-        A unique identifier represented as a string.
-    """
-    return str(uuid.uuid4())
 
 
 # --- Document Services ---
@@ -33,38 +21,46 @@ def upload_document(
     """Uploads a document to storage and saves it in the database.
 
     Saves the provided file stream to the storage system, generates a unique ID
-    for the document, and persists its metadata in the database. If saving the
-    file fails, the transaction is rolled back.
+    for the document, and persists its metadata in the database.
 
     Args:
         file_stream: A file-like object containing the document data.
         file_size: Size of the file in bytes.
         file_type: The type/format of the file (e.g., PDF, PNG).
         storage: Storage system used to save the file.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance.
 
     Returns:
-        A DocumentResponse schema representing the uploaded document.
+        The created Document domain model.
 
     Raises:
         exceptions.FileUploadError: If saving the file to storage fails.
+        ValueError: If the file extension doesn't match the declared file type.
     """
+    file_stream.seek(0)
+    actual_filename = getattr(file_stream, "name", None) or ""
+    actual_extension = Path(actual_filename).suffix.lower()
+
+    if actual_extension and actual_extension != file_type.dot_extension:
+        raise ValueError(
+            f"Document extension mismatch: declared as {file_type.dot_extension} "
+            f"but got {actual_extension}"
+        )
+
     with uow:
         document_uuid = generate_id()
         storage_file_path = Path(document_uuid + file_type.dot_extension)
 
+        document = model.Document(
+            id=document_uuid,
+            file_path=str(storage_file_path),
+            file_type=file_type,
+            file_size_bytes=file_size,
+        )
+
         try:
-            document = model.Document(
-                id=document_uuid,
-                file_path=str(storage_file_path),
-                file_type=file_type,
-                file_size_bytes=file_size,
-            )
-
             uow.documents.add(document)
-
             storage.save(stream=file_stream, file_path=storage_file_path)
-
             uow.commit()
 
             return schemas.DocumentResponse.from_domain(document)
@@ -74,12 +70,158 @@ def upload_document(
             raise
 
 
+def _get_document_domain(document_id: str, uow: AbstractUnitOfWork) -> model.Document:
+    """Gets a document domain model by its ID.
+
+    Args:
+        document_id: The unique identifier of the document.
+        uow: Unit of Work instance.
+
+    Returns:
+        The Document domain model.
+
+    Raises:
+        exceptions.DocumentNotFoundError: If the document does not exist.
+    """
+    document = uow.documents.get(document_id)
+    if document is None:
+        raise exceptions.DocumentNotFoundError(
+            f"Document with ID {document_id} not found"
+        )
+    return document
+
+
+def get_document(
+    document_id: str | UUID, uow: AbstractUnitOfWork
+) -> schemas.DocumentResponse:
+    """Gets a document by its ID.
+
+    Args:
+        document_id: The unique identifier of the document.
+        uow: Unit of Work instance.
+
+    Returns:
+        The Document domain model.
+
+    Raises:
+        exceptions.DocumentNotFoundError: If the document does not exist.
+    """
+    with uow:
+        document = uow.documents.get(str(document_id))
+        if document is None:
+            raise exceptions.DocumentNotFoundError(
+                f"Document with ID {document_id} not found"
+            )
+        return schemas.DocumentResponse.from_domain(document)
+
+
+def get_document_for_processing(
+    document_id: str, uow: AbstractUnitOfWork
+) -> structs.DocumentInput:
+    """Gets a document for OCR processing as a plain data structure.
+
+    Extracts document data from the ORM before the session closes, avoiding
+    detached instance errors. Returns a simple dataclass without ORM dependencies.
+
+    Args:
+        document_id: The unique identifier of the document.
+        uow: Unit of Work instance.
+
+    Returns:
+        A DocumentInput containing the essential document data.
+
+    Raises:
+        exceptions.DocumentNotFoundError: If the document does not exist.
+    """
+    with uow:
+        document = uow.documents.get(document_id)
+        if document is None:
+            raise exceptions.DocumentNotFoundError(
+                f"Document with ID {document_id} not found"
+            )
+        return structs.DocumentInput(
+            id=document.id, file_path=document.file_path, file_type=document.file_type
+        )
+
+
+# --- OCR Processing Services ---
+
+
+def process_document(
+    doc_input: structs.DocumentInput,
+    ocr_engine: ports.OCREngine,
+    document_loader: ports.DocumentLoader,
+) -> model.Result:
+    """Processes a document using the provided OCR engine and loader.
+
+    Orchestrates the loading of document pages and their processing by the
+    OCR engine. Returns a Result with ProcessedPage objects.
+
+    Args:
+        doc_input: The document data to process (no ORM dependencies).
+        ocr_engine: The OCR engine to use for image processing.
+        document_loader: The loader to use for extracting images from the document.
+
+    Returns:
+        A Result containing processed pages with PagePart data.
+
+    Raises:
+        ValueError: If no content could be loaded from the document.
+    """
+    processed_pages: list[model.ProcessedPage] = []
+
+    for page_input in document_loader.load_pages(doc_input):
+        raw_text = ocr_engine.process_image(page_input.image)
+        width, height = page_input.image.size
+
+        page_part = model.wrap_text_in_page_part(
+            text=raw_text,
+            page_number=page_input.page_number,
+            width=width,
+            height=height,
+        )
+
+        processed_page = model.ProcessedPage(
+            ref=model.PageRef(document_id=doc_input.id, index=page_input.page_number),
+            result=page_part,
+        )
+        processed_pages.append(processed_page)
+
+    if not processed_pages:
+        raise ValueError(f"No content could be loaded from document {doc_input.id}")
+
+    return model.Result(
+        id=generate_id(),
+        job_id="",
+        content=processed_pages,
+    )
+
+
 # --- OCR Jobs Services ---
+
+
+def get_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> model.Job:
+    """Gets an OCR job by its ID.
+
+    Args:
+        job_id: The unique identifier of the OCR job.
+        uow: Unit of Work instance.
+
+    Returns:
+        The Job domain model.
+
+    Raises:
+        exceptions.OCRJobNotFoundError: If the job does not exist.
+    """
+    ocr_job = uow.jobs.get(job_id)
+    if ocr_job is None:
+        raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
+    return ocr_job
 
 
 def get_ocr_jobs_by_status(
     status: model.JobStatus, uow: AbstractUnitOfWork
-) -> Sequence[model.OCRJob]:
+) -> Sequence[model.Job]:
     """Gets OCR jobs filtered by status.
 
     Queries the database for all OCR jobs that match the given status. Useful
@@ -88,20 +230,17 @@ def get_ocr_jobs_by_status(
 
     Args:
         status: The status to filter OCR jobs by.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
-        A sequence of OCRJob instances matching the given status.
+        A sequence of Job instances matching the given status.
     """
-    with uow:
-        ocr_jobs = uow.jobs.list_by_status(status)
-        uow.commit()
-        return ocr_jobs
+    return uow.jobs.list_by_status(status)
 
 
 def get_ocr_jobs_by_document_id(
     document_id: str, uow: AbstractUnitOfWork
-) -> Sequence[model.OCRJob]:
+) -> Sequence[model.Job]:
     """Gets all OCR jobs for a specific document.
 
     Fetches all OCR jobs linked to the given document ID. Can be used to check
@@ -109,85 +248,105 @@ def get_ocr_jobs_by_document_id(
 
     Args:
         document_id: The unique identifier of the document.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
-        A sequence of OCRJob instances associated with the specified document.
+        A sequence of Job instances associated with the specified document.
     """
-    with uow:
-        ocr_jobs = uow.jobs.list_by_document_id(document_id)
-        uow.commit()
-        return ocr_jobs
+    return uow.jobs.list_by_document_id(document_id)
 
 
 def get_ocr_jobs(
     uow: AbstractUnitOfWork,
-    status: model.JobStatus | None = None,
-    document_id: str | None = None,
-) -> Sequence[schemas.OCRJobResponse]:
+    status: str | None = None,
+    document_id: UUID | None = None,
+) -> schemas.JobListResponse:
+    """Gets OCR jobs with optional filtering by status and/or document ID.
+
+    Args:
+        uow: Unit of Work instance.
+        status: Optional status to filter by.
+        document_id: Optional document ID to filter by.
+
+    Returns:
+        A sequence of Job domain models matching the filters.
+    """
+
     with uow:
-        jobs: Sequence[model.OCRJob]
         if status:
-            jobs = uow.jobs.list_by_status(status)
-            if document_id:
-                jobs = [j for j in jobs if j.document_id == document_id]
-        elif document_id:
-            jobs = uow.jobs.list_by_document_id(document_id)
+            if status not in [status.value for status in model.JobStatus]:
+                raise exceptions.InvalidJobStatusError(f"Invalid status '{status}'")
+
+            jobs = uow.jobs.list_by_status(model.JobStatus(status))
         else:
             jobs = uow.jobs.list_all()
-        return [schemas.OCRJobResponse.from_domain(job) for job in jobs]
+        if document_id:
+            jobs = [
+                j for j in jobs if j.document_id == str(document_id)
+            ]  # [TODO] this asks for trouble
+        return schemas.JobListResponse.from_domain(list(jobs))
 
 
-def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.OCRJob]:
+def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.Job]:
     """Gets OCR jobs that are in a terminal state.
 
     Retrieves jobs that have reached a final state (COMPLETED or FAILED).
     Useful for reporting and monitoring.
 
     Args:
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
-        A sequence of OCRJob instances that have reached a terminal state.
+        A sequence of Job instances that have reached a terminal state.
     """
-    with uow:
-        ocr_jobs = uow.jobs.list_terminal_jobs()
-        uow.commit()
-        return ocr_jobs
+    return uow.jobs.list_terminal_jobs()
 
 
-def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
+def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResponse:
     """Submits a new OCR processing job for a document.
 
-    Creates a new OCR job in PENDING status for the specified document. The job
-    will be picked up by a Celery worker for processing. Validates that the
-    document exists before creating the job.
+    Creates a new OCR job in PENDING status for the specified document.
 
     Args:
         document_id: The unique identifier of the document to process.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance.
 
     Returns:
-        The newly created OCRJob instance in PENDING status.
+        The created Job domain model.
 
     Raises:
-        ValueError: If the document with the given ID does not exist.
+        exceptions.DocumentNotFoundError: If the document with the given ID does not exist.
+        exceptions.DuplicateOCRJobError: If the document already has an active OCR job.
     """
     with uow:
-        # Verify document exists
         document = uow.documents.get(document_id)
         if document is None:
-            raise ValueError(f"Document {document_id} not found")
+            raise exceptions.DocumentNotFoundError(
+                f"Document with ID {document_id} not found"
+            )
 
-        # Create new OCR job
-        ocr_job = model.OCRJob(id=generate_id(), document_id=document_id)
+        existing_jobs = uow.jobs.list_by_document_id(document_id)
+        active_jobs = [
+            j
+            for j in existing_jobs
+            if j.status in (model.JobStatus.PENDING, model.JobStatus.PROCESSING)
+        ]
 
+        if active_jobs:
+            raise exceptions.DuplicateOCRJobError(
+                f"Document {document_id} already has a pending or processing OCR job"
+            )
+
+        ocr_job = model.Job(id=generate_id(), document_id=document_id)
         uow.jobs.add(ocr_job)
         uow.commit()
-        return ocr_job
+
+        return schemas.JobResponse.from_domain(ocr_job)
 
 
-def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
+def start_ocr_job_processing(
+    job_id: UUID, uow: AbstractUnitOfWork
+) -> schemas.JobResponse:
     """Marks an OCR job as processing.
 
     Retrieves the OCR job by its ID, verifies that it exists, and updates its
@@ -196,27 +355,81 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> model.OCRJ
 
     Args:
         job_id: The unique identifier of the OCR job to start processing.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance.
 
     Returns:
-        The OCRJob instance with its status updated to PROCESSING.
+        The Job instance with its status updated to PROCESSING.
 
     Raises:
-        ValueError: If the OCR job with the given ID does not exist.
+        exceptions.OCRJobNotFoundError: If the OCR job with the given ID does not exist.
     """
     with uow:
-        ocr_job = uow.jobs.get(job_id)
+        ocr_job = uow.jobs.get(str(job_id))
         if ocr_job is None:
-            raise ValueError(f"OCR Job {job_id} not found")
+            raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
 
-        # Domain model enforces business rules (must be PENDING)
         ocr_job.mark_as_processing()
 
         uow.commit()
+
+        return schemas.JobResponse.from_domain(ocr_job)
+
+
+def complete_ocr_job(
+    job_id: str, result: model.Result, uow: AbstractUnitOfWork
+) -> model.Job:
+    """Completes an OCR job and saves the result.
+
+    Args:
+        job_id: The unique identifier of the OCR job.
+        result: The processed OCR result with pages.
+        uow: Unit of Work instance.
+
+    Returns:
+        The updated Job instance.
+
+    Raises:
+        exceptions.OCRJobNotFoundError: If the job is not found.
+    """
+    ocr_job = uow.jobs.get(job_id)
+    if ocr_job is None:
+        raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
+
+    result.job_id = ocr_job.id
+    uow.results.add(result)
+    ocr_job.complete()
+
+    return ocr_job
+
+
+def fail_ocr_job(
+    job_id: UUID, error_message: str, uow: AbstractUnitOfWork
+) -> model.Job:
+    """Marks an OCR job as failed.
+
+    Args:
+        job_id: The unique identifier of the OCR job.
+        error_message: Description of the error.
+        uow: Unit of Work instance.
+
+    Returns:
+        The updated Job instance.
+
+    Raises:
+        exceptions.OCRJobNotFoundError: If the job is not found.
+    """
+    with uow:
+        ocr_job = uow.jobs.get(str(job_id))
+        if ocr_job is None:
+            raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
+
+        ocr_job.fail(error_message)
+        uow.commit()
+
         return ocr_job
 
 
-def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.OCRJob:
+def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.Job:
     """Retries a previously failed OCR job.
 
     Checks that the original job exists and is in the FAILED status. Creates a
@@ -225,66 +438,65 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.OCRJo
 
     Args:
         failed_job_id: The unique identifier of the failed OCR job.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance (transaction management done by caller).
 
     Returns:
-        A new OCRJob instance in PENDING status for retrying the original job.
+        A new Job instance in PENDING status for retrying the original job.
 
     Raises:
-        ValueError: If the original job does not exist or is not in FAILED status.
+        exceptions.OCRJobNotFoundError: If the original job does not exist.
+        exceptions.InvalidJobStatusError: If the job is not in FAILED status.
     """
-    with uow:
-        original_job = uow.jobs.get(failed_job_id)
-        if original_job is None:
-            raise ValueError(f"OCR Job {failed_job_id} not found")
+    original_job = uow.jobs.get(failed_job_id)
+    if original_job is None:
+        raise exceptions.OCRJobNotFoundError(f"OCR Job {failed_job_id} not found")
 
-        if original_job.status != model.JobStatus.FAILED:
-            raise ValueError(
-                f"Cannot retry job {failed_job_id} - job status is {original_job.status}, ",
-                "only failed jobs can be retried",
-            )
+    if original_job.status != model.JobStatus.FAILED:
+        raise exceptions.InvalidJobStatusError(
+            f"Cannot retry job {failed_job_id} - job status is {original_job.status}, only failed jobs can be retried",
+        )
 
-        # Create new job for the same document
-        new_job = model.OCRJob(id=generate_id(), document_id=original_job.document_id)
+    # Create new job for the same document
+    new_job = model.Job(id=generate_id(), document_id=original_job.document_id)
+    uow.jobs.add(new_job)
 
-        uow.jobs.add(new_job)
-        uow.commit()
-        return new_job
+    return new_job
 
 
 def get_latest_result_for_document(
     document_id: str, uow: AbstractUnitOfWork
-) -> model.OCRResult[Any] | None:
+) -> schemas.ResultResponse | None:
     """Gets the most recent successful OCR result for a document.
 
-    Finds all completed OCR jobs for the given document, selects the most
-    recently finished job, and returns its result. Returns None if no completed
-    jobs exist.
+    Finds the most recently finished job for the given document and returns its result.
 
     Args:
         document_id: The unique identifier of the document.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance.
 
     Returns:
-        The OCRResult of the latest completed job, or None if no completed jobs exist.
+        The Result of the latest completed job, or None if no completed jobs exist.
+
+    Raises:
+        exceptions.DocumentNotFoundError: If the document does not exist.
     """
     with uow:
-        # Get all completed jobs for this document
-        jobs = uow.jobs.list_by_document_id(document_id)
-        completed_jobs = [j for j in jobs if j.status == model.JobStatus.COMPLETED]
+        # Ensure document exists first
+        _ = _get_document_domain(document_id, uow)
 
-        if not completed_jobs:
+        # Get the most recent completed job efficiently
+        latest_job = uow.jobs.get_latest_completed_for_document(document_id)
+
+        if not latest_job:
             return None
 
-        # Get the most recent completed job
-        latest_job = max(completed_jobs, key=lambda j: j.completed_at or j.created_at)
+        # Get the result for this job efficiently
+        result = uow.results.get_by_job_id(latest_job.id)
 
-        # Get all results and find the one for this job
-        all_results = uow.results.list_all()
-        job_result = next((r for r in all_results if r.job_id == latest_job.id), None)
+        if not result:
+            return None
 
-        uow.commit()
-        return job_result
+        return schemas.ResultResponse.from_domain(result)
 
 
 # --- Document Services ---
@@ -292,53 +504,44 @@ def get_latest_result_for_document(
 
 def get_document_with_latest_result(
     document_id: str, uow: AbstractUnitOfWork
-) -> tuple[model.Document, model.OCRResult[Any] | None]:
+) -> tuple[model.Document, model.Result | None]:
     """Gets a document along with its latest OCR result, if available.
-
-    Fetches the document by ID and finds the most recent completed OCR job for
-    it. Returns the OCR result alongside the document; if no completed jobs
-    exist, the result is None.
 
     Args:
         document_id: The unique identifier of the document.
-        uow: Unit of Work instance for managing database transactions.
+        uow: Unit of Work instance.
 
     Returns:
-        A tuple containing the Document instance and the latest OCRResult
+        A tuple containing the Document instance and the latest Result
         (or None if no completed OCR jobs exist).
 
     Raises:
-        ValueError: If the document with the given ID does not exist.
+        exceptions.DocumentNotFoundError: If the document does not exist.
     """
     with uow:
-        document = uow.documents.get(document_id)
-        if document is None:
-            raise ValueError(f"Document {document_id} not found")
-
-        # Get all completed jobs for this document
-        jobs = uow.jobs.list_by_document_id(document_id)
-        completed_jobs = [j for j in jobs if j.status == model.JobStatus.COMPLETED]
+        document = _get_document_domain(document_id, uow)
+        latest_job = uow.jobs.get_latest_completed_for_document(document_id)
 
         latest_result = None
-        if completed_jobs:
-            # Get the most recent completed job
-            latest_job = max(
-                completed_jobs, key=lambda j: j.completed_at or j.created_at
-            )
+        if latest_job:
+            latest_result = uow.results.get_by_job_id(latest_job.id)
 
-            # Get all results and find the one for this job
-            all_results = uow.results.list_all()
-            latest_result = next(
-                (r for r in all_results if r.job_id == latest_job.id), None
-            )
-
-        uow.commit()
         return document, latest_result
 
 
 def download_document(
     document_id: str, storage: ports.FileStorage, uow: AbstractUnitOfWork
 ) -> tuple[Iterator[bytes], str, str] | None:
+    """Downloads a document as a streaming response.
+
+    Args:
+        document_id: The unique identifier of the document.
+        storage: File storage implementation.
+        uow: Unit of Work instance.
+
+    Returns:
+        Tuple of (stream_generator, content_type, filename) or None if not found.
+    """
     with uow:
         document = uow.documents.get(document_id)
         if not document:
