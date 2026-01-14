@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import final, override
+from typing import Any, cast, final, override
 
 import msgspec
+from msgspec import Struct, field, Meta
 from sqlalchemy import (
     Column,
     Date,
@@ -13,9 +14,8 @@ from sqlalchemy import (
     Table,
     Text,
 )
-from sqlalchemy.orm import registry, relationship
-from sqlalchemy.sql.schema import ForeignKey
-from sqlalchemy.types import TypeDecorator
+from sqlalchemy.orm.session import Session
+from sqlalchemy.sql.schema import TypeDecorator
 
 from kul_ocr.domain import model
 
