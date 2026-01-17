@@ -3,6 +3,7 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+from datetime import datetime, timedelta
 
 from kul_ocr.domain.model import JobStatus, FileType
 from kul_ocr.domain import exceptions
@@ -212,9 +213,9 @@ def test_retry_failed_job_success(uow: FakeUnitOfWork):
     # Retry the job
     new_job = services.retry_failed_job(failed_job.id, uow)
 
+    assert new_job.status == JobStatus.PENDING
     assert new_job.id != failed_job.id
     assert new_job.document_id == failed_job.document_id
-    assert new_job.status == JobStatus.PENDING
     assert new_job.error_message is None
     # Service no longer commits - that's the caller's responsibility
 
@@ -253,17 +254,20 @@ def test_get_latest_result_for_document_success(uow: FakeUnitOfWork, tmp_path: P
     uow.documents.add(document)
     document_id = document.id
 
+    now=datetime.utcnow()
     # Create multiple completed jobs for the same document
     job1 = factories.generate_ocr_job(status=JobStatus.PENDING)
     job1.document_id = document_id
     job1.mark_as_processing()
     job1.complete()
+    job1.completed_at=now
     uow.jobs.add(job1)
 
     job2 = factories.generate_ocr_job(status=JobStatus.PENDING)
     job2.document_id = document_id
     job2.mark_as_processing()
     job2.complete()
+    job2.completed_at=now+timedelta(seconds=1)
     uow.jobs.add(job2)
 
     # Create results for both jobs

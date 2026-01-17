@@ -1,3 +1,4 @@
+from sys import exception
 from typing import Annotated
 from uuid import UUID
 import logging
@@ -6,11 +7,13 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, File, UploadFile, HTTPException, status
 from fastapi import Query
 from fastapi.responses import StreamingResponse
+from httpx import _status_codes
+from starlette.status import HTTP_404_NOT_FOUND
 from kul_ocr.adapters.database import orm
 from kul_ocr.entrypoints import dependencies, exception_handlers, schemas, tasks
 from kul_ocr.entrypoints.dependencies import UnitOfWorkDep
 from kul_ocr.service_layer import parsing, services
-
+from kul_ocr.domain import exceptions
 _ = load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -114,10 +117,10 @@ endpoints:
 [x] - POST /ocr/jobs: Submit a new OCR job
 [ ] - POST /ocr/jobs/{job_id}/start: Start execution of a pending OCR job
 [ ] - POST /ocr/jobs/{job_id}/cancel: Cancel pending or running OCR job (gracefully if possible)
-[ ] - POST /ocr/jobs/{job_id}/retry: Retry a failed OCR job
+[x] - POST /ocr/jobs/{job_id}/retry: Retry a failed OCR job
 [ ] - DELETE /ocr/jobs/{job_id}: Delete OCR Job in terminal state
 [x] - GET /ocr/jobs: List OCR jobs (supports filtering by status, pagination) [TODO] pagination
-[ ] - GET /ocr/jobs/{job_id}: Get an OCR job by ID
+[x] - GET /ocr/jobs/{job_id}: Get an OCR job by ID
 """
 
 
@@ -146,6 +149,10 @@ def start_ocr_job(
         job = services.fail_ocr_job(job_id, str(e), uow=uow)
         return schemas.JobResponse.from_domain(job)
 
+@router.post("/ocr/jobs/{job_id}/retry",response_model=schemas.JobResponse,status_code=status.HTTP_201_CREATED,)
+def retry_ocr_job(job_id: UUID, uow: UnitOfWorkDep,)->schemas.JobResponse:
+    logger.info("Retry requested for OCR job %s",job_id)
+    return services.retry_ocr_job(job_id,uow)
 
 @router.get("/ocr/jobs", response_model=schemas.JobListResponse)
 def list_ocr_jobs(
@@ -162,6 +169,23 @@ def list_ocr_jobs(
 ) -> schemas.JobListResponse:
     return services.get_ocr_jobs(uow=uow, status=status, document_id=document_id)
 
+@router.get(
+    "ocr/jobs/{job_id}",
+    response_model=schemas.JobResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_ocr_job_by_id(
+    job_id:UUID,
+    uow: dependencies.UnitOfWorkDep,
+)->schemas.JobResponse:
+    try:
+        job=services.get_ocr_job(str(job_id),uow)
+        return schemas.JobResponse.from_domain(job)
+    except exceptions.OCRJobNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"OCR Job {job_id} not found"
+        )
 
 app.include_router(router)
 
