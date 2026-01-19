@@ -1,8 +1,6 @@
 class DomainException(Exception):
     """Base exception for all domain-related errors."""
-
     pass
-
 
 # Alias for backward compatibility in tests
 OCRDomainException = DomainException
@@ -10,41 +8,70 @@ OCRDomainException = DomainException
 
 class FileUploadError(DomainException):
     """Raised when a file upload operation fails."""
-
-    pass
+    def __init__(self, file_path: str, message: str | None = None):
+        self.file_path = file_path
+        self.message = message or f"Failed to upload file to: {file_path}"
+        super().__init__(self.message)
 
 
 class FileDownloadError(DomainException):
     """Raised when a file download operation fails."""
-
-    pass
+    def __init__(self, file_path: str, message: str | None = None):
+        self.file_path = file_path
+        self.message = message or f"Failed to download file from: {file_path}"
+        super().__init__(self.message)
 
 
 class UnsupportedFileTypeError(DomainException):
     """Raised when an unsupported file type is provided."""
-
-    pass
+    def __init__(self, file_type: str, message: str | None = None):
+        self.file_type = file_type
+        self.message = message or f"Unsupported file type: {file_type}"
+        super().__init__(self.message)
 
 
 class DocumentNotFoundError(DomainException):
     """Raised when a document cannot be found."""
-
-    pass
+    def __init__(self, document_id: str, message: str | None = None):
+        self.document_id = document_id
+        self.message = message or f"Document not found: {document_id}"
+        super().__init__(self.message)
 
 
 class OCRJobNotFoundError(DomainException):
     """Raised when an OCR job cannot be found."""
-
-    pass
+    def __init__(self, job_id: str, message: str | None = None):
+        self.job_id = job_id
+        self.message = message or f"OCR job not found: {job_id}"
+        super().__init__(self.message)
 
 
 class DuplicateOCRJobError(DomainException):
     """Raised when a duplicate OCR job is submitted for the same document."""
-
-    pass
+    def __init__(self, document_id: str, job_id: str | None = None, message: str | None = None):
+        self.document_id = document_id
+        self.job_id = job_id
+        self.message = message or (
+            f"Document {document_id} already has a pending or active job"
+            + (f": {job_id}" if job_id else "")
+        )
+        super().__init__(self.message)
 
 
 class InvalidJobStatusError(DomainException):
     """Raised when a job status transition is invalid."""
-
-    pass
+    def __init__(
+        self,
+        job_id: str,
+        current_status: str,
+        attempted_status: str,
+        message: str | None = None
+    ):
+        self.job_id = job_id
+        self.current_status = current_status
+        self.attempted_status = attempted_status
+        self.message = message or (
+            f"Invalid status transition for job {job_id}: "
+            f"{current_status} -> {attempted_status}"
+        )
+        super().__init__(self.message)

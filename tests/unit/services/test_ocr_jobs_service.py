@@ -160,7 +160,7 @@ def test_submit_ocr_job_success(uow: FakeUnitOfWork, tmp_path: Path):
 
 def test_submit_ocr_job_document_not_found(uow: FakeUnitOfWork):
     """Test that submitting a job for non-existent document raises error."""
-    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document not found"):
         _ = services.submit_ocr_job("nonexistent-doc", uow)
 
 
@@ -182,7 +182,7 @@ def test_start_ocr_job_processing_success(uow: FakeUnitOfWork):
 
 def test_start_ocr_job_processing_job_not_found(uow: FakeUnitOfWork):
     """Test that starting non-existent job raises error."""
-    with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR Job .* not found"):
+    with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR job not found"):
         _ = services.start_ocr_job_processing(uuid.uuid4(), uow)
 
 
@@ -194,7 +194,7 @@ def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
 
     # Attempting to start it again should fail
     with pytest.raises(
-        exceptions.InvalidJobStatusError, match="has already been processed"
+        exceptions.InvalidJobStatusError, match="Invalid status transition"
     ):
         _ = services.start_ocr_job_processing(UUID(job.id), uow)
 
@@ -221,7 +221,7 @@ def test_retry_failed_job_success(uow: FakeUnitOfWork):
 
 def test_retry_failed_job_not_found(uow: FakeUnitOfWork):
     """Test that retrying non-existent job raises error."""
-    with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR Job .* not found"):
+    with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR job not found"):
         _ = services.retry_failed_job("nonexistent-job", uow)
 
 
@@ -239,7 +239,7 @@ def test_retry_failed_job_wrong_status(uow: FakeUnitOfWork, status: JobStatus):
     uow.jobs.add(job)
 
     with pytest.raises(
-        exceptions.InvalidJobStatusError, match="only failed jobs can be retried"
+        exceptions.InvalidJobStatusError, match="Invalid status transition"
     ):
         _ = services.retry_failed_job(job.id, uow)
 
@@ -303,7 +303,7 @@ def test_get_latest_result_for_document_no_completed_jobs(
 
 def test_get_latest_result_for_document_document_not_found(uow: FakeUnitOfWork):
     """Test that DocumentNotFoundError is raised when document has no jobs."""
-    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document not found"):
         services.get_latest_result_for_document("nonexistent-doc", uow)
 
 

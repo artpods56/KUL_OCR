@@ -430,7 +430,7 @@ async def test_create_ocr_job_returns_404_for_nonexistent_document(
     response = await client.post("/ocr/jobs", json={"document_id": non_existent_id})
 
     assert response.status_code == 404
-    assert response.json()["message"] == f"Document with ID {non_existent_id} not found"
+    assert response.json()["message"] == f"Document not found: {non_existent_id}"
 
     assert len(fake_uow.jobs.list_all()) == 0
 

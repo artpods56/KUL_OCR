@@ -101,7 +101,9 @@ class Job:
     def mark_as_processing(self):
         if self.status != JobStatus.PENDING:
             raise exceptions.InvalidJobStatusError(
-                f"Job {self.id} has already been processed. Status is {self.status}"
+                job_id=self.id,
+                current_status=self.status.value,
+                attempted_status=JobStatus.PROCESSING.value,
             )
         self.started_at = datetime.now()
         self.status = JobStatus.PROCESSING
@@ -109,7 +111,9 @@ class Job:
     def complete(self):
         if self.status != JobStatus.PROCESSING:
             raise exceptions.InvalidJobStatusError(
-                f"Job {self.id} is not in processing state. Status is {self.status}"
+                job_id=self.id,
+                current_status=self.status.value,
+                attempted_status=JobStatus.COMPLETED.value,
             )
         self.status = JobStatus.COMPLETED
         self.completed_at = datetime.now()
@@ -117,7 +121,9 @@ class Job:
     def fail(self, error_message: str):
         if self.is_terminal:
             raise exceptions.InvalidJobStatusError(
-                f"Cannot fail job {self.id} - job is already terminal ({self.status})"
+                job_id=self.id,
+                current_status=self.status.value,
+                attempted_status=JobStatus.FAILED.value,
             )
         self.status = JobStatus.FAILED
         self.error_message = error_message

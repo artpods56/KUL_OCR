@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from uuid import UUID
@@ -7,8 +6,6 @@ from kul_ocr.domain import exceptions, model, ports, structs
 from kul_ocr.entrypoints import schemas
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import AbstractUnitOfWork
-
-logger = logging.getLogger(__name__)
 
 
 # --- Document Services ---
@@ -88,9 +85,7 @@ def _get_document_domain(document_id: str, uow: AbstractUnitOfWork) -> model.Doc
     """
     document = uow.documents.get(document_id)
     if document is None:
-        raise exceptions.DocumentNotFoundError(
-            f"Document with ID {document_id} not found"
-        )
+        raise exceptions.DocumentNotFoundError(document_id=document_id)
     return document
 
 
@@ -112,9 +107,7 @@ def get_document(
     with uow:
         document = uow.documents.get(str(document_id))
         if document is None:
-            raise exceptions.DocumentNotFoundError(
-                f"Document with ID {document_id} not found"
-            )
+            raise exceptions.DocumentNotFoundError(document_id=str(document_id))
         return schemas.DocumentResponse.from_domain(document)
 
 
@@ -139,9 +132,7 @@ def get_document_for_processing(
     with uow:
         document = uow.documents.get(document_id)
         if document is None:
-            raise exceptions.DocumentNotFoundError(
-                f"Document with ID {document_id} not found"
-            )
+            raise exceptions.DocumentNotFoundError(document_id=document_id)
         return structs.DocumentInput(
             id=document.id, file_path=document.file_path, file_type=document.file_type
         )
@@ -218,7 +209,7 @@ def get_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> model.Job:
     """
     ocr_job = uow.jobs.get(job_id)
     if ocr_job is None:
-        raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
+        raise exceptions.OCRJobNotFoundError(job_id=job_id)
     return ocr_job
 
 
@@ -277,16 +268,14 @@ def get_ocr_jobs(
 
     with uow:
         if status:
-            if status not in [status.value for status in model.JobStatus]:
-                raise exceptions.InvalidJobStatusError(f"Invalid status '{status}'")
+            if status not in [s.value for s in model.JobStatus]:
+                raise ValueError(f"Invalid status filter: '{status}'")
 
             jobs = uow.jobs.list_by_status(model.JobStatus(status))
         else:
             jobs = uow.jobs.list_all()
         if document_id:
-            jobs = [
-                j for j in jobs if j.document_id == str(document_id)
-            ]  # [TODO] this asks for trouble
+            jobs = [j for j in jobs if j.document_id == str(document_id)]
         return schemas.JobListResponse.from_domain(list(jobs))
 
 
@@ -326,8 +315,10 @@ def delete_ocr_job(job_id: str | UUID, uow: AbstractUnitOfWork) -> None:
 
         if not job.is_terminal:
             raise exceptions.InvalidJobStatusError(
-                f"Cannot delete job {job_id} - job is in {job.status.value} state. "
-                "Only terminal jobs (completed, failed) can be deleted."
+                job_id=str(job_id),
+                current_status=job.status.value,
+                attempted_status="terminal (completed/failed)",
+                message=f"Cannot delete job {job_id} - job is in {job.status.value} state. Only terminal jobs (completed, failed) can be deleted.",
             )
 
         result = uow.results.get_by_job_id(str(job_id))
@@ -336,8 +327,6 @@ def delete_ocr_job(job_id: str | UUID, uow: AbstractUnitOfWork) -> None:
 
         uow.jobs.delete(job)
         uow.commit()
-
-        logger.info("Deleted OCR job %s (status: %s)", job_id, job.status.value)
 
 
 def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResponse:
@@ -359,9 +348,7 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResp
     with uow:
         document = uow.documents.get(document_id)
         if document is None:
-            raise exceptions.DocumentNotFoundError(
-                f"Document with ID {document_id} not found"
-            )
+            raise exceptions.DocumentNotFoundError(document_id=document_id)
 
         existing_jobs = uow.jobs.list_by_document_id(document_id)
         active_jobs = [
@@ -372,13 +359,12 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResp
 
         if active_jobs:
             raise exceptions.DuplicateOCRJobError(
-                f"Document {document_id} already has a pending or processing OCR job"
+                document_id=document_id, job_id=active_jobs[0].id
             )
 
         ocr_job = model.Job(id=generate_id(), document_id=document_id)
         uow.jobs.add(ocr_job)
         uow.commit()
-
         return schemas.JobResponse.from_domain(ocr_job)
 
 
@@ -487,17 +473,17 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.Job:
     """
     original_job = uow.jobs.get(failed_job_id)
     if original_job is None:
-        raise exceptions.OCRJobNotFoundError(f"OCR Job {failed_job_id} not found")
+        raise exceptions.OCRJobNotFoundError(job_id=failed_job_id)
 
     if original_job.status != model.JobStatus.FAILED:
         raise exceptions.InvalidJobStatusError(
-            f"Cannot retry job {failed_job_id} - job status is {original_job.status}, only failed jobs can be retried",
+            job_id=failed_job_id,
+            current_status=original_job.status.value,
+            attempted_status=model.JobStatus.PENDING.value,
         )
 
-    # Create new job for the same document
     new_job = model.Job(id=generate_id(), document_id=original_job.document_id)
     uow.jobs.add(new_job)
-
     return new_job
 
 
