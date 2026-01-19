@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from io import BytesIO
 from pathlib import Path
 from typing import Any, cast
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -89,6 +89,30 @@ async def test_upload_document_success(
     assert len(fake_uow_docs.added) == 1
     assert fake_uow.committed is True
 
+@pytest.mark.asyncio
+async def test_upload_document_size_limit_exceeded(
+    client: AsyncClient,
+    override_dependencies: None,
+) -> None:
+    """Should return 413 when file exceeds configured size limit."""
+
+    mock_config = MagicMock()
+    mock_config.max_upload_size_mb = 10 / (1024 * 1024)
+    app.dependency_overrides[dependencies.get_config] = lambda: mock_config
+
+    try:
+        file_content = b"File size exceeds limit"
+        files = {"file": ("too_big.pdf", BytesIO(file_content), "application/pdf")}
+
+        response = await client.post("/documents", files=files)
+
+        assert response.status_code == 413
+        data = response.json()
+        assert "exceeds maximum allowed size" in data["detail"]
+        
+    finally:
+        if dependencies.get_config in app.dependency_overrides:
+            del app.dependency_overrides[dependencies.get_config]
 
 @pytest.mark.asyncio
 async def test_get_document_success(
