@@ -212,6 +212,7 @@ def get_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> model.Job:
         raise exceptions.OCRJobNotFoundError(job_id=job_id)
     return ocr_job
 
+
 def get_ocr_jobs_by_status(
     status: model.JobStatus, uow: AbstractUnitOfWork
 ) -> Sequence[model.Job]:
@@ -293,6 +294,41 @@ def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.Job]:
     return uow.jobs.list_terminal_jobs()
 
 
+def delete_ocr_job(job_id: str | UUID, uow: AbstractUnitOfWork) -> None:
+    """Deletes an OCR job in terminal state.
+
+    Only jobs that have reached a terminal state (COMPLETED, FAILED) can be deleted.
+    Associated Result records are also deleted for complete cleanup.
+
+    Args:
+        job_id: The unique identifier of the OCR job.
+        uow: Unit of Work instance.
+
+    Raises:
+        exceptions.OCRJobNotFoundError: If the job does not exist.
+        exceptions.InvalidJobStatusError: If the job is not in terminal state.
+    """
+    with uow:
+        job = uow.jobs.get(str(job_id))
+        if job is None:
+            raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
+
+        if not job.is_terminal:
+            raise exceptions.InvalidJobStatusError(
+                job_id=str(job_id),
+                current_status=job.status.value,
+                attempted_status="terminal (completed/failed)",
+                message=f"Cannot delete job {job_id} - job is in {job.status.value} state. Only terminal jobs (completed, failed) can be deleted.",
+            )
+
+        result = uow.results.get_by_job_id(str(job_id))
+        if result is not None:
+            uow.results.delete(result)
+
+        uow.jobs.delete(job)
+        uow.commit()
+
+
 def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResponse:
     """Submits a new OCR processing job for a document.
 
@@ -316,14 +352,14 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResp
 
         existing_jobs = uow.jobs.list_by_document_id(document_id)
         active_jobs = [
-            j for j in existing_jobs
+            j
+            for j in existing_jobs
             if j.status in (model.JobStatus.PENDING, model.JobStatus.PROCESSING)
         ]
 
         if active_jobs:
             raise exceptions.DuplicateOCRJobError(
-                document_id=document_id, 
-                job_id=active_jobs[0].id
+                document_id=document_id, job_id=active_jobs[0].id
             )
 
         ocr_job = model.Job(id=generate_id(), document_id=document_id)
@@ -443,7 +479,7 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.Job:
         raise exceptions.InvalidJobStatusError(
             job_id=failed_job_id,
             current_status=original_job.status.value,
-            attempted_status=model.JobStatus.PENDING.value
+            attempted_status=model.JobStatus.PENDING.value,
         )
 
     new_job = model.Job(id=generate_id(), document_id=original_job.document_id)
