@@ -50,7 +50,7 @@ def upload_document(
                 f"exceeds maximum allowed size ({config.max_upload_size_mb}MB)"
             )
         )
-        
+
     return services.upload_document(
         file_stream=file.file,
         file_size=file.size or 0,
