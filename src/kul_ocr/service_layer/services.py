@@ -575,8 +575,10 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.Job:
             attempted_status=model.JobStatus.PENDING.value,
         )
 
+    # Create new job for the same document
     new_job = model.Job(id=generate_id(), document_id=original_job.document_id)
     uow.jobs.add(new_job)
+
     return new_job
 
 
