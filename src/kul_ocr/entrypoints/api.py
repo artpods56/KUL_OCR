@@ -6,9 +6,7 @@ import logging
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, File, UploadFile, HTTPException, status
 from fastapi import Query
-from fastapi.responses import StreamingResponse
-from httpx import _status_codes
-from starlette.status import HTTP_404_NOT_FOUND
+from fastapi.responses import StreamingResponse, Response
 from kul_ocr.adapters.database import orm
 from kul_ocr.entrypoints import dependencies, exception_handlers, schemas, tasks
 from kul_ocr.entrypoints.dependencies import UnitOfWorkDep
@@ -119,7 +117,7 @@ endpoints:
 [ ] - POST /ocr/jobs/{job_id}/start: Start execution of a pending OCR job
 [ ] - POST /ocr/jobs/{job_id}/cancel: Cancel pending or running OCR job (gracefully if possible)
 [x] - POST /ocr/jobs/{job_id}/retry: Retry a failed OCR job
-[ ] - DELETE /ocr/jobs/{job_id}: Delete OCR Job in terminal state
+[x] - DELETE /ocr/jobs/{job_id}: Delete OCR Job in terminal state
 [x] - GET /ocr/jobs: List OCR jobs (supports filtering by status, pagination) [TODO] pagination
 [x] - GET /ocr/jobs/{job_id}: Get an OCR job by ID
 """
@@ -149,6 +147,19 @@ def start_ocr_job(
     except Exception as e:
         job = services.fail_ocr_job(job_id, str(e), uow=uow)
         return schemas.JobResponse.from_domain(job)
+
+
+@router.delete(
+    "/ocr/jobs/{job_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+def delete_ocr_job(
+    job_id: UUID,
+    uow: UnitOfWorkDep,
+) -> Response:
+    services.delete_ocr_job(job_id, uow)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
