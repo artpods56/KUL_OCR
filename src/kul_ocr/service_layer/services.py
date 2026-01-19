@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from uuid import UUID
@@ -6,6 +7,8 @@ from kul_ocr.domain import exceptions, model, ports, structs
 from kul_ocr.entrypoints import schemas
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import AbstractUnitOfWork
+
+logger = logging.getLogger(__name__)
 
 
 # --- Document Services ---
@@ -300,6 +303,41 @@ def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[model.Job]:
         A sequence of Job instances that have reached a terminal state.
     """
     return uow.jobs.list_terminal_jobs()
+
+
+def delete_ocr_job(job_id: str | UUID, uow: AbstractUnitOfWork) -> None:
+    """Deletes an OCR job in terminal state.
+
+    Only jobs that have reached a terminal state (COMPLETED, FAILED) can be deleted.
+    Associated Result records are also deleted for complete cleanup.
+
+    Args:
+        job_id: The unique identifier of the OCR job.
+        uow: Unit of Work instance.
+
+    Raises:
+        exceptions.OCRJobNotFoundError: If the job does not exist.
+        exceptions.InvalidJobStatusError: If the job is not in terminal state.
+    """
+    with uow:
+        job = uow.jobs.get(str(job_id))
+        if job is None:
+            raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
+
+        if not job.is_terminal:
+            raise exceptions.InvalidJobStatusError(
+                f"Cannot delete job {job_id} - job is in {job.status.value} state. "
+                "Only terminal jobs (completed, failed) can be deleted."
+            )
+
+        result = uow.results.get_by_job_id(str(job_id))
+        if result is not None:
+            uow.results.delete(result)
+
+        uow.jobs.delete(job)
+        uow.commit()
+
+        logger.info("Deleted OCR job %s (status: %s)", job_id, job.status.value)
 
 
 def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResponse:

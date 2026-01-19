@@ -305,3 +305,74 @@ def test_get_latest_result_for_document_document_not_found(uow: FakeUnitOfWork):
     """Test that DocumentNotFoundError is raised when document has no jobs."""
     with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
         services.get_latest_result_for_document("nonexistent-doc", uow)
+
+
+# --- delete_ocr_job tests ---
+
+
+def test_delete_completed_job_success(uow: FakeUnitOfWork):
+    """Test successfully deleting a completed job."""
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.mark_as_processing()
+    job.complete()
+    uow.jobs.add(job)
+
+    services.delete_ocr_job(job.id, uow)
+
+    assert uow.jobs.get(job.id) is None
+    assert uow.committed is True
+
+
+def test_delete_failed_job_success(uow: FakeUnitOfWork):
+    """Test successfully deleting a failed job."""
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.fail("Some error")
+    uow.jobs.add(job)
+
+    services.delete_ocr_job(job.id, uow)
+
+    assert uow.jobs.get(job.id) is None
+    assert uow.committed is True
+
+
+def test_delete_pending_job_raises_error(uow: FakeUnitOfWork):
+    """Test that deleting a pending job raises InvalidJobStatusError."""
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    uow.jobs.add(job)
+
+    with pytest.raises(exceptions.InvalidJobStatusError, match="Cannot delete job"):
+        services.delete_ocr_job(job.id, uow)
+
+
+def test_delete_processing_job_raises_error(uow: FakeUnitOfWork):
+    """Test that deleting a processing job raises InvalidJobStatusError."""
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.mark_as_processing()
+    uow.jobs.add(job)
+
+    with pytest.raises(exceptions.InvalidJobStatusError, match="Cannot delete job"):
+        services.delete_ocr_job(job.id, uow)
+
+
+def test_delete_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
+    """Test that deleting non-existent job raises OCRJobNotFoundError."""
+    with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR Job .* not found"):
+        services.delete_ocr_job("nonexistent-job-id", uow)
+
+
+def test_delete_job_also_deletes_associated_result(uow: FakeUnitOfWork):
+    """Test that associated result is deleted with the job."""
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.mark_as_processing()
+    job.complete()
+    uow.jobs.add(job)
+
+    result = factories.generate_ocr_result()
+    result.job_id = job.id
+    uow.results.add(result)
+
+    services.delete_ocr_job(job.id, uow)
+
+    assert uow.jobs.get(job.id) is None
+    assert uow.results.get_by_job_id(job.id) is None
+    assert uow.committed is True
