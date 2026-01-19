@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import ClassVar, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 
 from kul_ocr.domain import model
 from kul_ocr.domain.model import JobStatus
@@ -65,6 +65,13 @@ class TextPartResponse(BaseModel):
     confidence: float | None = None
     level: str
 
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence(cls, v: float | None) -> float | None:
+        if v is not None and not (0.0 <= v <= 1.0):
+            raise ValueError("Confidence must be between 0.0 and 1.0")
+        return v
+
 
 class PagePartResponse(BaseModel):
     page_number: int
@@ -72,10 +79,31 @@ class PagePartResponse(BaseModel):
     height: int
     parts: list[TextPartResponse]
 
+    @field_validator("page_number")
+    @classmethod
+    def validate_page_number(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("Page number must be at least 1")
+        return v
+
+    @field_validator("width", "height")
+    @classmethod
+    def validate_dimensions(cls, v: int, info: ValidationInfo) -> int:
+        if v <= 0:
+            raise ValueError(f"{info.field_name} must be positive (got {v})")
+        return v
+
 
 class ResultContentResponse(BaseModel):
     pages: list[PagePartResponse]
 
+    @field_validator("pages")
+    @classmethod
+    def validate_pages_not_empty(cls, v: list[PagePartResponse]) -> list[PagePartResponse]:
+        if not v:
+            raise ValueError("Result must contain at least one page")
+        return v
+        
     @classmethod
     def from_domain(cls, result: model.Result) -> Self:
         pages = []
