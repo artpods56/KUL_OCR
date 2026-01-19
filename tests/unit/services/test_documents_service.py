@@ -85,7 +85,7 @@ def test_get_document_for_processing(fake_uow: FakeUnitOfWork, tmp_path: Path):
 
 def test_get_document_for_processing_not_found(fake_uow: FakeUnitOfWork):
     """Test getting non-existent document raises exception."""
-    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document not found"):
         services.get_document_for_processing("nonexistent-doc", fake_uow)
 
 
@@ -112,7 +112,7 @@ def test_get_latest_result_for_document_not_found(
     fake_uow: FakeUnitOfWork, tmp_path: Path
 ):
     """Test that getting result for non-existent document raises exception."""
-    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document not found"):
         services.get_latest_result_for_document("nonexistent-doc", fake_uow)
 
 
@@ -167,5 +167,5 @@ def test_get_document_with_latest_result_no_results(
 
 def test_get_document_with_latest_result_document_not_found(fake_uow: FakeUnitOfWork):
     """Test that getting non-existent document raises DocumentNotFoundError."""
-    with pytest.raises(exceptions.DocumentNotFoundError, match="Document .* not found"):
+    with pytest.raises(exceptions.DocumentNotFoundError, match="Document not found"):
         services.get_document_with_latest_result("nonexistent-doc", fake_uow)
