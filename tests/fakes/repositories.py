@@ -71,6 +71,10 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
             return None
         return max(completed, key=lambda j: j.completed_at or j.created_at)
 
+    @override
+    def delete(self, ocr_job: model.Job) -> None:
+        self._jobs.pop(ocr_job.id, None)
+
 
 @final
 class FakeOcrResultRepository(AbstractOCRResultRepository):
@@ -94,3 +98,7 @@ class FakeOcrResultRepository(AbstractOCRResultRepository):
     @override
     def get_by_job_id(self, job_id: str) -> model.Result | None:
         return next((r for r in self._results.values() if r.job_id == job_id), None)
+
+    @override
+    def delete(self, ocr_result: model.Result) -> None:
+        self._results.pop(ocr_result.id, None)

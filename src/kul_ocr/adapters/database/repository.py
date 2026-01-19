@@ -59,6 +59,10 @@ class AbstractOCRJobRepository(abc.ABC):
     def get_latest_completed_for_document(self, document_id: str) -> model.Job | None:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def delete(self, ocr_job: model.Job) -> None:
+        raise NotImplementedError
+
 
 class AbstractOCRResultRepository(abc.ABC):
     """Abstract base class defining the interface for OCR result repositories."""
@@ -77,6 +81,10 @@ class AbstractOCRResultRepository(abc.ABC):
 
     @abc.abstractmethod
     def get_by_job_id(self, job_id: str) -> model.Result | None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def delete(self, ocr_result: model.Result) -> None:
         raise NotImplementedError
 
 
@@ -156,6 +164,10 @@ class SQLAlchemyOcrJobRepository(AbstractOCRJobRepository):
         )
         return self._session.scalar(statement)
 
+    @override
+    def delete(self, ocr_job: model.Job) -> None:
+        self._session.delete(ocr_job)
+
 
 @final
 class SQLAlchemyOcrResultRepository(AbstractOCRResultRepository):
@@ -182,3 +194,7 @@ class SQLAlchemyOcrResultRepository(AbstractOCRResultRepository):
     def get_by_job_id(self, job_id: str) -> model.Result | None:
         statement = select(model.Result).where(orm.ocr_results.c.job_id == job_id)
         return self._session.scalar(statement)
+
+    @override
+    def delete(self, ocr_result: model.Result) -> None:
+        self._session.delete(ocr_result)
