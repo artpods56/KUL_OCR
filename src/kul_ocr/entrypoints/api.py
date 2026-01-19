@@ -5,7 +5,7 @@ import logging
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, File, UploadFile, HTTPException, status
 from fastapi import Query
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import StreamingResponse
 from kul_ocr.adapters.database import orm
 from kul_ocr.entrypoints import dependencies, exception_handlers, schemas, tasks
 from kul_ocr.entrypoints.dependencies import UnitOfWorkDep
@@ -36,7 +36,19 @@ def upload_document(
     file: Annotated[UploadFile, File()],
     storage: dependencies.FileStorageDep,
     uow: UnitOfWorkDep,
+    config: dependencies.AppConfigDep,
 ) -> schemas.DocumentResponse:
+    max_bytes = config.max_upload_size_mb * 1024 * 1024
+
+    if file.size and file.size > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=(
+                f"File size ({file.size / 1024 / 1024:.2f}MB) "
+                f"exceeds maximum allowed size ({config.max_upload_size_mb}MB)"
+            )
+        )
+        
     return services.upload_document(
         file_stream=file.file,
         file_size=file.size or 0,
@@ -103,7 +115,7 @@ endpoints:
 [ ] - POST /ocr/jobs/{job_id}/start: Start execution of a pending OCR job
 [ ] - POST /ocr/jobs/{job_id}/cancel: Cancel pending or running OCR job (gracefully if possible)
 [ ] - POST /ocr/jobs/{job_id}/retry: Retry a failed OCR job
-[x] - DELETE /ocr/jobs/{job_id}: Delete OCR Job in terminal state
+[ ] - DELETE /ocr/jobs/{job_id}: Delete OCR Job in terminal state
 [x] - GET /ocr/jobs: List OCR jobs (supports filtering by status, pagination) [TODO] pagination
 [ ] - GET /ocr/jobs/{job_id}: Get an OCR job by ID
 """
@@ -133,19 +145,6 @@ def start_ocr_job(
     except Exception as e:
         job = services.fail_ocr_job(job_id, str(e), uow=uow)
         return schemas.JobResponse.from_domain(job)
-
-
-@router.delete(
-    "/ocr/jobs/{job_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    response_class=Response,
-)
-def delete_ocr_job(
-    job_id: UUID,
-    uow: UnitOfWorkDep,
-) -> Response:
-    services.delete_ocr_job(job_id, uow)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/ocr/jobs", response_model=schemas.JobListResponse)

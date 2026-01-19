@@ -64,6 +64,14 @@ class AppConfig(DatabaseSettings):
 
     logs_dir: Path
 
+    max_upload_size_mb: int = 50
+
+    @field_validator("max_upload_size_mb")
+    @classmethod
+    def validate_max_upload_size(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Max upload size must be positive")
+        return v
 
 @lru_cache()
 def get_app_config():

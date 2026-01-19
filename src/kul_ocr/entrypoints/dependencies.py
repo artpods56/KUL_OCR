@@ -120,3 +120,4 @@ DEFAULT_SESSION_FACTORY = None
 
 UnitOfWorkDep: TypeAlias = Annotated[uow.AbstractUnitOfWork, Depends(get_uow)]
 FileStorageDep: TypeAlias = Annotated[ports.FileStorage, Depends(get_file_storage)]
+AppConfigDep: TypeAlias = Annotated[config.AppConfig, Depends(get_config)]
