@@ -3,6 +3,7 @@ from uuid import UUID
 import logging
 
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import APIRouter, FastAPI, File, UploadFile, HTTPException, status
 from fastapi import Query
 from fastapi.responses import StreamingResponse, Response
