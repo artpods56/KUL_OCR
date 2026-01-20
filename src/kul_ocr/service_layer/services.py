@@ -42,9 +42,7 @@ def upload_document(
         ValueError: If the file extension doesn't match the declared file type.
     """
     logger.info(
-        "Starting document upload",
-        file_type=file_type.value,
-        file_size_bytes=file_size
+        "Starting document upload", file_type=file_type.value, file_size_bytes=file_size
     )
 
     file_stream.seek(0)
@@ -76,7 +74,7 @@ def upload_document(
             logger.info(
                 "Document uploaded successfully",
                 document_id=str(document.id),
-                file_path=str(storage_file_path)
+                file_path=str(storage_file_path),
             )
 
             return schemas.DocumentResponse.from_domain(document)
@@ -86,7 +84,7 @@ def upload_document(
                 "Document upload failed",
                 document_id=document_uuid,
                 error=str(e),
-                exc_info=True
+                exc_info=True,
             )
             uow.rollback()
             raise
@@ -184,10 +182,7 @@ def process_document(
     Raises:
         ValueError: If no content could be loaded from the document.
     """
-    logger.info(
-        "Starting OCR processing",
-        document_id=str(doc_input.id)
-    )
+    logger.info("Starting OCR processing", document_id=str(doc_input.id))
 
     processed_pages: list[model.ProcessedPage] = []
 
@@ -204,7 +199,9 @@ def process_document(
             )
 
             processed_page = model.ProcessedPage(
-                ref=model.PageRef(document_id=doc_input.id, index=page_input.page_number),
+                ref=model.PageRef(
+                    document_id=doc_input.id, index=page_input.page_number
+                ),
                 result=page_part,
             )
             processed_pages.append(processed_page)
@@ -221,7 +218,7 @@ def process_document(
         logger.info(
             "OCR processing completed",
             document_id=str(doc_input.id),
-            pages_processed=len(result.content)
+            pages_processed=len(result.content),
         )
 
         return result
@@ -231,7 +228,7 @@ def process_document(
             "OCR processing failed",
             document_id=str(doc_input.id),
             error=str(e),
-            exc_info=True
+            exc_info=True,
         )
         raise
 
@@ -242,9 +239,14 @@ def process_document(
 def get_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> model.Job:
     """Gets an OCR job by its ID.
 
+    Note: This function should only be called from within an active UoW context
+    (e.g., from Celery tasks that manage their own UoW lifecycle), as the returned
+    Job object will be detached from the session after the UoW context exits.
+    For API endpoints, use get_ocr_job_response instead.
+
     Args:
         job_id: The unique identifier of the OCR job.
-        uow: Unit of Work instance.
+        uow: Unit of Work instance (caller must manage the context).
 
     Returns:
         The Job domain model.
@@ -256,6 +258,29 @@ def get_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> model.Job:
     if ocr_job is None:
         raise exceptions.OCRJobNotFoundError(job_id=job_id)
     return ocr_job
+
+
+def get_ocr_job_response(job_id: str, uow: AbstractUnitOfWork) -> schemas.JobResponse:
+    """Gets an OCR job by its ID and returns it as a response schema.
+
+    This function is designed for API endpoints where the response needs to be
+    serialized after the UoW context exits.
+
+    Args:
+        job_id: The unique identifier of the OCR job.
+        uow: Unit of Work instance.
+
+    Returns:
+        The JobResponse schema.
+
+    Raises:
+        exceptions.OCRJobNotFoundError: If the job does not exist.
+    """
+    with uow:
+        ocr_job = uow.jobs.get(job_id)
+        if ocr_job is None:
+            raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
+        return schemas.JobResponse.from_domain(ocr_job)
 
 
 def get_ocr_jobs_by_status(
@@ -274,7 +299,8 @@ def get_ocr_jobs_by_status(
     Returns:
         A sequence of Job instances matching the given status.
     """
-    return uow.jobs.list_by_status(status)
+    with uow:
+        return uow.jobs.list_by_status(status)
 
 
 def get_ocr_jobs_by_document_id(
@@ -292,7 +318,8 @@ def get_ocr_jobs_by_document_id(
     Returns:
         A sequence of Job instances associated with the specified document.
     """
-    return uow.jobs.list_by_document_id(document_id)
+    with uow:
+        return uow.jobs.list_by_document_id(document_id)
 
 
 def get_ocr_jobs(
@@ -396,10 +423,7 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResp
         exceptions.DocumentNotFoundError: If the document with the given ID does not exist.
         exceptions.DuplicateOCRJobError: If the document already has an active OCR job.
     """
-    logger.info(
-        "Submitting OCR job",
-        document_id=document_id
-    )
+    logger.info("Submitting OCR job", document_id=document_id)
 
     with uow:
         document = uow.documents.get(document_id)
@@ -422,11 +446,7 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResp
         uow.jobs.add(ocr_job)
         uow.commit()
 
-        logger.info(
-            "OCR job created",
-            job_id=str(ocr_job.id),
-            document_id=document_id
-        )
+        logger.info("OCR job created", job_id=str(ocr_job.id), document_id=document_id)
 
         return schemas.JobResponse.from_domain(ocr_job)
 
@@ -545,9 +565,18 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.Job:
             attempted_status=model.JobStatus.PENDING.value,
         )
 
+    # Create new job for the same document
     new_job = model.Job(id=generate_id(), document_id=original_job.document_id)
     uow.jobs.add(new_job)
+
     return new_job
+
+
+def retry_ocr_job(job_id: UUID, uow: AbstractUnitOfWork) -> schemas.JobResponse:
+    with uow:
+        new_job = retry_failed_job(str(job_id), uow)
+        uow.commit()
+        return schemas.JobResponse.from_domain(new_job)
 
 
 def get_latest_result_for_document(

@@ -1,6 +1,7 @@
 import tempfile
 from pathlib import Path
-from typing import Callable, Generator, Any
+from collections.abc import Callable, Generator
+from typing import Any
 
 import pytest
 from sqlalchemy import create_engine

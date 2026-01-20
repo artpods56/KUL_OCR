@@ -44,6 +44,24 @@ def generate_document(
     )
 
 
+def generate_document_without_file(
+    file_type: model.FileType | None = None, file_size_in_bytes: int = 0
+) -> model.Document:
+    """Generate a document entity without requiring an actual file on disk.
+
+    Useful for database integration tests where the file storage is not being tested.
+    """
+    file_type = file_type or random.choice(list(model.FileType))
+    document_id = generate_id()
+
+    return model.Document(
+        id=document_id,
+        file_path=f"/fake/path/{document_id}{file_type.dot_extension}",
+        file_type=file_type,
+        file_size_bytes=file_size_in_bytes,
+    )
+
+
 def generate_documents(
     dir_path: Path, documents_count: int = 10, file_type: model.FileType | None = None
 ) -> Sequence[model.Document]:

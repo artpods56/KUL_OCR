@@ -13,7 +13,7 @@ class ExceptionResponseFactory:
 
     def __call__(self, request: Request, exception: Exception) -> JSONResponse:
         return JSONResponse(
-            content={"message": getattr(exception, "message", str(exception))},
+            content={"detail": getattr(exception, "message", str(exception))},
             status_code=self.status_code,
         )
 
@@ -40,9 +40,8 @@ def register_handlers(app: FastAPI):
 
     app.add_exception_handler(
         exceptions.UnknownJobStatusError,
-        ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST)
+        ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
     )
-
 
     app.add_exception_handler(
         exceptions.OCRJobNotFoundError,

@@ -1,3 +1,4 @@
+from sys import exception
 from typing import Annotated
 from uuid import UUID
 import logging
@@ -5,11 +6,12 @@ import logging
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, File, UploadFile, HTTPException, status
 from fastapi import Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from kul_ocr.adapters.database import orm
 from kul_ocr.entrypoints import dependencies, exception_handlers, schemas, tasks
 from kul_ocr.entrypoints.dependencies import UnitOfWorkDep
 from kul_ocr.service_layer import parsing, services
+from kul_ocr.domain import exceptions
 
 _ = load_dotenv()
 
@@ -46,9 +48,9 @@ def upload_document(
             detail=(
                 f"File size ({file.size / 1024 / 1024:.2f}MB) "
                 f"exceeds maximum allowed size ({config.max_upload_size_mb}MB)"
-            )
+            ),
         )
-        
+
     return services.upload_document(
         file_stream=file.file,
         file_size=file.size or 0,
@@ -114,10 +116,10 @@ endpoints:
 [x] - POST /ocr/jobs: Submit a new OCR job
 [ ] - POST /ocr/jobs/{job_id}/start: Start execution of a pending OCR job
 [ ] - POST /ocr/jobs/{job_id}/cancel: Cancel pending or running OCR job (gracefully if possible)
-[ ] - POST /ocr/jobs/{job_id}/retry: Retry a failed OCR job
-[ ] - DELETE /ocr/jobs/{job_id}: Delete OCR Job in terminal state
+[x] - POST /ocr/jobs/{job_id}/retry: Retry a failed OCR job
+[x] - DELETE /ocr/jobs/{job_id}: Delete OCR Job in terminal state
 [x] - GET /ocr/jobs: List OCR jobs (supports filtering by status, pagination) [TODO] pagination
-[ ] - GET /ocr/jobs/{job_id}: Get an OCR job by ID
+[x] - GET /ocr/jobs/{job_id}: Get an OCR job by ID
 """
 
 
@@ -147,6 +149,32 @@ def start_ocr_job(
         return schemas.JobResponse.from_domain(job)
 
 
+@router.delete(
+    "/ocr/jobs/{job_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+def delete_ocr_job(
+    job_id: UUID,
+    uow: UnitOfWorkDep,
+) -> Response:
+    services.delete_ocr_job(job_id, uow)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/ocr/jobs/{job_id}/retry",
+    response_model=schemas.JobResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def retry_ocr_job(
+    job_id: UUID,
+    uow: UnitOfWorkDep,
+) -> schemas.JobResponse:
+    logger.info("Retry requested for OCR job %s", job_id)
+    return services.retry_ocr_job(job_id, uow)
+
+
 @router.get("/ocr/jobs", response_model=schemas.JobListResponse)
 def list_ocr_jobs(
     uow: UnitOfWorkDep,
@@ -161,6 +189,18 @@ def list_ocr_jobs(
     ] = None,
 ) -> schemas.JobListResponse:
     return services.get_ocr_jobs(uow=uow, status=status, document_id=document_id)
+
+
+@router.get(
+    "/ocr/jobs/{job_id}",
+    response_model=schemas.JobResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_ocr_job_by_id(
+    job_id: UUID,
+    uow: dependencies.UnitOfWorkDep,
+) -> schemas.JobResponse:
+    return services.get_ocr_job_response(str(job_id), uow)
 
 
 app.include_router(router)

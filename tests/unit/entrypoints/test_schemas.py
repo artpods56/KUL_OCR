@@ -45,7 +45,7 @@ class TestDocumentResponse:
         assert response.file_type == file_type.value
 
 
-class TestEnum(Enum):
+class SampleEnum(Enum):
     TEST = "test"
 
 
@@ -60,7 +60,7 @@ class TestDocumentResponseValidation:
     VALID_TYPE = model.FileType.PDF
     VALID_SIZE = 1024
 
-    INVALID_ENUM = TestEnum.TEST
+    INVALID_ENUM = SampleEnum.TEST
 
     def test_rejects_invalid_uuid(self):
         with pytest.raises((ValidationError, ValueError), match="UUID"):

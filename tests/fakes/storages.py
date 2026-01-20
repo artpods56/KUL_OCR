@@ -2,7 +2,8 @@ from contextlib import contextmanager
 from io import BytesIO
 import pathlib
 from dataclasses import dataclass, field
-from typing import Iterator, override, Self
+from collections.abc import Iterator
+from typing import override, Self
 
 from kul_ocr import config
 from kul_ocr.domain import ports

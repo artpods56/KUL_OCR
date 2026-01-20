@@ -1,10 +1,11 @@
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from kul_ocr.entrypoints.api import app
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client():
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
