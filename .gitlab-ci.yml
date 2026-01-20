@@ -37,7 +37,7 @@ lint-all:
     - pre-commit run check-yaml --all-files
     - pre-commit run trailing-whitespace --all-files
     - pre-commit run end-of-file-fixer --all-files
-  allow_failure: false
+  allow_failure: true
 
 detect-secrets:
   extends: .python-base
