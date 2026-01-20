@@ -25,7 +25,10 @@ def test_retry_non_failed_job_raises_error(uow):
     # job.complete()
     uow.jobs.add(job)
     uow.commit()
-    with pytest.raises(exceptions.InvalidJobStatusError):
+    with pytest.raises(
+        exceptions.InvalidJobStatusTransitionError,
+        match="Invalid status transition for job",
+    ):
         services.retry_ocr_job(UUID(job.id), uow)
 
 

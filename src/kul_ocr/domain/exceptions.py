@@ -1,6 +1,8 @@
 class DomainException(Exception):
     """Base exception for all domain-related errors."""
+
     pass
+
 
 # Alias for backward compatibility in tests
 OCRDomainException = DomainException
@@ -8,6 +10,7 @@ OCRDomainException = DomainException
 
 class FileUploadError(DomainException):
     """Raised when a file upload operation fails."""
+
     def __init__(self, file_path: str, message: str | None = None):
         self.file_path = file_path
         self.message = message or f"Failed to upload file to: {file_path}"
@@ -16,6 +19,7 @@ class FileUploadError(DomainException):
 
 class FileDownloadError(DomainException):
     """Raised when a file download operation fails."""
+
     def __init__(self, file_path: str, message: str | None = None):
         self.file_path = file_path
         self.message = message or f"Failed to download file from: {file_path}"
@@ -24,6 +28,7 @@ class FileDownloadError(DomainException):
 
 class UnsupportedFileTypeError(DomainException):
     """Raised when an unsupported file type is provided."""
+
     def __init__(self, file_type: str, message: str | None = None):
         self.file_type = file_type
         self.message = message or f"Unsupported file type: {file_type}"
@@ -32,6 +37,7 @@ class UnsupportedFileTypeError(DomainException):
 
 class DocumentNotFoundError(DomainException):
     """Raised when a document cannot be found."""
+
     def __init__(self, document_id: str, message: str | None = None):
         self.document_id = document_id
         self.message = message or f"Document not found: {document_id}"
@@ -40,6 +46,7 @@ class DocumentNotFoundError(DomainException):
 
 class OCRJobNotFoundError(DomainException):
     """Raised when an OCR job cannot be found."""
+
     def __init__(self, job_id: str, message: str | None = None):
         self.job_id = job_id
         self.message = message or f"OCR job not found: {job_id}"
@@ -48,7 +55,10 @@ class OCRJobNotFoundError(DomainException):
 
 class DuplicateOCRJobError(DomainException):
     """Raised when a duplicate OCR job is submitted for the same document."""
-    def __init__(self, document_id: str, job_id: str | None = None, message: str | None = None):
+
+    def __init__(
+        self, document_id: str, job_id: str | None = None, message: str | None = None
+    ):
         self.document_id = document_id
         self.job_id = job_id
         self.message = message or (
@@ -60,12 +70,13 @@ class DuplicateOCRJobError(DomainException):
 
 class InvalidJobStatusTransitionError(DomainException):
     """Raised when a job status transition is invalid."""
+
     def __init__(
         self,
         job_id: str,
         current_status: str,
         attempted_status: str,
-        message: str | None = None
+        message: str | None = None,
     ):
         self.job_id = job_id
         self.current_status = current_status
@@ -76,8 +87,10 @@ class InvalidJobStatusTransitionError(DomainException):
         )
         super().__init__(self.message)
 
+
 class UnknownJobStatusError(DomainException):
     """Raised when an unknown job status is encountered."""
+
     def __init__(self, status: str, message: str | None = None):
         self.status = status
         self.message = message or f"Unknown job status {status}."

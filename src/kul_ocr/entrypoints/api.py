@@ -48,7 +48,7 @@ def upload_document(
             detail=(
                 f"File size ({file.size / 1024 / 1024:.2f}MB) "
                 f"exceeds maximum allowed size ({config.max_upload_size_mb}MB)"
-            )
+            ),
         )
 
     return services.upload_document(

@@ -344,7 +344,9 @@ def test_delete_pending_job_raises_error(uow: FakeUnitOfWork):
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     uow.jobs.add(job)
 
-    with pytest.raises(exceptions.InvalidJobStatusTransitionError, match="Cannot delete job"):
+    with pytest.raises(
+        exceptions.InvalidJobStatusTransitionError, match="Cannot delete job"
+    ):
         services.delete_ocr_job(job.id, uow)
 
 
@@ -354,7 +356,9 @@ def test_delete_processing_job_raises_error(uow: FakeUnitOfWork):
     job.mark_as_processing()
     uow.jobs.add(job)
 
-    with pytest.raises(exceptions.InvalidJobStatusTransitionError, match="Cannot delete job"):
+    with pytest.raises(
+        exceptions.InvalidJobStatusTransitionError, match="Cannot delete job"
+    ):
         services.delete_ocr_job(job.id, uow)
 
 

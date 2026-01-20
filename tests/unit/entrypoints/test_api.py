@@ -89,6 +89,7 @@ async def test_upload_document_success(
     assert len(fake_uow_docs.added) == 1
     assert fake_uow.committed is True
 
+
 @pytest.mark.asyncio
 async def test_upload_document_size_limit_exceeded(
     client: AsyncClient,
@@ -113,6 +114,7 @@ async def test_upload_document_size_limit_exceeded(
     finally:
         if dependencies.get_config in app.dependency_overrides:
             del app.dependency_overrides[dependencies.get_config]
+
 
 @pytest.mark.asyncio
 async def test_get_document_success(
@@ -430,7 +432,7 @@ async def test_create_ocr_job_returns_404_for_nonexistent_document(
     response = await client.post("/ocr/jobs", json={"document_id": non_existent_id})
 
     assert response.status_code == 404
-    assert response.json()["detail"] == f"Document with ID {non_existent_id} not found"
+    assert response.json()["detail"] == f"Document not found: {non_existent_id}"
 
     assert len(fake_uow.jobs.list_all()) == 0
 

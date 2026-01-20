@@ -99,11 +99,13 @@ class ResultContentResponse(BaseModel):
 
     @field_validator("pages")
     @classmethod
-    def validate_pages_not_empty(cls, v: list[PagePartResponse]) -> list[PagePartResponse]:
+    def validate_pages_not_empty(
+        cls, v: list[PagePartResponse]
+    ) -> list[PagePartResponse]:
         if not v:
             raise ValueError("Result must contain at least one page")
         return v
-        
+
     @classmethod
     def from_domain(cls, result: model.Result) -> Self:
         pages = []

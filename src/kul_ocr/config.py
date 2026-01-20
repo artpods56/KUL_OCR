@@ -73,6 +73,7 @@ class AppConfig(DatabaseSettings):
             raise ValueError("Max upload size must be positive")
         return v
 
+
 @lru_cache()
 def get_app_config():
     return AppConfig()  # pyright: ignore[reportCallIssue]
