@@ -100,7 +100,7 @@ class Job:
 
     def mark_as_processing(self):
         if self.status != JobStatus.PENDING:
-            raise exceptions.InvalidJobStatusError(
+            raise exceptions.InvalidJobStatusTransitionError(
                 job_id=self.id,
                 current_status=self.status.value,
                 attempted_status=JobStatus.PROCESSING.value,
@@ -110,7 +110,7 @@ class Job:
 
     def complete(self):
         if self.status != JobStatus.PROCESSING:
-            raise exceptions.InvalidJobStatusError(
+            raise exceptions.InvalidJobStatusTransitionError(
                 job_id=self.id,
                 current_status=self.status.value,
                 attempted_status=JobStatus.COMPLETED.value,
@@ -120,7 +120,7 @@ class Job:
 
     def fail(self, error_message: str):
         if self.is_terminal:
-            raise exceptions.InvalidJobStatusError(
+            raise exceptions.InvalidJobStatusTransitionError(
                 job_id=self.id,
                 current_status=self.status.value,
                 attempted_status=JobStatus.FAILED.value,

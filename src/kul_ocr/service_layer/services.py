@@ -314,7 +314,9 @@ def get_ocr_jobs(
     with uow:
         if status:
             if status not in [status.value for status in model.JobStatus]:
-                raise exceptions.InvalidJobStatusError(f"Invalid status '{status}'")
+                raise exceptions.UnknownJobStatusError(
+                    status=status,
+                )
 
             jobs = uow.jobs.list_by_status(model.JobStatus(status))
         else:
@@ -353,7 +355,7 @@ def delete_ocr_job(job_id: str | UUID, uow: AbstractUnitOfWork) -> None:
 
     Raises:
         exceptions.OCRJobNotFoundError: If the job does not exist.
-        exceptions.InvalidJobStatusError: If the job is not in terminal state.
+        exceptions.InvalidJobStatusTransitionError: If the job is not in terminal state.
     """
     with uow:
         job = uow.jobs.get(str(job_id))
@@ -361,7 +363,7 @@ def delete_ocr_job(job_id: str | UUID, uow: AbstractUnitOfWork) -> None:
             raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
 
         if not job.is_terminal:
-            raise exceptions.InvalidJobStatusError(
+            raise exceptions.InvalidJobStatusTransitionError(
                 job_id=str(job_id),
                 current_status=job.status.value,
                 attempted_status="terminal (completed/failed)",
@@ -530,14 +532,14 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.Job:
 
     Raises:
         exceptions.OCRJobNotFoundError: If the original job does not exist.
-        exceptions.InvalidJobStatusError: If the job is not in FAILED status.
+        exceptions.InvalidJobStatusTransitionError: If the job is not in FAILED status.
     """
     original_job = uow.jobs.get(failed_job_id)
     if original_job is None:
         raise exceptions.OCRJobNotFoundError(job_id=failed_job_id)
 
     if original_job.status != model.JobStatus.FAILED:
-        raise exceptions.InvalidJobStatusError(
+        raise exceptions.InvalidJobStatusTransitionError(
             job_id=failed_job_id,
             current_status=original_job.status.value,
             attempted_status=model.JobStatus.PENDING.value,
