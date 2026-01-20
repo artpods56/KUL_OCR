@@ -39,7 +39,7 @@ def upload_document(
     """
     file_stream.seek(0)
     actual_filename = getattr(file_stream, "name", None) or ""
-    actual_extension = Path(actual_filename).suffix.lower()
+    actual_extension = Path(str(actual_filename)).suffix.lower()
 
     if actual_extension and actual_extension != file_type.dot_extension:
         raise ValueError(
@@ -87,6 +87,20 @@ def _get_document_domain(document_id: str, uow: AbstractUnitOfWork) -> model.Doc
     if document is None:
         raise exceptions.DocumentNotFoundError(document_id=document_id)
     return document
+
+
+def get_documents(uow: AbstractUnitOfWork) -> schemas.DocumentListResponse:
+    """Gets all documents.
+
+    Args:
+        uow: Unit of Work instance.
+
+    Returns:
+        A list of all documents.
+    """
+    with uow:
+        documents = uow.documents.list_all()
+        return schemas.DocumentListResponse.from_domain(list(documents))
 
 
 def get_document(

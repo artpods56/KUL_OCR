@@ -3,11 +3,12 @@ from uuid import UUID
 import logging
 
 from dotenv import load_dotenv
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi import APIRouter, FastAPI, File, UploadFile, HTTPException, status
 from fastapi import Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
 from kul_ocr.adapters.database import orm
+from kul_ocr.domain import exceptions, model
 from kul_ocr.entrypoints import dependencies, exception_handlers, schemas, tasks
 from kul_ocr.entrypoints.dependencies import UnitOfWorkDep
 from kul_ocr.service_layer import parsing, services
@@ -19,6 +20,15 @@ logger = logging.getLogger(__name__)
 orm.start_mappers()
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 router = APIRouter()
 
 
@@ -26,6 +36,7 @@ router = APIRouter()
 --- Documents API ---
 endpoints:
 [x] - POST /documents: Upload a document
+[x] - GET /documents: List all documents
 [x] - GET /documents/{document_id}: Get a document by ID
 [x] - GET /documents/{document_id}/latest-result: Get the latest OCR result for a document
 [x] - GET /documents/{document_id}/download: Download a document
@@ -45,6 +56,13 @@ def upload_document(
         storage=storage,
         uow=uow,
     )
+
+
+@router.get("/documents", response_model=schemas.DocumentListResponse)
+def list_documents(
+    uow: UnitOfWorkDep,
+) -> schemas.DocumentListResponse:
+    return services.get_documents(uow)
 
 
 @router.get(
@@ -163,6 +181,41 @@ def list_ocr_jobs(
     ] = None,
 ) -> schemas.JobListResponse:
     return services.get_ocr_jobs(uow=uow, status=status, document_id=document_id)
+
+
+@router.post("/ocr/jobs/{job_id}/cancel")
+def cancel_ocr_job(
+    job_id: UUID,
+    uow: UnitOfWorkDep,
+) -> schemas.JobResponse:
+    try:
+        job = services.get_ocr_job(str(job_id), uow)
+        if job.status == model.JobStatus.PENDING:
+            job.fail("Cancelled by user")
+            uow.commit()
+        elif job.status == model.JobStatus.PROCESSING:
+            job.fail(
+                "Cancelled by user - note: processing may continue until worker picks up cancellation"
+            )
+            uow.commit()
+        return schemas.JobResponse.from_domain(job)
+    except exceptions.OCRJobNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+
+@router.post("/ocr/jobs/{job_id}/retry")
+def retry_ocr_job(
+    job_id: UUID,
+    uow: UnitOfWorkDep,
+) -> schemas.JobResponse:
+    try:
+        new_job = services.retry_failed_job(str(job_id), uow)
+        uow.commit()
+        return schemas.JobResponse.from_domain(new_job)
+    except exceptions.OCRJobNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    except exceptions.InvalidJobStatusError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 app.include_router(router)
