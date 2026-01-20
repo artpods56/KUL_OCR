@@ -70,6 +70,20 @@ class DocumentResponse(BaseModel):
         )
 
 
+class DocumentListResponse(BaseModel):
+    """List of documents."""
+
+    documents: list[DocumentResponse]
+    total: int
+
+    @classmethod
+    def from_domain(cls, documents: list[model.Document]) -> Self:
+        return cls(
+            documents=[DocumentResponse.from_domain(doc) for doc in documents],
+            total=len(documents),
+        )
+
+
 class TextPartResponse(BaseModel):
     text: str
     confidence: float | None = None
