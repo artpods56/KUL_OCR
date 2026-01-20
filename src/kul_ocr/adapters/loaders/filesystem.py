@@ -1,6 +1,7 @@
 import io
 from pathlib import Path
-from typing import Iterator, cast, override
+from collections.abc import Iterator
+from typing import cast, override
 
 import pymupdf  # PyMuPDF
 from PIL import Image

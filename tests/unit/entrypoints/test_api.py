@@ -109,7 +109,7 @@ async def test_upload_document_size_limit_exceeded(
         assert response.status_code == 413
         data = response.json()
         assert "exceeds maximum allowed size" in data["detail"]
-        
+
     finally:
         if dependencies.get_config in app.dependency_overrides:
             del app.dependency_overrides[dependencies.get_config]
@@ -140,7 +140,7 @@ async def test_get_document_not_found(
     response = await client.get("/documents/00000000-0000-0000-0000-000000000000")
 
     assert response.status_code == 404
-    assert "message" in response.json()
+    assert "detail" in response.json()
 
 
 @pytest.mark.asyncio
@@ -342,8 +342,8 @@ async def test_list_ocr_jobs_returns_400_for_invalid_status(
     assert response.status_code == 400
     data: dict[str, Any] = response.json()
 
-    assert "message" in data
-    error_msg: str = data["message"]
+    assert "detail" in data
+    error_msg: str = data["detail"]
     assert invalid_status in error_msg
 
 
@@ -430,7 +430,7 @@ async def test_create_ocr_job_returns_404_for_nonexistent_document(
     response = await client.post("/ocr/jobs", json={"document_id": non_existent_id})
 
     assert response.status_code == 404
-    assert response.json()["message"] == f"Document not found: {non_existent_id}"
+    assert response.json()["detail"] == f"Document with ID {non_existent_id} not found"
 
     assert len(fake_uow.jobs.list_all()) == 0
 
@@ -461,7 +461,7 @@ async def test_create_ocr_job_returns_409_when_job_already_pending(
         response = await client.post("/ocr/jobs", json={"document_id": document_id})
 
     assert response.status_code == 409
-    assert "already has a pending" in response.json()["message"]
+    assert "already has a pending" in response.json()["detail"]
 
     mock_delay.assert_not_called()
 

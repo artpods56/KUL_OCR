@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from kul_ocr.domain.model import JobStatus, FileType
 from kul_ocr.domain import exceptions
@@ -254,7 +254,7 @@ def test_get_latest_result_for_document_success(uow: FakeUnitOfWork, tmp_path: P
     uow.documents.add(document)
     document_id = document.id
 
-    now=datetime.utcnow()
+    now = datetime.now(timezone.utc)
     # Create multiple completed jobs for the same document
     job1 = factories.generate_ocr_job(status=JobStatus.PENDING)
     job1.document_id = document_id

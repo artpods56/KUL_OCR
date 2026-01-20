@@ -170,22 +170,15 @@ def list_ocr_jobs(
     return services.get_ocr_jobs(uow=uow, status=status, document_id=document_id)
 
 @router.get(
-    "ocr/jobs/{job_id}",
+    "/ocr/jobs/{job_id}",
     response_model=schemas.JobResponse,
     status_code=status.HTTP_200_OK,
 )
 def get_ocr_job_by_id(
-    job_id:UUID,
+    job_id: UUID,
     uow: dependencies.UnitOfWorkDep,
-)->schemas.JobResponse:
-    try:
-        job=services.get_ocr_job(str(job_id),uow)
-        return schemas.JobResponse.from_domain(job)
-    except exceptions.OCRJobNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"OCR Job {job_id} not found"
-        )
+) -> schemas.JobResponse:
+    return services.get_ocr_job_response(str(job_id), uow)
 
 app.include_router(router)
 

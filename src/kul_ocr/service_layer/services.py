@@ -242,9 +242,14 @@ def process_document(
 def get_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> model.Job:
     """Gets an OCR job by its ID.
 
+    Note: This function should only be called from within an active UoW context
+    (e.g., from Celery tasks that manage their own UoW lifecycle), as the returned
+    Job object will be detached from the session after the UoW context exits.
+    For API endpoints, use get_ocr_job_response instead.
+
     Args:
         job_id: The unique identifier of the OCR job.
-        uow: Unit of Work instance.
+        uow: Unit of Work instance (caller must manage the context).
 
     Returns:
         The Job domain model.
@@ -256,6 +261,29 @@ def get_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> model.Job:
     if ocr_job is None:
         raise exceptions.OCRJobNotFoundError(job_id=job_id)
     return ocr_job
+
+
+def get_ocr_job_response(job_id: str, uow: AbstractUnitOfWork) -> schemas.JobResponse:
+    """Gets an OCR job by its ID and returns it as a response schema.
+
+    This function is designed for API endpoints where the response needs to be
+    serialized after the UoW context exits.
+
+    Args:
+        job_id: The unique identifier of the OCR job.
+        uow: Unit of Work instance.
+
+    Returns:
+        The JobResponse schema.
+
+    Raises:
+        exceptions.OCRJobNotFoundError: If the job does not exist.
+    """
+    with uow:
+        ocr_job = uow.jobs.get(job_id)
+        if ocr_job is None:
+            raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
+        return schemas.JobResponse.from_domain(ocr_job)
 
 
 def get_ocr_jobs_by_status(
@@ -274,7 +302,8 @@ def get_ocr_jobs_by_status(
     Returns:
         A sequence of Job instances matching the given status.
     """
-    return uow.jobs.list_by_status(status)
+    with uow:
+        return uow.jobs.list_by_status(status)
 
 
 def get_ocr_jobs_by_document_id(
@@ -292,7 +321,8 @@ def get_ocr_jobs_by_document_id(
     Returns:
         A sequence of Job instances associated with the specified document.
     """
-    return uow.jobs.list_by_document_id(document_id)
+    with uow:
+        return uow.jobs.list_by_document_id(document_id)
 
 
 def get_ocr_jobs(
