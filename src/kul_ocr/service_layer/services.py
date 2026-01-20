@@ -2,10 +2,14 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from uuid import UUID
 
+from structlog import get_logger
+
 from kul_ocr.domain import exceptions, model, ports, structs
 from kul_ocr.entrypoints import schemas
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import AbstractUnitOfWork
+
+logger = get_logger()
 
 
 # --- Document Services ---
@@ -37,6 +41,12 @@ def upload_document(
         exceptions.FileUploadError: If saving the file to storage fails.
         ValueError: If the file extension doesn't match the declared file type.
     """
+    logger.info(
+        "Starting document upload",
+        file_type=file_type.value,
+        file_size_bytes=file_size
+    )
+
     file_stream.seek(0)
     actual_filename = getattr(file_stream, "name", None) or ""
     actual_extension = Path(actual_filename).suffix.lower()
@@ -63,9 +73,21 @@ def upload_document(
             storage.save(stream=file_stream, file_path=storage_file_path)
             uow.commit()
 
+            logger.info(
+                "Document uploaded successfully",
+                document_id=str(document.id),
+                file_path=str(storage_file_path)
+            )
+
             return schemas.DocumentResponse.from_domain(document)
 
-        except exceptions.FileUploadError:
+        except exceptions.FileUploadError as e:
+            logger.error(
+                "Document upload failed",
+                document_id=document_uuid,
+                error=str(e),
+                exc_info=True
+            )
             uow.rollback()
             raise
 
@@ -162,33 +184,56 @@ def process_document(
     Raises:
         ValueError: If no content could be loaded from the document.
     """
+    logger.info(
+        "Starting OCR processing",
+        document_id=str(doc_input.id)
+    )
+
     processed_pages: list[model.ProcessedPage] = []
 
-    for page_input in document_loader.load_pages(doc_input):
-        raw_text = ocr_engine.process_image(page_input.image)
-        width, height = page_input.image.size
+    try:
+        for page_input in document_loader.load_pages(doc_input):
+            raw_text = ocr_engine.process_image(page_input.image)
+            width, height = page_input.image.size
 
-        page_part = model.wrap_text_in_page_part(
-            text=raw_text,
-            page_number=page_input.page_number,
-            width=width,
-            height=height,
+            page_part = model.wrap_text_in_page_part(
+                text=raw_text,
+                page_number=page_input.page_number,
+                width=width,
+                height=height,
+            )
+
+            processed_page = model.ProcessedPage(
+                ref=model.PageRef(document_id=doc_input.id, index=page_input.page_number),
+                result=page_part,
+            )
+            processed_pages.append(processed_page)
+
+        if not processed_pages:
+            raise ValueError(f"No content could be loaded from document {doc_input.id}")
+
+        result = model.Result(
+            id=generate_id(),
+            job_id="",
+            content=processed_pages,
         )
 
-        processed_page = model.ProcessedPage(
-            ref=model.PageRef(document_id=doc_input.id, index=page_input.page_number),
-            result=page_part,
+        logger.info(
+            "OCR processing completed",
+            document_id=str(doc_input.id),
+            pages_processed=len(result.content)
         )
-        processed_pages.append(processed_page)
 
-    if not processed_pages:
-        raise ValueError(f"No content could be loaded from document {doc_input.id}")
+        return result
 
-    return model.Result(
-        id=generate_id(),
-        job_id="",
-        content=processed_pages,
-    )
+    except Exception as e:
+        logger.error(
+            "OCR processing failed",
+            document_id=str(doc_input.id),
+            error=str(e),
+            exc_info=True
+        )
+        raise
 
 
 # --- OCR Jobs Services ---
@@ -268,14 +313,18 @@ def get_ocr_jobs(
 
     with uow:
         if status:
-            if status not in [s.value for s in model.JobStatus]:
-                raise ValueError(f"Invalid status filter: '{status}'")
+            if status not in [status.value for status in model.JobStatus]:
+                raise exceptions.UnknownJobStatusError(
+                    status=status,
+                )
 
             jobs = uow.jobs.list_by_status(model.JobStatus(status))
         else:
             jobs = uow.jobs.list_all()
         if document_id:
-            jobs = [j for j in jobs if j.document_id == str(document_id)]
+            jobs = [
+                j for j in jobs if j.document_id == str(document_id)
+            ]  # [TODO] this asks for trouble
         return schemas.JobListResponse.from_domain(list(jobs))
 
 
@@ -306,7 +355,7 @@ def delete_ocr_job(job_id: str | UUID, uow: AbstractUnitOfWork) -> None:
 
     Raises:
         exceptions.OCRJobNotFoundError: If the job does not exist.
-        exceptions.InvalidJobStatusError: If the job is not in terminal state.
+        exceptions.InvalidJobStatusTransitionError: If the job is not in terminal state.
     """
     with uow:
         job = uow.jobs.get(str(job_id))
@@ -314,7 +363,7 @@ def delete_ocr_job(job_id: str | UUID, uow: AbstractUnitOfWork) -> None:
             raise exceptions.OCRJobNotFoundError(f"OCR Job {job_id} not found")
 
         if not job.is_terminal:
-            raise exceptions.InvalidJobStatusError(
+            raise exceptions.InvalidJobStatusTransitionError(
                 job_id=str(job_id),
                 current_status=job.status.value,
                 attempted_status="terminal (completed/failed)",
@@ -327,6 +376,8 @@ def delete_ocr_job(job_id: str | UUID, uow: AbstractUnitOfWork) -> None:
 
         uow.jobs.delete(job)
         uow.commit()
+
+        logger.info("Deleted OCR job %s (status: %s)", job_id, job.status.value)
 
 
 def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResponse:
@@ -345,6 +396,11 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResp
         exceptions.DocumentNotFoundError: If the document with the given ID does not exist.
         exceptions.DuplicateOCRJobError: If the document already has an active OCR job.
     """
+    logger.info(
+        "Submitting OCR job",
+        document_id=document_id
+    )
+
     with uow:
         document = uow.documents.get(document_id)
         if document is None:
@@ -365,6 +421,13 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> schemas.JobResp
         ocr_job = model.Job(id=generate_id(), document_id=document_id)
         uow.jobs.add(ocr_job)
         uow.commit()
+
+        logger.info(
+            "OCR job created",
+            job_id=str(ocr_job.id),
+            document_id=document_id
+        )
+
         return schemas.JobResponse.from_domain(ocr_job)
 
 
@@ -469,14 +532,14 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.Job:
 
     Raises:
         exceptions.OCRJobNotFoundError: If the original job does not exist.
-        exceptions.InvalidJobStatusError: If the job is not in FAILED status.
+        exceptions.InvalidJobStatusTransitionError: If the job is not in FAILED status.
     """
     original_job = uow.jobs.get(failed_job_id)
     if original_job is None:
         raise exceptions.OCRJobNotFoundError(job_id=failed_job_id)
 
     if original_job.status != model.JobStatus.FAILED:
-        raise exceptions.InvalidJobStatusError(
+        raise exceptions.InvalidJobStatusTransitionError(
             job_id=failed_job_id,
             current_status=original_job.status.value,
             attempted_status=model.JobStatus.PENDING.value,

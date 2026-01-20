@@ -58,7 +58,7 @@ class DuplicateOCRJobError(DomainException):
         super().__init__(self.message)
 
 
-class InvalidJobStatusError(DomainException):
+class InvalidJobStatusTransitionError(DomainException):
     """Raised when a job status transition is invalid."""
     def __init__(
         self,
@@ -75,3 +75,9 @@ class InvalidJobStatusError(DomainException):
             f"{current_status} -> {attempted_status}"
         )
         super().__init__(self.message)
+
+class UnknownJobStatusError(DomainException):
+    """Raised when an unknown job status is encountered."""
+    def __init__(self, status: str, message: str | None = None):
+        self.status = status
+        self.message = message or f"Unknown job status {status}."

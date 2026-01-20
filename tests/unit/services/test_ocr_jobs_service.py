@@ -194,7 +194,7 @@ def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
 
     # Attempting to start it again should fail
     with pytest.raises(
-        exceptions.InvalidJobStatusError, match="Invalid status transition"
+        exceptions.InvalidJobStatusTransitionError, match="Invalid status transition"
     ):
         _ = services.start_ocr_job_processing(UUID(job.id), uow)
 
@@ -239,7 +239,7 @@ def test_retry_failed_job_wrong_status(uow: FakeUnitOfWork, status: JobStatus):
     uow.jobs.add(job)
 
     with pytest.raises(
-        exceptions.InvalidJobStatusError, match="Invalid status transition"
+        exceptions.InvalidJobStatusTransitionError, match="Invalid status transition"
     ):
         _ = services.retry_failed_job(job.id, uow)
 
@@ -336,21 +336,21 @@ def test_delete_failed_job_success(uow: FakeUnitOfWork):
 
 
 def test_delete_pending_job_raises_error(uow: FakeUnitOfWork):
-    """Test that deleting a pending job raises InvalidJobStatusError."""
+    """Test that deleting a pending job raises InvalidJobStatusTransitionError."""
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     uow.jobs.add(job)
 
-    with pytest.raises(exceptions.InvalidJobStatusError, match="Cannot delete job"):
+    with pytest.raises(exceptions.InvalidJobStatusTransitionError, match="Cannot delete job"):
         services.delete_ocr_job(job.id, uow)
 
 
 def test_delete_processing_job_raises_error(uow: FakeUnitOfWork):
-    """Test that deleting a processing job raises InvalidJobStatusError."""
+    """Test that deleting a processing job raises InvalidJobStatusTransitionError."""
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     job.mark_as_processing()
     uow.jobs.add(job)
 
-    with pytest.raises(exceptions.InvalidJobStatusError, match="Cannot delete job"):
+    with pytest.raises(exceptions.InvalidJobStatusTransitionError, match="Cannot delete job"):
         services.delete_ocr_job(job.id, uow)
 
 

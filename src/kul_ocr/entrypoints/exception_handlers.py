@@ -34,9 +34,15 @@ def register_handlers(app: FastAPI):
     )
 
     app.add_exception_handler(
-        exceptions.InvalidJobStatusError,
+        exceptions.InvalidJobStatusTransitionError,
         ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
     )
+
+    app.add_exception_handler(
+        exceptions.UnknownJobStatusError,
+        ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST)
+    )
+
 
     app.add_exception_handler(
         exceptions.OCRJobNotFoundError,

@@ -127,10 +127,10 @@ class TestDeleteOCRJobIntegration:
     def test_delete_pending_job_raises_invalid_status_error(
         self, uow: SqlAlchemyUnitOfWork
     ):
-        """Test that deleting a pending job raises InvalidJobStatusError."""
+        """Test that deleting a pending job raises InvalidJobStatusTransitionError."""
         document_id, job_id = _create_job_with_document(uow, JobStatus.PENDING)
 
-        with pytest.raises(exceptions.InvalidJobStatusError, match="Cannot delete job"):
+        with pytest.raises(exceptions.InvalidJobStatusTransitionError, match="Cannot delete job"):
             services.delete_ocr_job(job_id, uow)
 
         with uow:
@@ -140,7 +140,7 @@ class TestDeleteOCRJobIntegration:
     def test_delete_processing_job_raises_invalid_status_error(
         self, uow: SqlAlchemyUnitOfWork
     ):
-        """Test that deleting a processing job raises InvalidJobStatusError."""
+        """Test that deleting a processing job raises InvalidJobStatusTransitionError."""
         document_id, job_id = _create_job_with_document(uow, JobStatus.PENDING)
 
         with uow:
@@ -149,7 +149,7 @@ class TestDeleteOCRJobIntegration:
             job.mark_as_processing()
             uow.commit()
 
-        with pytest.raises(exceptions.InvalidJobStatusError, match="Cannot delete job"):
+        with pytest.raises(exceptions.InvalidJobStatusTransitionError, match="Cannot delete job"):
             services.delete_ocr_job(job_id, uow)
 
         with uow:
