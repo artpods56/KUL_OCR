@@ -14,6 +14,7 @@ from kul_ocr.entrypoints import dependencies, exception_handlers, schemas, tasks
 from kul_ocr.entrypoints.dependencies import UnitOfWorkDep
 from kul_ocr.service_layer import parsing, services
 from kul_ocr.domain import exceptions
+
 _ = load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -149,10 +150,19 @@ def start_ocr_job(
         job = services.fail_ocr_job(job_id, str(e), uow=uow)
         return schemas.JobResponse.from_domain(job)
 
-@router.post("/ocr/jobs/{job_id}/retry",response_model=schemas.JobResponse,status_code=status.HTTP_201_CREATED,)
-def retry_ocr_job(job_id: UUID, uow: UnitOfWorkDep,)->schemas.JobResponse:
-    logger.info("Retry requested for OCR job %s",job_id)
-    return services.retry_ocr_job(job_id,uow)
+
+@router.post(
+    "/ocr/jobs/{job_id}/retry",
+    response_model=schemas.JobResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def retry_ocr_job(
+    job_id: UUID,
+    uow: UnitOfWorkDep,
+) -> schemas.JobResponse:
+    logger.info("Retry requested for OCR job %s", job_id)
+    return services.retry_ocr_job(job_id, uow)
+
 
 @router.get("/ocr/jobs", response_model=schemas.JobListResponse)
 def list_ocr_jobs(
@@ -169,6 +179,7 @@ def list_ocr_jobs(
 ) -> schemas.JobListResponse:
     return services.get_ocr_jobs(uow=uow, status=status, document_id=document_id)
 
+
 @router.get(
     "/ocr/jobs/{job_id}",
     response_model=schemas.JobResponse,
@@ -179,6 +190,7 @@ def get_ocr_job_by_id(
     uow: dependencies.UnitOfWorkDep,
 ) -> schemas.JobResponse:
     return services.get_ocr_job_response(str(job_id), uow)
+
 
 app.include_router(router)
 

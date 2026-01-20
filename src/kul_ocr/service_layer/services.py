@@ -579,11 +579,13 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> model.Job:
     uow.jobs.add(new_job)
     return new_job
 
-def retry_ocr_job(job_id:UUID, uow:AbstractUnitOfWork)->schemas.JobResponse:
+
+def retry_ocr_job(job_id: UUID, uow: AbstractUnitOfWork) -> schemas.JobResponse:
     with uow:
-        new_job=retry_failed_job(str(job_id),uow)
+        new_job = retry_failed_job(str(job_id), uow)
         uow.commit()
         return schemas.JobResponse.from_domain(new_job)
+
 
 def get_latest_result_for_document(
     document_id: str, uow: AbstractUnitOfWork

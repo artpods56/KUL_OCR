@@ -260,14 +260,14 @@ def test_get_latest_result_for_document_success(uow: FakeUnitOfWork, tmp_path: P
     job1.document_id = document_id
     job1.mark_as_processing()
     job1.complete()
-    job1.completed_at=now
+    job1.completed_at = now
     uow.jobs.add(job1)
 
     job2 = factories.generate_ocr_job(status=JobStatus.PENDING)
     job2.document_id = document_id
     job2.mark_as_processing()
     job2.complete()
-    job2.completed_at=now+timedelta(seconds=1)
+    job2.completed_at = now + timedelta(seconds=1)
     uow.jobs.add(job2)
 
     # Create results for both jobs
