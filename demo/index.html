@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KUL OCR Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .drag-over { border-color: #3b82f6; background-color: #eff6ff; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .status-pending { background-color: #fef3c7; color: #92400e; }
+        .status-processing { background-color: #dbeafe; color: #1e40af; }
+        .status-completed { background-color: #d1fae5; color: #065f46; }
+        .status-failed { background-color: #fee2e2; color: #991b1b; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div id="toast" class="fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50"></div>
+
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">KUL OCR Demo</h1>
+            <p class="text-gray-600 mt-1">Upload documents and process them with Tesseract OCR</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="space-y-6">
+                <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Upload Document</h2>
+                    <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer transition-colors">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                        <p class="mt-2 text-sm text-gray-600">Drag & drop a file or click to browse</p>
+                        <p class="text-xs text-gray-500 mt-1">PDF, PNG, JPEG, WebP</p>
+                        <input type="file" id="fileInput" class="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp">
+                    </div>
+                    <div id="uploadProgress" class="hidden mt-4">
+                        <div class="flex items-center justify-between text-sm mb-1">
+                            <span class="text-gray-600">Uploading...</span>
+                            <span id="uploadPercent" class="font-medium">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="uploadBar" class="bg-blue-500 h-2 rounded-full transition-all" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-900">Documents</h2>
+                        <button onclick="loadDocuments()" class="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
+                    </div>
+                    <div id="documentsList" class="space-y-3 max-h-96 overflow-y-auto">
+                        <p class="text-gray-500 text-sm text-center py-4">No documents uploaded yet</p>
+                    </div>
+                </section>
+            </div>
+
+            <div class="space-y-6">
+                <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-900">OCR Jobs</h2>
+                        <div class="flex items-center gap-2">
+                            <label class="flex items-center gap-2 text-sm text-gray-600">
+                                <input type="checkbox" id="autoRefresh" class="rounded" onchange="toggleAutoRefresh()">
+                                Auto-refresh
+                            </label>
+                            <button onclick="loadJobs()" class="p-1 hover:bg-gray-100 rounded">
+                                <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="jobsList" class="space-y-3 max-h-96 overflow-y-auto">
+                        <p class="text-gray-500 text-sm text-center py-4">No OCR jobs yet</p>
+                    </div>
+                </section>
+
+                <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-900">OCR Results</h2>
+                        <span id="resultDocName" class="text-sm text-gray-500 hidden"></span>
+                    </div>
+                    <div id="resultsPanel" class="hidden">
+                        <div class="border-b border-gray-200 mb-4">
+                            <nav id="pageTabs" class="flex gap-1 overflow-x-auto pb-2"></nav>
+                        </div>
+                        <div id="resultContent" class="prose prose-sm max-w-none"></div>
+                    </div>
+                    <div id="noResults" class="text-gray-500 text-sm text-center py-8">
+                        Select a completed job to view results
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-6 max-w-sm mx-4">
+            <h3 class="text-lg font-semibold mb-2" id="modalTitle">Confirm</h3>
+            <p class="text-gray-600 mb-4" id="modalMessage"></p>
+            <div class="flex gap-3 justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                <button id="modalConfirm" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let autoRefreshInterval = null;
+        let documents = [];
+        let jobs = [];
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50 ${
+                type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            }`;
+            toast.classList.remove('translate-x-full');
+            setTimeout(() => toast.classList.add('translate-x-full'), 3000);
+        }
+
+        async function request(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    ...options,
+                    headers: { 'Accept': 'application/json', ...options.headers }
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+                    throw new Error(error.detail || 'Request failed');
+                }
+                // Handle 204 No Content responses (e.g., DELETE)
+                if (response.status === 204) {
+                    return null;
+                }
+                return await response.json();
+            } catch (error) {
+                showToast(error.message, 'error');
+                throw error;
+            }
+        }
+
+        document.getElementById('dropZone').addEventListener('click', () => document.getElementById('fileInput').click());
+        document.getElementById('dropZone').addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        });
+        document.getElementById('dropZone').addEventListener('dragleave', () => {
+            document.getElementById('dropZone').classList.remove('drag-over');
+        });
+        document.getElementById('dropZone').addEventListener('drop', (e) => {
+            e.preventDefault();
+            document.getElementById('dropZone').classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file) uploadFile(file);
+        });
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) uploadFile(file);
+        });
+
+        async function uploadFile(file) {
+            const progress = document.getElementById('uploadProgress');
+            const progressBar = document.getElementById('uploadBar');
+            const percentText = document.getElementById('uploadPercent');
+            progress.classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    progressBar.style.width = `${percent}%`;
+                    percentText.textContent = `${percent}%`;
+                }
+            });
+            xhr.addEventListener('load', () => {
+                progress.classList.add('hidden');
+                progressBar.style.width = '0%';
+                percentText.textContent = '0%';
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    showToast('Document uploaded successfully');
+                    loadDocuments();
+                } else {
+                    console.error('Upload failed:', xhr.status, xhr.responseText);
+                    showToast(`Upload failed (status: ${xhr.status})`, 'error');
+                }
+            });
+            xhr.addEventListener('error', (e) => {
+                console.error('XHR error:', e);
+                progress.classList.add('hidden');
+                showToast('Network error - is the API running?', 'error');
+            });
+            xhr.addEventListener('loadend', () => {
+                progress.classList.add('hidden');
+            });
+            xhr.open('POST', `${API_BASE}/documents`);
+            xhr.send(formData);
+        }
+
+        async function loadDocuments() {
+            try {
+                const container = document.getElementById('documentsList');
+                container.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">Loading...</p>';
+                const data = await request('/documents');
+                documents = data.documents;
+                renderDocuments();
+            } catch {
+                document.getElementById('documentsList').innerHTML = '<p class="text-red-500 text-sm text-center py-4">Failed to load documents</p>';
+            }
+        }
+
+        function renderDocuments() {
+            const container = document.getElementById('documentsList');
+            if (documents.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No documents uploaded yet</p>';
+                return;
+            }
+            container.innerHTML = documents.map(doc => `
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg fade-in">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="text-2xl">${getFileIcon(doc.file_type)}</span>
+                        <div class="min-w-0">
+                            <p class="font-medium text-gray-900 truncate text-sm">${doc.id.substring(0, 8)}...</p>
+                            <p class="text-xs text-gray-500">${formatBytes(doc.file_size_bytes)} • ${doc.uploaded_at.substring(0, 10)}</p>
+                        </div>
+                    </div>
+                    <button onclick="createJob('${doc.id}')" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">OCR</button>
+                </div>
+            `).join('');
+        }
+
+        function getFileIcon(fileType) {
+            const icons = { 'application/pdf': '📄', 'image/png': '🖼️', 'image/jpeg': '🖼️', 'image/webp': '🖼️' };
+            return icons[fileType] || '📁';
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+            return `${(bytes / 1048576).toFixed(1)} MB`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function createJob(documentId) {
+            try {
+                await request('/ocr/jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ document_id: documentId })
+                });
+                showToast('Job created');
+                await loadJobs();
+            } catch {}
+        }
+
+        async function loadJobs() {
+            try {
+                const data = await request('/ocr/jobs');
+                jobs = data.jobs;
+                renderJobs();
+            } catch {
+                document.getElementById('jobsList').innerHTML = '<p class="text-red-500 text-sm text-center py-4">Failed to load jobs</p>';
+            }
+        }
+
+        function renderJobs() {
+            const container = document.getElementById('jobsList');
+            if (jobs.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No OCR jobs yet</p>';
+                return;
+            }
+            const sortedJobs = [...jobs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            container.innerHTML = sortedJobs.map(job => `
+                <div class="p-3 bg-gray-50 rounded-lg fade-in">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-mono text-gray-700">${job.id.substring(0, 8)}...</span>
+                            <span class="status-${job.status} px-2 py-0.5 rounded text-xs font-medium capitalize">${job.status}</span>
+                        </div>
+                        <div class="flex gap-1">
+                            ${job.status === 'pending' ? `<button onclick="startJob('${job.id}')" class="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600">Start</button>` : ''}
+                            ${['pending', 'processing'].includes(job.status) ? `<button onclick="cancelJob('${job.id}')" class="px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600">Cancel</button>` : ''}
+                            ${job.status === 'failed' ? `<button onclick="retryJob('${job.id}')" class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">Retry</button>` : ''}
+                            ${['completed', 'failed'].includes(job.status) ? `<button onclick="deleteJob('${job.id}')" class="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600">Delete</button>` : ''}
+                            ${job.status === 'completed' ? `<button onclick="viewResults('${job.document_id}')" class="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600">View</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        Doc: ${job.document_id.substring(0, 8)}... • Created: ${new Date(job.created_at).toLocaleString()}
+                        ${job.started_at ? `<br>Started: ${new Date(job.started_at).toLocaleString()}` : ''}
+                        ${job.completed_at ? `<br>Completed: ${new Date(job.completed_at).toLocaleString()}` : ''}
+                        ${job.error_message ? `<br><span class="text-red-600">Error: ${escapeHtml(job.error_message)}</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function startJob(jobId) {
+            try {
+                await request(`/ocr/jobs/${jobId}/start`, { method: 'POST' });
+                showToast('Job started');
+                await loadJobs();
+            } catch {}
+        }
+
+        async function cancelJob(jobId) {
+            showConfirm('Cancel Job', 'Are you sure you want to cancel this job?', async () => {
+                try {
+                    await request(`/ocr/jobs/${jobId}/cancel`, { method: 'POST' });
+                    showToast('Job cancelled');
+                    await loadJobs();
+                } catch {}
+            });
+        }
+
+        async function retryJob(jobId) {
+            showConfirm('Retry Job', 'Create a new job to retry this failed job?', async () => {
+                try {
+                    await request(`/ocr/jobs/${jobId}/retry`, { method: 'POST' });
+                    showToast('New job created');
+                    await loadJobs();
+                } catch {}
+            });
+        }
+
+        async function deleteJob(jobId) {
+            showConfirm('Delete Job', 'Delete this job permanently?', async () => {
+                try {
+                    await request(`/ocr/jobs/${jobId}`, { method: 'DELETE' });
+                    showToast('Job deleted');
+                    await loadJobs();
+                } catch {}
+            });
+        }
+
+        async function viewResults(documentId) {
+            try {
+                const result = await request(`/documents/${documentId}/latest-result`);
+                renderResults(result);
+                document.getElementById('resultDocName').textContent = `Document: ${documentId.substring(0, 8)}...`;
+                document.getElementById('resultDocName').classList.remove('hidden');
+                document.getElementById('resultsPanel').classList.remove('hidden');
+                document.getElementById('noResults').classList.add('hidden');
+            } catch {
+                showToast('No results found', 'error');
+            }
+        }
+
+        function renderResults(result) {
+            const tabsContainer = document.getElementById('pageTabs');
+            const contentContainer = document.getElementById('resultContent');
+            const pages = result.content.pages;
+
+            tabsContainer.innerHTML = pages.map((page, i) => `
+                <button onclick="showPage(${i})" class="page-tab px-3 py-1 text-sm rounded ${i === 0 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}" data-page="${i}">
+                    Page ${page.page_number}
+                </button>
+            `).join('');
+
+            contentContainer.innerHTML = pages.map((page, i) => `
+                <div class="page-content ${i > 0 ? 'hidden' : ''}" data-page="${i}">
+                    <div class="mb-2 text-xs text-gray-500">Page ${page.page_number} • ${page.width}×${page.height}px</div>
+                    <pre class="p-4 bg-gray-100 rounded-lg text-sm">${escapeHtml(page.parts.map(p => p.text).join('\n')) || '(No text detected)'}</pre>
+                </div>
+            `).join('');
+        }
+
+        function showPage(index) {
+            document.querySelectorAll('.page-tab').forEach((tab, i) => {
+                tab.className = `page-tab px-3 py-1 text-sm rounded ${i === index ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`;
+            });
+            document.querySelectorAll('.page-content').forEach((content, i) => {
+                content.classList.toggle('hidden', i !== index);
+            });
+        }
+
+        function showConfirm(title, message, onConfirm) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            document.getElementById('confirmModal').classList.remove('hidden');
+            document.getElementById('confirmModal').classList.add('flex');
+            document.getElementById('modalConfirm').onclick = () => {
+                closeModal();
+                onConfirm();
+            };
+        }
+
+        function closeModal() {
+            document.getElementById('confirmModal').classList.add('hidden');
+            document.getElementById('confirmModal').classList.remove('flex');
+        }
+
+        function toggleAutoRefresh() {
+            const checkbox = document.getElementById('autoRefresh');
+            if (checkbox.checked) {
+                autoRefreshInterval = setInterval(() => loadJobs(), 2000);
+            } else {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+
+        document.getElementById('confirmModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeModal();
+        });
+
+        loadDocuments();
+        loadJobs();
+    </script>
+</body>
+</html>
