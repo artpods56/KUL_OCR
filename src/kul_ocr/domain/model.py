@@ -89,6 +89,11 @@ class Job:
         return self.status in (JobStatus.FAILED, JobStatus.COMPLETED)
 
     @property
+    def is_active(self) -> bool:
+        """Check if job is in an active (non-terminal) state."""
+        return self.status in (JobStatus.PENDING, JobStatus.PROCESSING)
+
+    @property
     def duration(self) -> timedelta:
         if not self.is_terminal:
             raise ValueError(
@@ -148,6 +153,26 @@ class FileType(Enum):
     @property
     def is_image(self) -> bool:
         return self.value.startswith("image/")
+
+    def validate_extension(self, filename: str) -> None:
+        """Validate that filename extension matches this file type.
+
+        Args:
+            filename: Name of the file to validate.
+
+        Raises:
+            FileExtensionMismatchError: If extension doesn't match.
+        """
+        from pathlib import Path
+
+        if not filename:
+            return  # No filename to validate
+
+        actual_extension = Path(filename).suffix.lower()
+        if actual_extension and actual_extension != self.dot_extension:
+            raise exceptions.FileExtensionMismatchError(
+                expected_extension=self.dot_extension, actual_extension=actual_extension
+            )
 
 
 @dataclass

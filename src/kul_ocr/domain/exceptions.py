@@ -35,6 +35,21 @@ class UnsupportedFileTypeError(DomainException):
         super().__init__(self.message)
 
 
+class FileExtensionMismatchError(DomainException):
+    """Raised when file extension doesn't match declared file type."""
+
+    def __init__(
+        self, expected_extension: str, actual_extension: str, message: str | None = None
+    ):
+        self.expected_extension = expected_extension
+        self.actual_extension = actual_extension
+        self.message = message or (
+            f"File extension mismatch: expected {expected_extension}, "
+            f"got {actual_extension}"
+        )
+        super().__init__(self.message)
+
+
 class DocumentNotFoundError(DomainException):
     """Raised when a document cannot be found."""
 
@@ -94,3 +109,4 @@ class UnknownJobStatusError(DomainException):
     def __init__(self, status: str, message: str | None = None):
         self.status = status
         self.message = message or f"Unknown job status {status}."
+        super().__init__(self.message)

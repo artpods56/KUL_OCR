@@ -55,14 +55,16 @@ def test_upload_document(fake_uow: FakeUnitOfWork, tmp_path: Path):
 
 
 def test_upload_document_extension_mismatch(fake_uow: FakeUnitOfWork, tmp_path: Path):
-    """Test that document with mismatched extension raises ValueError."""
+    """Test that document with mismatched extension raises FileExtensionMismatchError."""
     from io import BytesIO
 
     file_stream = BytesIO(b"fake txt content")
     file_stream.name = "test.txt"
     fake_storage = FakeFileStorage()
 
-    with pytest.raises(ValueError, match="Document extension mismatch"):
+    with pytest.raises(
+        exceptions.FileExtensionMismatchError, match="File extension mismatch"
+    ):
         services.upload_document(
             file_stream=file_stream,
             file_size=16,
