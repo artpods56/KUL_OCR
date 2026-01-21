@@ -7,9 +7,9 @@ from tests.fakes import repositories
 @final
 class FakeUnitOfWork(AbstractUnitOfWork):
     def __init__(self):
-        self.jobs = repositories.FakeOcrJobRepository()
         self.documents = repositories.FakeDocumentRepository()
         self.results = repositories.FakeOcrResultRepository()
+        self.jobs = repositories.FakeOcrJobRepository(results_repo=self.results)
         self.committed: bool = False
 
     @override

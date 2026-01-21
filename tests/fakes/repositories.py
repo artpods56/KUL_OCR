@@ -6,7 +6,7 @@ from kul_ocr.adapters.database.repository import (
     AbstractOCRJobRepository,
     AbstractOCRResultRepository,
 )
-from kul_ocr.domain import model
+from kul_ocr.domain import exceptions, model
 
 
 @final
@@ -25,14 +25,26 @@ class FakeDocumentRepository(AbstractDocumentRepository):
         return self._documents.get(document_id)
 
     @override
+    def get_or_raise(self, document_id: str) -> model.Document:
+        document = self.get(document_id)
+        if document is None:
+            raise exceptions.DocumentNotFoundError(document_id=document_id)
+        return document
+
+    @override
     def list_all(self) -> Sequence[model.Document]:
         return list(self._documents.values())
 
 
 @final
 class FakeOcrJobRepository(AbstractOCRJobRepository):
-    def __init__(self, jobs: list[model.Job] | None = None):
+    def __init__(
+        self,
+        jobs: list[model.Job] | None = None,
+        results_repo: "FakeOcrResultRepository | None" = None,
+    ):
         self._jobs = {j.id: j for j in (jobs or [])}
+        self._results_repo = results_repo
         self.added: list[model.Job] = []
 
     @override
@@ -45,6 +57,13 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
         return self._jobs.get(ocr_job_id)
 
     @override
+    def get_or_raise(self, job_id: str) -> model.Job:
+        job = self.get(job_id)
+        if job is None:
+            raise exceptions.OCRJobNotFoundError(job_id=job_id)
+        return job
+
+    @override
     def list_all(self) -> Sequence[model.Job]:
         return list(self._jobs.values())
 
@@ -55,6 +74,25 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
     @override
     def list_by_document_id(self, document_id: str) -> Sequence[model.Job]:
         return [j for j in self._jobs.values() if j.document_id == document_id]
+
+    @override
+    def list_by_filters(
+        self,
+        status: model.JobStatus | None = None,
+        document_id: str | None = None,
+    ) -> Sequence[model.Job]:
+        jobs = list(self._jobs.values())
+        if status is not None:
+            jobs = [j for j in jobs if j.status == status]
+        if document_id is not None:
+            jobs = [j for j in jobs if j.document_id == document_id]
+        return jobs
+
+    @override
+    def has_active_job_for_document(self, document_id: str) -> bool:
+        return any(
+            j.is_active and j.document_id == document_id for j in self._jobs.values()
+        )
 
     @override
     def list_terminal_jobs(self) -> Sequence[model.Job]:
@@ -74,6 +112,18 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
     @override
     def delete(self, ocr_job: model.Job) -> None:
         self._jobs.pop(ocr_job.id, None)
+
+    @override
+    def delete_with_cascade(self, job: model.Job) -> None:
+        # Delete associated results if we have access to the results repository
+        if self._results_repo:
+            results_to_delete = [
+                r for r in self._results_repo._results.values() if r.job_id == job.id
+            ]
+            for result in results_to_delete:
+                self._results_repo.delete(result)
+        # Then delete the job
+        self._jobs.pop(job.id, None)
 
 
 @final
