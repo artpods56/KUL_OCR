@@ -3,9 +3,7 @@
 These tests use a real SQLite database and test the full request/response cycle.
 """
 
-import tempfile
 from collections.abc import Iterator
-from pathlib import Path
 from uuid import uuid4
 
 import pytest

@@ -42,7 +42,7 @@ def process_ocr_job_task(self: BaseTask, job_id: str) -> ProcessJobTaskResponse:
         with fresh_uow() as uow:
             job = services.get_ocr_job(job_id, uow)
             if job.status == JobStatus.PENDING:
-                job = services.start_ocr_job_processing(UUID(job_id), uow)
+                job = services.start_ocr_job_processing(job_id, uow)
             document_id = job.document_id
             uow.commit()
 
@@ -72,7 +72,7 @@ def process_ocr_job_task(self: BaseTask, job_id: str) -> ProcessJobTaskResponse:
         if self.max_retries is not None and self.request.retries >= self.max_retries:
             try:
                 with fresh_uow() as uow:
-                    _ = services.fail_ocr_job(UUID(job_id), str(exc), uow)
+                    _ = services.fail_ocr_job(job_id, str(exc), uow)
                     uow.commit()
                 logger.info(f"Marked job {job_id} as failed after exhausting retries")
             except Exception as fail_exc:

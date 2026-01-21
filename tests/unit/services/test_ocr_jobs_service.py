@@ -174,7 +174,7 @@ def test_start_ocr_job_processing_success(uow: FakeUnitOfWork):
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     uow.jobs.add(job)
 
-    updated_job = services.start_ocr_job_processing(UUID(job.id), uow)
+    updated_job = services.start_ocr_job_processing(job.id, uow)
 
     assert updated_job.status == JobStatus.PROCESSING
     assert updated_job.started_at is not None
@@ -184,7 +184,7 @@ def test_start_ocr_job_processing_success(uow: FakeUnitOfWork):
 def test_start_ocr_job_processing_job_not_found(uow: FakeUnitOfWork):
     """Test that starting non-existent job raises error."""
     with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR job not found"):
-        _ = services.start_ocr_job_processing(uuid.uuid4(), uow)
+        _ = services.start_ocr_job_processing(str(uuid.uuid4()), uow)
 
 
 def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
@@ -197,7 +197,7 @@ def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
     with pytest.raises(
         exceptions.InvalidJobStatusTransitionError, match="Invalid status transition"
     ):
-        _ = services.start_ocr_job_processing(UUID(job.id), uow)
+        _ = services.start_ocr_job_processing(job.id, uow)
 
 
 # --- retry_failed_job tests ---
@@ -364,7 +364,7 @@ def test_delete_processing_job_raises_error(uow: FakeUnitOfWork):
 
 def test_delete_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
     """Test that deleting non-existent job raises OCRJobNotFoundError."""
-    with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR Job .* not found"):
+    with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR job not found"):
         services.delete_ocr_job("nonexistent-job-id", uow)
 
 
