@@ -39,17 +39,17 @@ def test_process_document_orchestration(
     mock_ocr_engine.process_image.return_value = "extracted text"
 
     # Act
-    result = services.process_document(
+    result_dto = services.process_document(
         doc_input=doc_input,
         ocr_engine=mock_ocr_engine,
         document_loader=mock_document_loader,
     )
 
     # Assert
-    assert isinstance(result, model.Result)
-    assert result.job_id == ""
-    assert len(result.content) == 1
-    assert result.content[0].result.full_text == "extracted text"
+    assert isinstance(result_dto, structs.ResultDTO)
+    assert result_dto.job_id == ""
+    assert len(result_dto.content) == 1
+    assert result_dto.content[0].result.full_text == "extracted text"
     mock_document_loader.load_pages.assert_called_once_with(doc_input)
     mock_ocr_engine.process_image.assert_called_once_with(sample_image)
 
@@ -75,17 +75,17 @@ def test_process_document_multi_page_orchestration(
     mock_ocr_engine.process_image.side_effect = ["text 1", "text 2"]
 
     # Act
-    result = services.process_document(
+    result_dto = services.process_document(
         doc_input=doc_input,
         ocr_engine=mock_ocr_engine,
         document_loader=mock_document_loader,
     )
 
     # Assert
-    assert isinstance(result, model.Result)
-    assert len(result.content) == 2
-    assert result.content[0].result.full_text == "text 1"
-    assert result.content[1].result.full_text == "text 2"
+    assert isinstance(result_dto, structs.ResultDTO)
+    assert len(result_dto.content) == 2
+    assert result_dto.content[0].result.full_text == "text 1"
+    assert result_dto.content[1].result.full_text == "text 2"
     assert mock_ocr_engine.process_image.call_count == 2
 
 

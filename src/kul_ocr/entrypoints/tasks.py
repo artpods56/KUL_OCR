@@ -40,24 +40,24 @@ def process_ocr_job_task(self: BaseTask, job_id: str) -> ProcessJobTaskResponse:
     try:
         # Idempotent start: check if job is already processing
         with fresh_uow() as uow:
-            job = services.get_ocr_job(job_id, uow)
-            if job.status == JobStatus.PENDING:
-                job = services.start_ocr_job_processing(job_id, uow)
-            document_id = job.document_id
+            job_dto = services.get_ocr_job(job_id, uow)
+            if job_dto.status == "pending":
+                services.start_ocr_job_processing(job_id, uow)
+            document_id = job_dto.document_id
             uow.commit()
 
         with fresh_uow() as uow:
             doc_input = services.get_document_for_processing(str(document_id), uow)
 
         logger.info(f"Starting OCR processing for job {job_id}")
-        result = services.process_document(
+        result_dto = services.process_document(
             doc_input=doc_input,
             ocr_engine=ocr_engine,
             document_loader=document_loader,
         )
 
         with fresh_uow() as uow:
-            _ = services.complete_ocr_job(job_id, result, uow)
+            _ = services.complete_ocr_job(job_id, result_dto, uow)
             uow.commit()
 
         logger.info(f"Successfully processed job {job_id}")

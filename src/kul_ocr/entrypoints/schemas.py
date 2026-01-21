@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import ClassVar, Self
+from typing import ClassVar, Self, Sequence
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 
-from kul_ocr.domain import model
+from kul_ocr.domain import model, structs
 from kul_ocr.domain.model import JobStatus
 
 
@@ -59,6 +59,16 @@ class DocumentResponse(BaseModel):
             file_size_bytes=document.file_size_bytes,
         )
 
+    @classmethod
+    def from_dto(cls, document: structs.DocumentDTO) -> Self:
+        return cls(
+            id=UUID(document.id),
+            file_path=document.file_path,
+            file_type=model.FileType(document.file_type),
+            uploaded_at=document.uploaded_at,
+            file_size_bytes=document.file_size_bytes,
+        )
+
 
 class TextPartResponse(BaseModel):
     text: str
@@ -107,9 +117,13 @@ class ResultContentResponse(BaseModel):
         return v
 
     @classmethod
-    def from_domain(cls, result: model.Result) -> Self:
+    def from_result_content(cls, content: Sequence[model.ProcessedPage]) -> Self:
+        """Convert ProcessedPage sequence to ResultContentResponse.
+
+        Used by both from_domain() and from_dto() to avoid duplication.
+        """
         pages = []
-        for processed_page in result.content:
+        for processed_page in content:
             parts = [
                 TextPartResponse(
                     text=part.text,
@@ -126,6 +140,10 @@ class ResultContentResponse(BaseModel):
             )
             pages.append(page_response)
         return cls(pages=pages)
+
+    @classmethod
+    def from_domain(cls, result: model.Result) -> Self:
+        return cls.from_result_content(result.content)
 
 
 class ResultResponse(BaseModel):
@@ -144,6 +162,16 @@ class ResultResponse(BaseModel):
             id=UUID(result.id),
             job_id=UUID(result.job_id),
             content=ResultContentResponse.from_domain(result),
+            creation_time=result.creation_time,
+        )
+
+    @classmethod
+    def from_dto(cls, result: structs.ResultDTO) -> Self:
+        """Convert ResultDTO to ResultResponse schema."""
+        return cls(
+            id=UUID(result.id),
+            job_id=UUID(result.job_id),
+            content=ResultContentResponse.from_result_content(result.content),
             creation_time=result.creation_time,
         )
 
@@ -189,6 +217,19 @@ class JobResponse(BaseModel):
             id=UUID(job.id),
             document_id=UUID(job.document_id),
             status=job.status,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            completed_at=job.completed_at,
+            error_message=job.error_message,
+        )
+
+    @classmethod
+    def from_dto(cls, job: structs.JobDTO) -> Self:
+        """Convert JobDTO to JobResponse schema."""
+        return cls(
+            id=UUID(job.id),
+            document_id=UUID(job.document_id),
+            status=model.JobStatus(job.status),  # String back to enum
             created_at=job.created_at,
             started_at=job.started_at,
             completed_at=job.completed_at,

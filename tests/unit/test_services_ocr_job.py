@@ -10,9 +10,7 @@ def test_get_existing_ocr_job(uow):
     uow.jobs.add(job)
     uow.commit
 
-    response: JobResponse = JobResponse.from_domain(
-        services.get_ocr_job(str(job.id), uow)
-    )
+    response: JobResponse = JobResponse.from_dto(services.get_ocr_job(str(job.id), uow))
 
     assert str(response.id) == job.id
     assert str(response.document_id) == job.document_id

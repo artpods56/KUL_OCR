@@ -1,6 +1,5 @@
 import uuid
 from pathlib import Path
-from uuid import UUID
 
 import pytest
 from datetime import datetime, timedelta, timezone
@@ -84,7 +83,7 @@ def test_get_ocr_jobs_by_document_id(uow: FakeUnitOfWork):
     jobs = services.get_ocr_jobs_by_document_id(document_id, uow)
 
     assert len(jobs) == 3
-    assert all(job.document_id == document_id for job in jobs)
+    assert all(str(job.document_id) == document_id for job in jobs)
     # Service no longer commits - that's the caller's responsibility
 
 
@@ -120,7 +119,7 @@ def test_get_terminal_ocr_jobs(uow: FakeUnitOfWork):
 
     # Should get 4 completed + 1 failed = 5 total
     assert len(terminal_jobs) == 5
-    assert all(job.is_terminal for job in terminal_jobs)
+    assert all(job.status in ["completed", "failed"] for job in terminal_jobs)
     # Service no longer commits - that's the caller's responsibility
 
 
@@ -151,7 +150,7 @@ def test_submit_ocr_job_success(uow: FakeUnitOfWork, tmp_path: Path):
     job = services.submit_ocr_job(document.id, uow)
 
     assert str(job.document_id) == document.id
-    assert job.status == JobStatus.PENDING
+    assert job.status == "pending"
 
     saved_job = uow.jobs.get(str(job.id))
     assert saved_job is not None
@@ -170,15 +169,13 @@ def test_submit_ocr_job_document_not_found(uow: FakeUnitOfWork):
 
 def test_start_ocr_job_processing_success(uow: FakeUnitOfWork):
     """Test successfully starting a pending job."""
-    # Create a pending job
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     uow.jobs.add(job)
 
     updated_job = services.start_ocr_job_processing(job.id, uow)
 
-    assert updated_job.status == JobStatus.PROCESSING
+    assert updated_job.status == "processing"
     assert updated_job.started_at is not None
-    # Service no longer commits - that's the caller's responsibility
 
 
 def test_start_ocr_job_processing_job_not_found(uow: FakeUnitOfWork):
@@ -210,13 +207,13 @@ def test_retry_failed_job_success(uow: FakeUnitOfWork):
     failed_job.error_message = "Original error"
     uow.jobs.add(failed_job)
 
-    # Retry the job
-    new_job = services.retry_failed_job(failed_job.id, uow)
+    # Retry the job - now returns JobDTO
+    new_job_dto = services.retry_failed_job(failed_job.id, uow)
 
-    assert new_job.status == JobStatus.PENDING
-    assert new_job.id != failed_job.id
-    assert new_job.document_id == failed_job.document_id
-    assert new_job.error_message is None
+    assert new_job_dto.status == "pending"  # DTO has string status
+    assert new_job_dto.id != failed_job.id
+    assert new_job_dto.document_id == failed_job.document_id
+    assert new_job_dto.error_message is None
     # Service no longer commits - that's the caller's responsibility
 
 
@@ -283,7 +280,7 @@ def test_get_latest_result_for_document_success(uow: FakeUnitOfWork, tmp_path: P
 
     # Should get the result from the most recent job (job2)
     assert latest_result is not None
-    assert latest_result.job_id == UUID(job2.id)
+    assert latest_result.job_id == job2.id
     # Service no longer commits - that's the caller's responsibility
 
 
