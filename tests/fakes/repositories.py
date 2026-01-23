@@ -1,12 +1,15 @@
 from collections.abc import Sequence
+from datetime import datetime
 from typing import final, override
 
+import kul_ocr.adapters.database.repository
 from kul_ocr.adapters.database.repository import (
     AbstractDocumentRepository,
     AbstractOCRJobRepository,
     AbstractOCRResultRepository,
+    AbstractOutboxRepository,
 )
-from kul_ocr.domain import exceptions, model
+from kul_ocr.domain import model
 
 
 @final
@@ -28,7 +31,9 @@ class FakeDocumentRepository(AbstractDocumentRepository):
     def get_or_raise(self, document_id: str) -> model.Document:
         document = self.get(document_id)
         if document is None:
-            raise exceptions.DocumentNotFoundError(document_id=document_id)
+            raise kul_ocr.adapters.database.repository.DocumentNotFoundError(
+                document_id=document_id
+            )
         return document
 
     @override
@@ -60,7 +65,9 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
     def get_or_raise(self, job_id: str) -> model.Job:
         job = self.get(job_id)
         if job is None:
-            raise exceptions.OCRJobNotFoundError(job_id=job_id)
+            raise kul_ocr.adapters.database.repository.OCRJobNotFoundError(
+                job_id=job_id
+            )
         return job
 
     @override
@@ -152,3 +159,51 @@ class FakeOcrResultRepository(AbstractOCRResultRepository):
     @override
     def delete(self, ocr_result: model.Result) -> None:
         self._results.pop(ocr_result.id, None)
+
+
+@final
+class FakeOutboxRepository(AbstractOutboxRepository):
+    def __init__(self, entries: list[model.OutboxEntry] | None = None):
+        self._entries = {e.id: e for e in (entries or [])}
+        self.added: list[model.OutboxEntry] = []
+
+    @override
+    def add(self, entry: model.OutboxEntry) -> None:
+        self._entries[entry.id] = entry
+        self.added.append(entry)
+
+    @override
+    def get(self, entry_id: str) -> model.OutboxEntry | None:
+        return self._entries.get(entry_id)
+
+    @override
+    def get_or_raise(self, entry_id: str) -> model.OutboxEntry:
+        entry = self.get(entry_id)
+        if entry is None:
+            raise kul_ocr.adapters.database.repository.OutboxEntryNotFoundError(
+                entry_id=entry_id
+            )
+        return entry
+
+    @override
+    def list_pending(self, limit: int = 100) -> Sequence[model.OutboxEntry]:
+        pending = [e for e in self._entries.values() if not e.is_relayed]
+        # Sort by created_at ascending
+        pending.sort(key=lambda e: e.created_at)
+        return pending[:limit]
+
+    @override
+    def mark_as_relayed(self, entry_id: str) -> None:
+        entry = self.get_or_raise(entry_id)
+        entry.mark_as_relayed()
+
+    @override
+    def delete_relayed_older_than(self, cutoff: datetime) -> int:
+        to_delete = [
+            e
+            for e in self._entries.values()
+            if e.is_relayed and e.relayed_at is not None and e.relayed_at < cutoff
+        ]
+        for entry in to_delete:
+            self._entries.pop(entry.id, None)
+        return len(to_delete)

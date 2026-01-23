@@ -1,13 +1,16 @@
 import abc
 from collections.abc import Sequence
+from datetime import datetime
 from typing import final, override
 
 from sqlalchemy import select
 from sqlalchemy.orm.session import Session
 
 from kul_ocr.adapters.database import orm
-from kul_ocr.domain import exceptions, model
+from kul_ocr.domain import model
 from kul_ocr.domain.model import JobStatus
+from kul_ocr.exceptions import DomainException
+
 
 # --- Abstract Repositories ---
 
@@ -140,7 +143,7 @@ class SQLAlchemyDocumentRepository(AbstractDocumentRepository):
     def get_or_raise(self, document_id: str) -> model.Document:
         document = self.get(document_id)
         if document is None:
-            raise exceptions.DocumentNotFoundError(document_id=document_id)
+            raise DocumentNotFoundError(document_id=document_id)
         return document
 
     @override
@@ -169,7 +172,7 @@ class SQLAlchemyOcrJobRepository(AbstractOCRJobRepository):
     def get_or_raise(self, job_id: str) -> model.Job:
         job = self.get(job_id)
         if job is None:
-            raise exceptions.OCRJobNotFoundError(job_id=job_id)
+            raise OCRJobNotFoundError(job_id=job_id)
         return job
 
     @override
@@ -275,3 +278,110 @@ class SQLAlchemyOcrResultRepository(AbstractOCRResultRepository):
     @override
     def delete(self, ocr_result: model.Result) -> None:
         self._session.delete(ocr_result)
+
+
+class AbstractOutboxRepository(abc.ABC):
+    """Abstract base class defining the interface for Outbox repositories."""
+
+    @abc.abstractmethod
+    def add(self, entry: model.OutboxEntry) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get(self, entry_id: str) -> model.OutboxEntry | None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_or_raise(self, entry_id: str) -> model.OutboxEntry:
+        """Get outbox entry by ID or raise OutboxEntryNotFoundError."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def list_pending(self, limit: int = 100) -> Sequence[model.OutboxEntry]:
+        """List pending (not yet relayed) outbox entries."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def mark_as_relayed(self, entry_id: str) -> None:
+        """Mark an outbox entry as relayed."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def delete_relayed_older_than(self, cutoff: datetime) -> int:
+        """Delete relayed entries older than the cutoff time. Returns count deleted."""
+        raise NotImplementedError
+
+
+@final
+class SQLAlchemyOutboxRepository(AbstractOutboxRepository):
+    """Repository for managing OutboxEntry entities using SQLAlchemy."""
+
+    def __init__(self, session: Session):
+        self._session = session
+
+    @override
+    def add(self, entry: model.OutboxEntry) -> None:
+        self._session.add(entry)
+
+    @override
+    def get(self, entry_id: str) -> model.OutboxEntry | None:
+        statement = select(model.OutboxEntry).where(orm.outbox_entries.c.id == entry_id)
+        return self._session.scalar(statement)
+
+    @override
+    def get_or_raise(self, entry_id: str) -> model.OutboxEntry:
+        entry = self.get(entry_id)
+        if entry is None:
+            raise OutboxEntryNotFoundError(entry_id=entry_id)
+        return entry
+
+    @override
+    def list_pending(self, limit: int = 100) -> Sequence[model.OutboxEntry]:
+        statement = (
+            select(model.OutboxEntry)
+            .where(orm.outbox_entries.c.relayed_at.is_(None))
+            .order_by(orm.outbox_entries.c.created_at.asc())
+            .limit(limit)
+        )
+        return self._session.scalars(statement).all()
+
+    @override
+    def mark_as_relayed(self, entry_id: str) -> None:
+        entry = self.get_or_raise(entry_id)
+        entry.mark_as_relayed()
+
+    @override
+    def delete_relayed_older_than(self, cutoff: datetime) -> int:
+        statement = select(model.OutboxEntry).where(
+            orm.outbox_entries.c.relayed_at.isnot(None),
+            orm.outbox_entries.c.relayed_at < cutoff,
+        )
+        entries = self._session.scalars(statement).all()
+        count = len(entries)
+        for entry in entries:
+            self._session.delete(entry)
+        return count
+
+
+class DocumentNotFoundError(DomainException):
+    code: str = "DOCUMENT_NOT_FOUND"
+
+    def __init__(self, document_id: str, message: str | None = None):
+        msg = message or f"Document not found: {document_id}"
+        super().__init__(message=msg, document_id=document_id)
+
+
+class OCRJobNotFoundError(DomainException):
+    code: str = "OCR_JOB_NOT_FOUND"
+
+    def __init__(self, job_id: str, message: str | None = None):
+        msg = message or f"OCR job not found: {job_id}"
+        super().__init__(message=msg, job_id=job_id)
+
+
+class OutboxEntryNotFoundError(DomainException):
+    code: str = "OUTBOX_ENTRY_NOT_FOUND"
+
+    def __init__(self, entry_id: str, message: str | None = None):
+        msg = message or f"Outbox entry not found: {entry_id}"
+        super().__init__(message=msg, entry_id=entry_id)

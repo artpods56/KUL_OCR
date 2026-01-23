@@ -70,6 +70,7 @@ class TestDocumentResponseValidation:
                 file_type=self.VALID_TYPE,
                 file_size_bytes=self.VALID_SIZE,
                 uploaded_at=self.VALID_DATE,
+                original_filename=None,
             )
 
     def test_rejects_unsupported_mime_type(self):
@@ -80,6 +81,7 @@ class TestDocumentResponseValidation:
                 file_type=self.INVALID_ENUM,
                 file_size_bytes=self.VALID_SIZE,
                 uploaded_at=self.VALID_DATE,
+                original_filename=None,
             )
 
     def test_rejects_negative_file_size(self):
@@ -90,6 +92,7 @@ class TestDocumentResponseValidation:
                 file_type=self.VALID_TYPE,
                 file_size_bytes=-50,
                 uploaded_at=self.VALID_DATE,
+                original_filename=None,
             )
 
     def test_rejects_path_traversal(self):
@@ -100,6 +103,7 @@ class TestDocumentResponseValidation:
                 file_type=self.VALID_TYPE,
                 file_size_bytes=self.VALID_SIZE,
                 uploaded_at=self.VALID_DATE,
+                original_filename=None,
             )
 
     def test_rejects_empty_file_path(self):
@@ -110,4 +114,5 @@ class TestDocumentResponseValidation:
                 file_type=self.VALID_TYPE,
                 file_size_bytes=self.VALID_SIZE,
                 uploaded_at=self.VALID_DATE,
+                original_filename=None,
             )

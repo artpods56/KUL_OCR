@@ -10,7 +10,7 @@ from kul_ocr import config
 from kul_ocr.adapters.loaders.filesystem import FileSystemDocumentLoader
 from kul_ocr.adapters.ocr.tesseract import TesseractOCREngine, TesseractEngineConfig
 from kul_ocr.adapters.storages import local
-from kul_ocr.domain import ports
+from kul_ocr.domain import ports, protocols
 from kul_ocr.domain.ports import FileStorage
 from kul_ocr.service_layer import uow
 from kul_ocr.config import get_app_config
@@ -113,6 +113,13 @@ def get_ocr_engine() -> ports.OCREngine:
 def get_document_loader() -> ports.DocumentLoader:
     """Get a loader for document content."""
     return FileSystemDocumentLoader(storage=get_file_storage())
+
+
+def get_task_runner() -> protocols.TaskRunner:
+    """Get a task runner for scheduling Celery tasks."""
+    from kul_ocr.adapters.queue.runner import CeleryTaskRunner
+
+    return CeleryTaskRunner()
 
 
 DEFAULT_SESSION_FACTORY = None

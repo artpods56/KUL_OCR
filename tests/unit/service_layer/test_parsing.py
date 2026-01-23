@@ -1,6 +1,7 @@
 import pytest
 
-from kul_ocr.domain import exceptions, model
+import kul_ocr.domain.model
+from kul_ocr.domain import model
 from kul_ocr.service_layer import parsing
 
 
@@ -27,5 +28,5 @@ class TestParseFileType:
     def test_parse_invalid_content_type_raises_exception(
         self, invalid_content_type: str | None
     ):
-        with pytest.raises(exceptions.UnsupportedFileTypeError):
+        with pytest.raises(kul_ocr.domain.model.UnsupportedFileTypeError):
             _ = parsing.parse_file_type(invalid_content_type)
