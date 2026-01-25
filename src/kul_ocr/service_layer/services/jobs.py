@@ -1,9 +1,9 @@
 from typing import Sequence
 
 import kul_ocr.domain.model
-from kul_ocr.domain import structs, model
+from kul_ocr.domain import structs, model, enums, exceptions
 from kul_ocr.domain.protocols import TaskRunner
-from kul_ocr.exceptions import DomainException
+from kul_ocr.domain.exceptions import DomainException
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import AbstractUnitOfWork
 
@@ -47,7 +47,7 @@ def get_ocr_job_response(job_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO
 
 
 def get_ocr_jobs_by_status(
-    status: model.JobStatus, uow: AbstractUnitOfWork
+    status: enums.JobStatus, uow: AbstractUnitOfWork
 ) -> Sequence[structs.JobDTO]:
     """Gets OCR jobs filtered by status.
 
@@ -104,10 +104,10 @@ def get_ocr_jobs(
     """
     with uow:
         if status:
-            if status not in [s.value for s in model.JobStatus]:
-                raise kul_ocr.domain.model.UnknownJobStatusError(status=status)
+            if status not in [s.value for s in enums.JobStatus]:
+                raise exceptions.UnknownJobStatusError(status=status)
 
-        job_status = model.JobStatus(status) if status else None
+        job_status = enums.JobStatus(status) if status else None
         jobs = uow.jobs.list_by_filters(status=job_status, document_id=document_id)
         return [structs.JobDTO.from_domain(job) for job in jobs]
 
@@ -147,7 +147,7 @@ def delete_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> None:
 
         # Business rule validation stays in service
         if not job.is_terminal:
-            raise kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr(
+            raise exceptions.InvalidJobStatusTransitionErrorDepr(
                 job_id=job_id,
                 current_status=job.status.value,
                 attempted_status="terminal (completed/failed)",
@@ -220,12 +220,12 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> structs.Jo
     with uow:
         ocr_job = uow.jobs.get_or_raise(job_id)
         ocr_job.assign_task_id(task_id)
-        ocr_job.mark_as_processing()
+        ocr_job.update_status(enums.JobStatus.PROCESSING)
 
         # Create outbox entry for reliable task scheduling
         outbox_entry = model.OutboxEntry(
             id=generate_id(),
-            event_type=model.OutboxEventType.OCR_JOB_SCHEDULED,
+            event_type=enums.OutboxEventType.JOB_SCHEDULING,
             aggregate_id=ocr_job.id,
             payload={
                 "job_id": ocr_job.id,
@@ -273,7 +273,7 @@ def complete_ocr_job(
     )
 
     uow.results.add(result)
-    ocr_job.complete()
+    ocr_job.update_status(enums.JobStatus.COMPLETED)
 
     return structs.JobDTO.from_domain(ocr_job)
 
@@ -297,7 +297,7 @@ def fail_ocr_job(
     with uow:
         ocr_job = uow.jobs.get_or_raise(job_id)
 
-        ocr_job.fail(error_message)
+        ocr_job.update_status(enums.JobStatus.FAILED, error_message=error_message)
         uow.commit()
 
         return structs.JobDTO.from_domain(ocr_job)
@@ -323,11 +323,11 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> structs.Job
     """
     original_job = uow.jobs.get_or_raise(failed_job_id)
 
-    if original_job.status != model.JobStatus.FAILED:
-        raise kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr(
+    if original_job.status != enums.JobStatus.FAILED:
+        raise exceptions.InvalidJobStatusTransitionErrorDepr(
             job_id=failed_job_id,
             current_status=str(original_job.status.value),
-            attempted_status=model.JobStatus.PENDING.value,
+            attempted_status=enums.JobStatus.PENDING.value,
         )
 
     new_job = model.Job(id=generate_id(), document_id=original_job.document_id)
@@ -358,22 +358,22 @@ def cancel_ocr_job(
 
         match ocr_job.status:
             # means the task hasn't been put in the outbox yet
-            case model.JobStatus.PENDING:
-                ocr_job.fail("[CANCELED]: User cancelled job")
+            case enums.JobStatus.PENDING:
+                ocr_job.update_status(enums.JobStatus.FAILED, error_message="[CANCELED]: User cancelled job")
 
-            case model.JobStatus.PROCESSING:
+            case enums.JobStatus.PROCESSING:
                 try:
                     task_id = ocr_job.task_id
                     if task_id is None:
-                        raise kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr(
+                        raise exceptions.InvalidJobStatusTransitionErrorDepr(
                             job_id=ocr_job.id,
                             current_status=ocr_job.status.value,
-                            attempted_status=model.JobStatus.FAILED.value,
+                            attempted_status=enums.JobStatus.FAILED.value,
                             message="",
                         )
                     task_runner.revoke_task(task_id)
 
-                    ocr_job.fail("[REV")
+                    ocr_job.update_status(enums.JobStatus.FAILED, error_message="[REV")
                 except Exception as e:
                     print(e)
 
@@ -390,11 +390,12 @@ def cancel_ocr_job(
         #
         #     _ = task_runner.revoke_task(ocr_job.task_id)
         #
-        if ocr_job.status == model.JobStatus.PENDING:
-            ocr_job.fail("Cancelled by user")
-        elif ocr_job.status == model.JobStatus.PROCESSING:
-            ocr_job.fail(
-                "Cancelled by user - note: processing may continue until worker picks up cancellation"
+        if ocr_job.status == enums.JobStatus.PENDING:
+            ocr_job.update_status(enums.JobStatus.FAILED, error_message="Cancelled by user")
+        elif ocr_job.status == enums.JobStatus.PROCESSING:
+            ocr_job.update_status(
+                enums.JobStatus.FAILED,
+                error_message="Cancelled by user - note: processing may continue until worker picks up cancellation"
             )
         else:
             return structs.JobDTO.from_domain(ocr_job)
