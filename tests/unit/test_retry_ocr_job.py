@@ -1,14 +1,14 @@
 import kul_ocr.adapters.database.repository
 import kul_ocr.domain.model
 import kul_ocr.service_layer.services.jobs
-from kul_ocr.domain import model, structs
+from kul_ocr.domain import model, structs, enums, exceptions
 import pytest
 from uuid import uuid4
 
 
 def test_retry_failed_job_creates_new_pending_job(uow):
     failed_job = model.Job(id=str(uuid4()), document_id=str(uuid4()))
-    failed_job.fail("OCR error")
+    failed_job.update_status(enums.JobStatus.FAILED, error_message="OCR error")
     uow.jobs.add(failed_job)
     uow.commit()
 
@@ -20,7 +20,7 @@ def test_retry_failed_job_creates_new_pending_job(uow):
     assert response.status == "pending"
 
     original_job = uow.jobs.get(failed_job.id)
-    assert original_job.status == model.JobStatus.FAILED
+    assert original_job.status == enums.JobStatus.FAILED
 
 
 def test_retry_non_failed_job_raises_error(uow):
@@ -29,7 +29,7 @@ def test_retry_non_failed_job_raises_error(uow):
     uow.jobs.add(job)
     uow.commit()
     with pytest.raises(
-        kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr,
+        exceptions.InvalidJobStatusTransitionErrorDepr,
         match="Invalid status transition for job",
     ):
         kul_ocr.service_layer.services.jobs.retry_ocr_job(job.id, uow)

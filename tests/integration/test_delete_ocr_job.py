@@ -3,12 +3,11 @@ import pytest
 import kul_ocr.adapters.database.repository
 import kul_ocr.domain.model
 import kul_ocr.service_layer.services.jobs
+from kul_ocr.domain import exceptions
 from kul_ocr.domain.model import (
     BoundingBox,
     Document,
-    FileType,
     Job,
-    JobStatus,
     PageMetadata,
     PagePart,
     PageRef,
@@ -16,6 +15,7 @@ from kul_ocr.domain.model import (
     Result,
     TextPart,
 )
+from kul_ocr.domain.enums import JobStatus, FileType
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
 
@@ -79,8 +79,8 @@ def _create_job_with_result(uow: SqlAlchemyUnitOfWork) -> tuple[str, str, str]:
     with uow:
         uow.documents.add(document)
         uow.jobs.add(job)
-        job.mark_as_processing()
-        job.complete()
+        job.update_status(JobStatus.PROCESSING)
+        job.update_status(JobStatus.COMPLETED)
         uow.results.add(result)
         uow.commit()
 
@@ -99,8 +99,8 @@ class TestDeleteOCRJobIntegration:
         with uow:
             job = uow.jobs.get(job_id)
             assert job is not None
-            job.mark_as_processing()
-            job.complete()
+            job.update_status(JobStatus.PROCESSING)
+            job.update_status(JobStatus.COMPLETED)
             uow.commit()
 
         kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
@@ -116,7 +116,7 @@ class TestDeleteOCRJobIntegration:
         with uow:
             job = uow.jobs.get(job_id)
             assert job is not None
-            job.fail("Test error")
+            job.update_status(JobStatus.FAILED, error_message="Test error")
             uow.commit()
 
         kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
@@ -132,7 +132,7 @@ class TestDeleteOCRJobIntegration:
         document_id, job_id = _create_job_with_document(uow, JobStatus.PENDING)
 
         with pytest.raises(
-            kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr,
+            exceptions.InvalidJobStatusTransitionErrorDepr,
             match="Cannot delete job",
         ):
             kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
@@ -150,11 +150,11 @@ class TestDeleteOCRJobIntegration:
         with uow:
             job = uow.jobs.get(job_id)
             assert job is not None
-            job.mark_as_processing()
+            job.update_status(JobStatus.PROCESSING)
             uow.commit()
 
         with pytest.raises(
-            kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr,
+            exceptions.InvalidJobStatusTransitionErrorDepr,
             match="Cannot delete job",
         ):
             kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)

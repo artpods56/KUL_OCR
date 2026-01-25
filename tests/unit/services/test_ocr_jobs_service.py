@@ -8,7 +8,8 @@ import kul_ocr.adapters.database.repository
 import kul_ocr.domain.model
 import kul_ocr.service_layer.services.jobs
 import kul_ocr.service_layer.services.results
-from kul_ocr.domain.model import JobStatus, FileType
+from kul_ocr.domain import exceptions
+from kul_ocr.domain.enums import JobStatus, FileType
 from tests.fakes.uow import FakeUnitOfWork
 from tests import factories
 
@@ -214,7 +215,7 @@ def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
 
     # Attempting to start it again should fail
     with pytest.raises(
-        kul_ocr.domain.model.InvalidJobStatusTransitionError, match="cannot transition"
+        exceptions.InvalidJobStatusTransitionError, match="cannot transition"
     ):
         _ = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
 
@@ -264,7 +265,7 @@ def test_retry_failed_job_wrong_status(uow: FakeUnitOfWork, status: JobStatus):
     uow.jobs.add(job)
 
     with pytest.raises(
-        kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr,
+        exceptions.InvalidJobStatusTransitionErrorDepr,
         match="Invalid status transition",
     ):
         _ = kul_ocr.service_layer.services.jobs.retry_failed_job(job.id, uow)
@@ -283,15 +284,15 @@ def test_get_latest_result_for_document_success(uow: FakeUnitOfWork, tmp_path: P
     # Create multiple completed jobs for the same document
     job1 = factories.generate_ocr_job(status=JobStatus.PENDING)
     job1.document_id = document_id
-    job1.mark_as_processing()
-    job1.complete()
+    job1.update_status(JobStatus.PROCESSING)
+    job1.update_status(JobStatus.COMPLETED)
     job1.completed_at = now
     uow.jobs.add(job1)
 
     job2 = factories.generate_ocr_job(status=JobStatus.PENDING)
     job2.document_id = document_id
-    job2.mark_as_processing()
-    job2.complete()
+    job2.update_status(JobStatus.PROCESSING)
+    job2.update_status(JobStatus.COMPLETED)
     job2.completed_at = now + timedelta(seconds=1)
     uow.jobs.add(job2)
 
@@ -353,8 +354,8 @@ def test_get_latest_result_for_document_document_not_found(uow: FakeUnitOfWork):
 def test_delete_completed_job_success(uow: FakeUnitOfWork):
     """Test successfully deleting a completed job."""
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
-    job.mark_as_processing()
-    job.complete()
+    job.update_status(JobStatus.PROCESSING)
+    job.update_status(JobStatus.COMPLETED)
     uow.jobs.add(job)
 
     kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
@@ -366,7 +367,7 @@ def test_delete_completed_job_success(uow: FakeUnitOfWork):
 def test_delete_failed_job_success(uow: FakeUnitOfWork):
     """Test successfully deleting a failed job."""
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
-    job.fail("Some error")
+    job.update_status(JobStatus.FAILED, error_message="Some error")
     uow.jobs.add(job)
 
     kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
@@ -381,7 +382,7 @@ def test_delete_pending_job_raises_error(uow: FakeUnitOfWork):
     uow.jobs.add(job)
 
     with pytest.raises(
-        kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr,
+        exceptions.InvalidJobStatusTransitionErrorDepr,
         match="Cannot delete job",
     ):
         kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
@@ -390,11 +391,11 @@ def test_delete_pending_job_raises_error(uow: FakeUnitOfWork):
 def test_delete_processing_job_raises_error(uow: FakeUnitOfWork):
     """Test that deleting a processing job raises InvalidJobStatusTransitionErrorDepr."""
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
-    job.mark_as_processing()
+    job.update_status(JobStatus.PROCESSING)
     uow.jobs.add(job)
 
     with pytest.raises(
-        kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr,
+        exceptions.InvalidJobStatusTransitionErrorDepr,
         match="Cannot delete job",
     ):
         kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
@@ -412,8 +413,8 @@ def test_delete_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
 def test_delete_job_also_deletes_associated_result(uow: FakeUnitOfWork):
     """Test that associated result is deleted with the job."""
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
-    job.mark_as_processing()
-    job.complete()
+    job.update_status(JobStatus.PROCESSING)
+    job.update_status(JobStatus.COMPLETED)
     uow.jobs.add(job)
 
     result = factories.generate_ocr_result()

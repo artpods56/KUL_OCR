@@ -1,6 +1,6 @@
 from tests.fakes.repositories import FakeOcrJobRepository
 from kul_ocr.domain import model
-from kul_ocr.domain.model import JobStatus
+from kul_ocr.domain.enums import JobStatus
 from tests import factories
 
 
@@ -60,8 +60,8 @@ class TestOcrJobRepository:
         fake_ocr_job_repository.add(ocr_job)
 
         # Modify the job
-        ocr_job.mark_as_processing()
-        ocr_job.complete()
+        ocr_job.update_status(JobStatus.PROCESSING)
+        ocr_job.update_status(JobStatus.COMPLETED)
 
         # Retrieve and verify state persisted
         retrieved = fake_ocr_job_repository.get(ocr_job.id)
@@ -74,7 +74,7 @@ class TestOcrJobRepository:
         self, fake_ocr_job_repository: FakeOcrJobRepository
     ):
         ocr_job_1 = factories.generate_ocr_job(status=JobStatus.PENDING)
-        ocr_job_1.mark_as_processing()
+        ocr_job_1.update_status(JobStatus.PROCESSING)
 
         ocr_job_2 = factories.generate_ocr_job(status=JobStatus.PENDING)
         ocr_job_2.id = ocr_job_1.id  # Use same ID to test overwrite

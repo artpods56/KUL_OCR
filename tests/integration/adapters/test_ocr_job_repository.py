@@ -1,6 +1,7 @@
 import pytest
 
-from kul_ocr.domain.model import Document, FileType, Job, JobStatus
+from kul_ocr.domain.model import Document, Job
+from kul_ocr.domain.enums import JobStatus, FileType
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
 
@@ -183,7 +184,7 @@ def test_job_status_updates_are_persisted(uow: SqlAlchemyUnitOfWork, document_id
     with uow:
         retrieved_job = uow.jobs.get(job_id)
         assert retrieved_job is not None
-        retrieved_job.mark_as_processing()
+        retrieved_job.update_status(JobStatus.PROCESSING)
         uow.commit()
 
     # Verify the update persisted
@@ -197,7 +198,7 @@ def test_job_status_updates_are_persisted(uow: SqlAlchemyUnitOfWork, document_id
     with uow:
         processing_job = uow.jobs.get(job_id)
         assert processing_job is not None
-        processing_job.complete()
+        processing_job.update_status(JobStatus.COMPLETED)
         uow.commit()
 
     # Verify the completion persisted
