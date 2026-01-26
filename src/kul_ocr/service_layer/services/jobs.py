@@ -223,15 +223,17 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> structs.Jo
         ocr_job.update_status(enums.JobStatus.PROCESSING)
 
         # Create outbox entry for reliable task scheduling
+        payload: model.JobSchedulingPayload = {
+            "job_id": ocr_job.id,
+            "task_id": task_id,
+            "document_id": ocr_job.document_id,
+        }
+
         outbox_entry = model.OutboxEntry(
             id=generate_id(),
             event_type=enums.OutboxEventType.JOB_SCHEDULING,
             aggregate_id=ocr_job.id,
-            payload={
-                "job_id": ocr_job.id,
-                "task_id": task_id,
-                "document_id": ocr_job.document_id,
-            },
+            payload=payload,
         )
         uow.outbox.add(outbox_entry)
         uow.commit()
