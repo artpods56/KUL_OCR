@@ -4,9 +4,9 @@ from uuid import UUID
 from collections.abc import Sequence
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 
-from kul_ocr.domain import model, structs
+from kul_ocr.domain import model, structs, enums
 from kul_ocr.utils.misc import nobeartype
-from kul_ocr.domain.model import JobStatus
+from kul_ocr.domain.enums import JobStatus
 
 
 class DocumentResponse(BaseModel):
@@ -22,26 +22,30 @@ class DocumentResponse(BaseModel):
     }
 
     id: UUID = Field(..., description="Unique UUID of the document")
-    file_path: str = Field(
-        ..., min_length=1, max_length=500, description="Path to the stored file"
-    )
-    file_type: model.FileType = Field(..., description="MIME type of the file")
+    original_filename: str = Field(..., description="Original filename as uploaded by the client")
+    file_type: enums.FileType = Field(..., description="MIME type of the file")
     uploaded_at: datetime = Field(..., description="Upload timestamp")
     file_size_bytes: int = Field(
         ..., ge=0, description="Size of the file in bytes (must be non-negative)"
     )
-    original_filename: str | None = Field(
-        None, description="Original filename as uploaded by the client"
+    file_path: str | None = Field(
+        None, min_length=1, max_length=500, description="Path to the stored file"
     )
 
-    @field_validator("file_path")
+    @field_validator("original_filename")
     @classmethod
-    def validate_file_path(cls, v: str) -> str:
+    def validate_original_filename(cls, v: str) -> str:
         v = v.strip()
         if not v:
-            raise ValueError("File path cannot be empty or whitespace only")
-        if ".." in v:
-            raise ValueError("File path cannot contain traversal characters (..)")
+            raise ValueError("Original filename cannot be empty or whitespace only")
+        if ".." in v or "/" in v or "\\" in v:
+            raise ValueError(
+                "Original filename cannot contain path traversal characters"
+            )
+        if len(v) > 500:
+            raise ValueError(
+                "Original filename exceeds maximum length of 500 characters"
+            )
         return v
 
     @field_validator("file_type")
@@ -53,43 +57,37 @@ class DocumentResponse(BaseModel):
             )
         return v
 
-    @field_validator("original_filename")
+    @field_validator("file_path")
     @classmethod
-    def validate_original_filename(cls, v: str | None) -> str | None:
+    def validate_file_path(cls, v: str | None) -> str | None:
         if v is not None:
             v = v.strip()
             if not v:
                 return None
-            if ".." in v or "/" in v or "\\" in v:
-                raise ValueError(
-                    "Original filename cannot contain path traversal characters"
-                )
-            if len(v) > 500:
-                raise ValueError(
-                    "Original filename exceeds maximum length of 500 characters"
-                )
+            if ".." in v:
+                raise ValueError("File path cannot contain traversal characters (..)")
         return v
 
     @classmethod
     def from_domain(cls, document: model.Document) -> Self:
         return cls(
             id=UUID(document.id),
-            file_path=document.file_path,
+            original_filename=document.original_filename,
             file_type=document.file_type,
             uploaded_at=document.uploaded_at,
             file_size_bytes=document.file_size_bytes,
-            original_filename=document.original_filename,
+            file_path=document.file_path,
         )
 
     @classmethod
     def from_dto(cls, document: structs.DocumentDTO) -> Self:
         return cls(
             id=UUID(document.id),
-            file_path=document.file_path,
-            file_type=model.FileType(document.file_type),
+            original_filename=document.original_filename,
+            file_type=enums.FileType(document.file_type),
             uploaded_at=document.uploaded_at,
             file_size_bytes=document.file_size_bytes,
-            original_filename=document.original_filename,
+            file_path=document.file_path,
         )
 
 
@@ -250,7 +248,7 @@ class JobResponse(BaseModel):
 
     id: UUID
     document_id: UUID
-    status: model.JobStatus
+    status: enums.JobStatus
     created_at: datetime
     started_at: datetime | None = None
     completed_at: datetime | None = None
@@ -274,7 +272,7 @@ class JobResponse(BaseModel):
         return cls(
             id=UUID(job.id),
             document_id=UUID(job.document_id),
-            status=model.JobStatus(job.status),  # String back to enum
+            status=enums.JobStatus(job.status),  # String back to enum
             created_at=job.created_at,
             started_at=job.started_at,
             completed_at=job.completed_at,
@@ -307,7 +305,7 @@ class ProcessJobTaskResponse(TaskResponse):
 
 class OutboxEntryResponse(BaseModel):
     id: UUID
-    event_type: model.OutboxEventType
+    event_type: enums.OutboxEventType
     aggregate_id: UUID
     created_at: datetime
     is_pending: bool
@@ -318,7 +316,7 @@ class OutboxEntryResponse(BaseModel):
         return cls(
             id=UUID(entry.id),
             aggregate_id=UUID(entry.aggregate_id),
-            event_type=model.OutboxEventType(entry.event_type),
+            event_type=enums.OutboxEventType(entry.event_type),
             created_at=entry.created_at,
             is_pending=entry.is_pending,
             relayed_at=entry.relayed_at,

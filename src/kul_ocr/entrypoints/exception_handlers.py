@@ -24,7 +24,7 @@ class ExceptionResponseFactory:
 
 def register_handlers(app: FastAPI):
     app.add_exception_handler(
-        kul_ocr.domain.model.UnsupportedFileTypeError,
+        exceptions.UnsupportedFileTypeError,
         ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
     )
     app.add_exception_handler(
@@ -46,17 +46,17 @@ def register_handlers(app: FastAPI):
     )
 
     app.add_exception_handler(
-        kul_ocr.domain.model.InvalidJobStatusTransitionError,
+        exceptions.InvalidJobStatusTransitionError,
         ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
     )
 
     app.add_exception_handler(
-        kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr,
+        exceptions.InvalidJobStatusTransitionErrorDepr,
         ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
     )
 
     app.add_exception_handler(
-        kul_ocr.domain.model.UnknownJobStatusError,
+        exceptions.UnknownJobStatusError,
         ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
     )
 

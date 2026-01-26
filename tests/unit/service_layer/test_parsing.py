@@ -1,7 +1,7 @@
 import pytest
 
 import kul_ocr.domain.model
-from kul_ocr.domain import model
+from kul_ocr.domain import model, enums, exceptions
 from kul_ocr.service_layer import parsing
 
 
@@ -9,14 +9,14 @@ class TestParseFileType:
     @pytest.mark.parametrize(
         "content_type,expected_file_type",
         [
-            ("application/pdf", model.FileType.PDF),
-            ("image/png", model.FileType.PNG),
-            ("image/jpeg", model.FileType.JPEG),
-            ("image/webp", model.FileType.WEBP),
+            ("application/pdf", enums.FileType.PDF),
+            ("image/png", enums.FileType.PNG),
+            ("image/jpeg", enums.FileType.JPEG),
+            ("image/webp", enums.FileType.WEBP),
         ],
     )
     def test_parse_valid_content_types(
-        self, content_type: str, expected_file_type: model.FileType
+        self, content_type: str, expected_file_type: enums.FileType
     ):
         result = parsing.parse_file_type(content_type)
         assert result == expected_file_type
@@ -28,5 +28,5 @@ class TestParseFileType:
     def test_parse_invalid_content_type_raises_exception(
         self, invalid_content_type: str | None
     ):
-        with pytest.raises(kul_ocr.domain.model.UnsupportedFileTypeError):
+        with pytest.raises(exceptions.UnsupportedFileTypeError):
             _ = parsing.parse_file_type(invalid_content_type)

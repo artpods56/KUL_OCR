@@ -1,4 +1,5 @@
-from kul_ocr.domain.model import Document, FileType
+from kul_ocr.domain.model import Document
+from kul_ocr.domain.enums import FileType
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
 

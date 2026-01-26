@@ -210,20 +210,27 @@ class Document:
         return self._status
 
     def __post_init__(self):
-        path = Path(self.file_path)
-        if self.file_type.dot_extension != path.suffix:
-            raise ValueError(
-                f"Document extension mismatch: expected {self.file_type.dot_extension} ",
-                f"but got {path.suffix}",
-            )
+        if self.file_path is not None:
+            path = Path(self.file_path)
+            if self.file_type.dot_extension != path.suffix:
+                raise ValueError(
+                    f"Document extension mismatch: expected {self.file_type.dot_extension} ",
+                    f"but got {path.suffix}",
+                )
 
     @property
     def name(self) -> str:
-        return Path(self.file_path).name
+        """Return the storage filename, or original filename if no file_path is set."""
+        if self.file_path is not None:
+            return Path(self.file_path).name
+        return self.original_filename
 
     @property
     def file_extension(self) -> str:
-        return Path(self.file_path).suffix
+        """Return the file extension from storage path, or inferred from file_type."""
+        if self.file_path is not None:
+            return Path(self.file_path).suffix
+        return self.file_type.dot_extension
 
     @property
     def mime_type(self) -> str:
@@ -231,10 +238,8 @@ class Document:
 
     @property
     def display_name(self) -> str:
-        """Return the original filename if available, otherwise the storage name."""
-        if self.original_filename:
-            return self.original_filename
-        return self.name
+        """Return the original filename for display purposes."""
+        return self.original_filename
 
     def is_pdf(self) -> bool:
         return self.file_type == FileType.PDF

@@ -2,7 +2,8 @@ from datetime import datetime, timedelta
 
 import kul_ocr.service_layer.services.jobs
 import kul_ocr.service_layer.services.outbox
-from kul_ocr.domain.model import OutboxEntry, OutboxEventType, JobStatus
+from kul_ocr.domain.model import OutboxEntry
+from kul_ocr.domain.enums import JobStatus, OutboxEventType
 from kul_ocr.service_layer.helpers import generate_id
 from tests.factories import generate_ocr_job, generate_document_without_file
 from tests.fakes.task_runner import FakeTaskRunner
@@ -26,7 +27,7 @@ class TestStartOcrJobProcessingWithOutbox:
         assert len(uow.outbox.added) == 1
 
         outbox_entry = uow.outbox.added[0]
-        assert outbox_entry.event_type == OutboxEventType.OCR_JOB_SCHEDULED
+        assert outbox_entry.event_type == OutboxEventType.JOB_SCHEDULING
         assert outbox_entry.aggregate_id == job.id
         assert outbox_entry.payload["job_id"] == job.id
         assert outbox_entry.payload["document_id"] == document.id
@@ -76,7 +77,7 @@ class TestRelayPendingOutboxEntries:
 
         entry = OutboxEntry(
             id=generate_id(),
-            event_type=OutboxEventType.OCR_JOB_SCHEDULED,
+            event_type=OutboxEventType.JOB_SCHEDULING,
             aggregate_id=job_id,
             payload={
                 "job_id": job_id,
@@ -105,7 +106,7 @@ class TestRelayPendingOutboxEntries:
 
         entry = OutboxEntry(
             id=generate_id(),
-            event_type=OutboxEventType.OCR_JOB_SCHEDULED,
+            event_type=OutboxEventType.JOB_SCHEDULING,
             aggregate_id=generate_id(),
             payload={
                 "job_id": generate_id(),
@@ -128,7 +129,7 @@ class TestRelayPendingOutboxEntries:
 
         entry = OutboxEntry(
             id=generate_id(),
-            event_type=OutboxEventType.OCR_JOB_SCHEDULED,
+            event_type=OutboxEventType.JOB_SCHEDULING,
             aggregate_id=generate_id(),
             payload={
                 "job_id": generate_id(),
@@ -152,7 +153,7 @@ class TestRelayPendingOutboxEntries:
         for _ in range(5):
             entry = OutboxEntry(
                 id=generate_id(),
-                event_type=OutboxEventType.OCR_JOB_SCHEDULED,
+                event_type=OutboxEventType.JOB_SCHEDULING,
                 aggregate_id=generate_id(),
                 payload={
                     "job_id": generate_id(),
@@ -179,7 +180,7 @@ class TestRelayPendingOutboxEntries:
         # Create and relay an entry
         entry = OutboxEntry(
             id=generate_id(),
-            event_type=OutboxEventType.OCR_JOB_SCHEDULED,
+            event_type=OutboxEventType.JOB_SCHEDULING,
             aggregate_id=generate_id(),
             payload={
                 "job_id": generate_id(),
@@ -217,7 +218,7 @@ class TestRelayPendingOutboxEntries:
 
         entry = OutboxEntry(
             id=generate_id(),
-            event_type=OutboxEventType.OCR_JOB_SCHEDULED,
+            event_type=OutboxEventType.JOB_SCHEDULING,
             aggregate_id=generate_id(),
             payload={},  # Missing job_id and task_id
         )
@@ -240,7 +241,7 @@ class TestCleanupOldOutboxEntries:
         # Create an old relayed entry
         entry = OutboxEntry(
             id=generate_id(),
-            event_type=OutboxEventType.OCR_JOB_SCHEDULED,
+            event_type=OutboxEventType.JOB_SCHEDULING,
             aggregate_id=generate_id(),
             payload={},
         )
@@ -264,7 +265,7 @@ class TestCleanupOldOutboxEntries:
         # Create a recently relayed entry
         entry = OutboxEntry(
             id=generate_id(),
-            event_type=OutboxEventType.OCR_JOB_SCHEDULED,
+            event_type=OutboxEventType.JOB_SCHEDULING,
             aggregate_id=generate_id(),
             payload={},
         )
@@ -287,7 +288,7 @@ class TestCleanupOldOutboxEntries:
         # Create an old pending (not relayed) entry
         entry = OutboxEntry(
             id=generate_id(),
-            event_type=OutboxEventType.OCR_JOB_SCHEDULED,
+            event_type=OutboxEventType.JOB_SCHEDULING,
             aggregate_id=generate_id(),
             payload={},
             created_at=datetime.now() - timedelta(hours=48),

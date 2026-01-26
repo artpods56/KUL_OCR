@@ -7,9 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.orm.session import Session
 
 from kul_ocr.adapters.database import orm
-from kul_ocr.domain import model
-from kul_ocr.domain.model import JobStatus
-from kul_ocr.exceptions import DomainException
+from kul_ocr.domain import model, enums
+from kul_ocr.domain.enums import JobStatus
+from kul_ocr.domain.exceptions import DomainException
 
 
 # --- Abstract Repositories ---
@@ -57,7 +57,7 @@ class AbstractOCRJobRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def list_by_status(self, job_status: model.JobStatus) -> Sequence[model.Job]:
+    def list_by_status(self, job_status: enums.JobStatus) -> Sequence[model.Job]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -67,7 +67,7 @@ class AbstractOCRJobRepository(abc.ABC):
     @abc.abstractmethod
     def list_by_filters(
         self,
-        status: model.JobStatus | None = None,
+        status: enums.JobStatus | None = None,
         document_id: str | None = None,
     ) -> Sequence[model.Job]:
         """List jobs filtered by optional status and/or document_id at SQL level."""
@@ -181,7 +181,7 @@ class SQLAlchemyOcrJobRepository(AbstractOCRJobRepository):
         return self._session.scalars(statement).all()
 
     @override
-    def list_by_status(self, job_status: model.JobStatus) -> Sequence[model.Job]:
+    def list_by_status(self, job_status: enums.JobStatus) -> Sequence[model.Job]:
         statement = select(model.Job).where(orm.ocr_jobs.c.status == job_status)
         return self._session.scalars(statement).all()
 
@@ -193,7 +193,7 @@ class SQLAlchemyOcrJobRepository(AbstractOCRJobRepository):
     @override
     def list_by_filters(
         self,
-        status: model.JobStatus | None = None,
+        status: enums.JobStatus | None = None,
         document_id: str | None = None,
     ) -> Sequence[model.Job]:
         statement = select(model.Job)

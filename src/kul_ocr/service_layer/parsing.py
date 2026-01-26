@@ -4,25 +4,45 @@ from pathlib import Path
 import filetype
 
 import kul_ocr.domain.model
-from kul_ocr.domain import model
-from kul_ocr.exceptions import DomainException
+from kul_ocr.domain import model, enums, exceptions
+from kul_ocr.domain.exceptions import DomainException
 
 # Minimum bytes needed for reliable file type detection (filetype needs max 261)
 MIN_MAGIC_BYTES = 261
 
 
-def parse_file_type(content_type: str | None) -> model.FileType:
+def parse_file_type(content_type: str | None) -> enums.FileType:
     if content_type is None:
         content_type = ""
     try:
-        return model.FileType(content_type)
+        return enums.FileType(content_type)
     except ValueError:
-        raise kul_ocr.domain.model.UnsupportedFileTypeError(
+        raise exceptions.UnsupportedFileTypeError(
             f"Unsupported file type: {content_type}"
         )
 
 
-def validate_file_content(file_bytes: bytes, declared_type: model.FileType) -> None:
+def get_mime_from_bytes(file_bytes: bytes) -> str:
+    """Get mime of a file using filetype library.
+
+    Args:
+        file_bytes: The byte string of the file to get the mime type of.
+
+    Returns:
+        str: mime type in format like `application/pdf`
+
+    """
+    kind = filetype.guess(file_bytes)
+    if kind is None:
+        raise ValueError(
+            "Could not detect file type from bytes object",
+        )
+    return kind.mime
+
+
+def validate_and_get_file_type(
+    file_bytes: bytes, declared_type: enums.FileType
+) -> None:
     """Validate that file content matches the declared file type using magic bytes.
 
     Args:
@@ -49,6 +69,8 @@ def validate_file_content(file_bytes: bytes, declared_type: model.FileType) -> N
             declared_type=expected_mime,
             detected_type=detected_mime,
         )
+
+    return kind
 
 
 def sanitize_filename(filename: str | None) -> str | None:

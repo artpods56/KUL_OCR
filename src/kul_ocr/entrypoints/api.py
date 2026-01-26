@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 import logging
@@ -9,13 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
 
 import kul_ocr.adapters.database.repository
-import kul_ocr.service_layer.services.documents
-import kul_ocr.service_layer.services.jobs
-import kul_ocr.service_layer.services.results
+from kul_ocr.service_layer.services import documents, jobs, results
+
 from kul_ocr.adapters.database import orm
 from kul_ocr.entrypoints import dependencies, exception_handlers, schemas
 from kul_ocr.entrypoints.dependencies import UnitOfWorkDep
-from kul_ocr.service_layer import parsing
+from kul_ocr.service_layer import parsing, services
 
 _ = load_dotenv()
 
@@ -56,15 +56,31 @@ def upload_document(
 ) -> schemas.DocumentResponse:
     file_type = parsing.parse_file_type(file.content_type)
 
+    documents.validate_uploaded_file(
+        file_stream=file.file,
+        file_size=file.size or 0,
+        file_type=file_type,
+        max_bytes=config.max_upload_size_mb * 1024 * 1024,
+    )
+
+    document = documents.prepare_document(
+        file_name=file.filename or "unknown" + file_type.dot_extension,
+        file_type=file_type,
+        file_size=file.size or 0,
+    )
+
+    # Build storage paths using config
+    staging_file_path = Path(config.staging_prefix) / f"{document.id}{file_type.dot_extension}"
+    uploaded_file_path = Path(config.documents_prefix) / f"{document.id}{file_type.dot_extension}"
+
     return schemas.DocumentResponse.from_dto(
-        kul_ocr.service_layer.services.documents.upload_document(
+        documents.upload_document(
             file_stream=file.file,
-            file_size=file.size or 0,
-            file_type=file_type,
+            document=document,
+            staging_file_path=staging_file_path,
+            uploaded_file_path=uploaded_file_path,
             storage=storage,
             uow=uow,
-            original_filename=file.filename,
-            max_bytes=config.max_upload_size_mb * 1024 * 1024,
         )
     )
 
@@ -74,7 +90,7 @@ def list_documents(
     uow: UnitOfWorkDep,
 ) -> schemas.DocumentListResponse:
     return schemas.DocumentListResponse.from_dto(
-        kul_ocr.service_layer.services.documents.get_documents(uow)
+        documents.get_documents(uow)
     )
 
 
@@ -87,7 +103,7 @@ def get_document(
     uow: dependencies.UnitOfWorkDep,
 ) -> schemas.DocumentResponse:
     return schemas.DocumentResponse.from_dto(
-        kul_ocr.service_layer.services.documents.get_document(str(document_id), uow)
+        documents.get_document(str(document_id), uow)
     )
 
 
@@ -99,7 +115,7 @@ def get_latest_result(
     document_id: str,
     uow: dependencies.UnitOfWorkDep,
 ) -> schemas.ResultResponse:
-    result = kul_ocr.service_layer.services.results.get_latest_result_for_document(
+    result = results.get_latest_result_for_document(
         document_id, uow
     )
     if result is None:
@@ -116,7 +132,7 @@ def download_document(
     storage: dependencies.FileStorageDep,
     uow: UnitOfWorkDep,
 ):
-    result = kul_ocr.service_layer.services.results.download_document(
+    result = results.download_document(
         document_id=str(document_id), storage=storage, uow=uow
     )
 
@@ -152,7 +168,7 @@ def create_ocr_job(
     uow: UnitOfWorkDep,
 ) -> schemas.JobResponse:
     return schemas.JobResponse.from_dto(
-        kul_ocr.service_layer.services.jobs.submit_ocr_job(
+        jobs.submit_ocr_job(
             str(request.document_id), uow
         )
     )
@@ -170,12 +186,12 @@ def start_ocr_job(
     the Celery task.
     """
     try:
-        job_dto = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(
+        job_dto = jobs.start_ocr_job_processing(
             str(job_id), uow=uow
         )
         return schemas.JobResponse.from_dto(job_dto)
     except Exception as e:
-        job_dto = kul_ocr.service_layer.services.jobs.fail_ocr_job(
+        job_dto = jobs.fail_ocr_job(
             str(job_id), str(e), uow=uow
         )
         return schemas.JobResponse.from_dto(job_dto)
@@ -190,7 +206,7 @@ def delete_ocr_job(
     job_id: UUID,
     uow: UnitOfWorkDep,
 ) -> Response:
-    kul_ocr.service_layer.services.jobs.delete_ocr_job(str(job_id), uow)
+    jobs.delete_ocr_job(str(job_id), uow)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -205,7 +221,7 @@ def retry_ocr_job(
 ) -> schemas.JobResponse:
     logger.info("Retry requested for OCR job %s", job_id)
     return schemas.JobResponse.from_dto(
-        kul_ocr.service_layer.services.jobs.retry_ocr_job(str(job_id), uow)
+        jobs.retry_ocr_job(str(job_id), uow)
     )
 
 
@@ -222,7 +238,7 @@ def list_ocr_jobs(
         UUID | None, Query(description="Filter by document ID")
     ] = None,
 ) -> schemas.JobListResponse:
-    job_dtos = kul_ocr.service_layer.services.jobs.get_ocr_jobs(
+    job_dtos = jobs.get_ocr_jobs(
         uow=uow, status=status, document_id=str(document_id) if document_id else None
     )
     return schemas.JobListResponse(
@@ -241,7 +257,7 @@ def get_ocr_job_by_id(
     uow: dependencies.UnitOfWorkDep,
 ) -> schemas.JobResponse:
     return schemas.JobResponse.from_dto(
-        kul_ocr.service_layer.services.jobs.get_ocr_job_response(str(job_id), uow)
+        jobs.get_ocr_job_response(str(job_id), uow)
     )
 
 
@@ -252,7 +268,7 @@ def cancel_ocr_job(
 ) -> schemas.JobResponse:
     try:
         return schemas.JobResponse.from_dto(
-            kul_ocr.service_layer.services.jobs.cancel_ocr_job(str(job_id), uow)
+        jobs.cancel_ocr_job(str(job_id), uow)
         )
     except kul_ocr.adapters.database.repository.OCRJobNotFoundError:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")

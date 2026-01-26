@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import final, override
 
-from kul_ocr.domain import model
+from kul_ocr.domain import model, enums
 from kul_ocr.domain.protocols import TaskRunner
 
 
@@ -25,7 +25,7 @@ class FakeTaskRunner(TaskRunner):
     @override
     def schedule_task(self, entry: model.OutboxEntry) -> None:
         match entry.event_type:
-            case model.OutboxEventType.OCR_JOB_SCHEDULED:
+            case enums.OutboxEventType.JOB_SCHEDULING:
                 if self.should_fail:
                     raise RuntimeError("FakeTaskRunner configured to fail")
                 job_id = entry.payload.get("job_id")

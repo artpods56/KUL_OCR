@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
 from kul_ocr.adapters.database import orm
-from kul_ocr.domain.model import JobStatus
+from kul_ocr.domain.enums import JobStatus
 from kul_ocr.entrypoints import dependencies
 from kul_ocr.entrypoints.api import app
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork

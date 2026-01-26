@@ -3,7 +3,7 @@ from PIL import Image
 import pytest
 
 import kul_ocr.service_layer.services.documents
-from kul_ocr.domain import model, ports, structs
+from kul_ocr.domain import model, ports, structs, enums
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def test_process_document_orchestration(
     doc_input = structs.DocumentInput(
         id="doc1",
         file_path="doc1.png",
-        file_type=model.FileType.PNG,
+        file_type=enums.FileType.PNG,
     )
 
     mock_document_loader.load_pages.return_value = [
@@ -61,7 +61,7 @@ def test_process_document_multi_page_orchestration(
     doc_input = structs.DocumentInput(
         id="doc2",
         file_path="doc2.pdf",
-        file_type=model.FileType.PDF,
+        file_type=enums.FileType.PDF,
     )
 
     mock_document_loader.load_pages.return_value = [
@@ -94,7 +94,7 @@ def test_process_document_raises_if_no_pages(mock_ocr_engine, mock_document_load
     doc_input = structs.DocumentInput(
         id="doc3",
         file_path="doc3.png",
-        file_type=model.FileType.PNG,
+        file_type=enums.FileType.PNG,
     )
     mock_document_loader.load_pages.return_value = []
 
