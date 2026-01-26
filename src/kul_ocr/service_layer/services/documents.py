@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Sequence
+from collections.abc import Sequence
 
 from kul_ocr.domain import ports, model, structs, enums
 from kul_ocr.service_layer.helpers import generate_id

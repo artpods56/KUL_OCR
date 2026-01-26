@@ -1,4 +1,4 @@
-from typing import Sequence
+from collections.abc import Sequence
 
 import kul_ocr.domain.model
 from kul_ocr.domain import structs, model, enums, exceptions
