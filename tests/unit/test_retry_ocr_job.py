@@ -1,7 +1,6 @@
-from kul_ocr.entrypoints.schemas import JobResponse
+from kul_ocr.domain import model, exceptions, structs
 import pytest
 from uuid import uuid4
-from kul_ocr.domain import model, exceptions
 from kul_ocr.service_layer import services
 
 
@@ -11,10 +10,10 @@ def test_retry_failed_job_creates_new_pending_job(uow):
     uow.jobs.add(failed_job)
     uow.commit()
 
-    response: JobResponse = services.retry_ocr_job(failed_job.id, uow)
+    response: structs.JobDTO = services.retry_ocr_job(failed_job.id, uow)
     assert str(response.id) != failed_job.id
     assert str(response.document_id) == failed_job.document_id
-    assert response.status == model.JobStatus.PENDING
+    assert response.status == "pending"
 
     original_job = uow.jobs.get(failed_job.id)
     assert original_job.status == model.JobStatus.FAILED
