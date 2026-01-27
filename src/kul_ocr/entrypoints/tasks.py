@@ -1,16 +1,19 @@
 from collections.abc import Mapping, Sequence
-from typing import Any, override
+from pathlib import Path
+from typing import Any, override, Unpack, TypedDict
 
 import celery
 from billiard.einfo import ExceptionInfo
 from celery.utils.log import get_task_logger
 
 import kul_ocr.service_layer.services.documents
-import kul_ocr.service_layer.services.jobs
-import kul_ocr.service_layer.services.outbox
+
+from kul_ocr.domain import enums
 from kul_ocr.entrypoints.celery_app import app
 from kul_ocr.entrypoints import dependencies
 from kul_ocr.entrypoints.dependencies import fresh_uow, get_task_runner
+from kul_ocr.service_layer.helpers import generate_id
+from kul_ocr.service_layer.services import outbox, jobs
 
 logger = get_task_logger(__name__)
 
@@ -31,12 +34,10 @@ def relay_outbox_task(self: celery.Task) -> dict[str, Any]:  # pyright: ignore[r
     task_runner = get_task_runner()
 
     try:
-        relayed_entries = (
-            kul_ocr.service_layer.services.outbox.relay_pending_outbox_entries(
-                task_runner=task_runner,
-                uow=fresh_uow(),
-                batch_size=100,
-            )
+        relayed_entries = outbox.relay_pending_outbox_entries(
+            task_runner=task_runner,
+            uow=fresh_uow(),
+            batch_size=100,
         )
 
         return {"relayed_count": len(relayed_entries)}
@@ -58,11 +59,9 @@ def cleanup_outbox_task(self: celery.Task) -> dict[str, int]:  # pyright: ignore
     """
     try:
         with fresh_uow() as uow:
-            deleted_count = (
-                kul_ocr.service_layer.services.outbox.cleanup_old_outbox_entries(
-                    uow=uow,
-                    retention_hours=24,
-                )
+            deleted_count = outbox.cleanup_old_outbox_entries(
+                uow=uow,
+                retention_hours=24,
             )
 
         return {"deleted_count": deleted_count}
@@ -72,22 +71,8 @@ def cleanup_outbox_task(self: celery.Task) -> dict[str, int]:  # pyright: ignore
         raise self.retry(exc=exc, countdown=60)  # pyright: ignore[reportAny]
 
 
-class BaseTask(celery.Task):  # pyright: ignore[reportMissingTypeArgument]
-    @override
-    def on_failure(
-        self,
-        exc: Exception,
-        task_id: str,
-        args: Sequence[Any],
-        kwargs: Mapping[str, Any],
-        einfo: ExceptionInfo,
-    ):
-        """Generic failure handler."""
-        logger.error(f"Task {task_id} failed: {einfo}")
-
-
-@app.task(bind=True, max_retries=3, base=BaseTask)
-def process_ocr_job_task(self: BaseTask, job_id: str):
+@app.task(bind=True, max_retries=3)
+def process_ocr_job_task(self, job_id: str):
     """Process an OCR job asynchronously using split transactions.
 
     This task is scheduled by the outbox relay after start_ocr_job_processing
@@ -140,3 +125,47 @@ def process_ocr_job_task(self: BaseTask, job_id: str):
                 logger.error(f"Failed to mark job {job_id} as failed: {fail_exc}")
 
         raise self.retry(exc=exc, countdown=60 * (2**self.request.retries))  # pyright: ignore[reportAny]
+
+
+class UploadDocumentTaskKwargs(TypedDict):
+    document_id: str
+    staging_file_path: str
+    uploaded_file_path: str
+
+
+@app.task(bind=True, max_retries=3)
+def upload_document(self, **kwargs: Unpack[UploadDocumentTaskKwargs]):
+    document_id = kwargs["document_id"]
+    staging_file_path = kwargs["staging_file_path"]
+    uploaded_file_path = kwargs["uploaded_file_path"]
+
+    with fresh_uow() as uow:
+        document = uow.documents.get_or_raise(document_id)
+
+        if document.status == enums.DocumentStatus.READY:
+            return
+
+        try:
+            storage = dependencies.get_file_storage()
+
+            storage.move(
+                source_path=Path(staging_file_path),
+                destination_path=Path(uploaded_file_path),
+            )
+
+            document.update_status(enums.DocumentStatus.READY)
+            uow.commit()
+
+        except Exception as e:
+            logger.error(
+                "Failed to upload document.",
+                document_id=document_id,
+                error=str(e),
+            )
+            if self.request.retries >= self.max_retries:
+                with fresh_uow() as uow:
+                    document = uow.documents.get_or_raise(document_id)
+                    document.update_status(enums.DocumentStatus.FAILED)
+                    uow.commit()
+
+            raise
