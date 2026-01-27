@@ -619,3 +619,157 @@ def test_cancel_job_with_relayed_outbox_entry_revokes_task(uow: FakeUnitOfWork):
 
     # Verify changes committed
     assert uow.committed is True
+
+
+# --- complete_ocr_job tests ---
+
+
+def test_complete_ocr_job_saves_result_and_marks_completed(uow: FakeUnitOfWork):
+    """Test that complete_ocr_job saves result and marks job as COMPLETED."""
+    from kul_ocr.domain.structs import ResultDTO
+
+    # Create a PROCESSING job
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.update_status(JobStatus.PROCESSING)
+    uow.jobs.add(job)
+
+    # Create a result
+    result = factories.generate_ocr_result()
+    result_dto = ResultDTO.from_domain(result)
+
+    # Complete the job
+    completed_dto = kul_ocr.service_layer.services.jobs.complete_ocr_job(
+        job_id=job.id, result_dto=result_dto, uow=uow
+    )
+
+    # Verify job marked as COMPLETED
+    assert completed_dto.status == JobStatus.COMPLETED.value
+    assert completed_dto.id == job.id
+
+    # Verify result was saved
+    with uow:
+        saved_result = uow.results.get_by_job_id(job.id)
+        assert saved_result is not None
+        assert saved_result.job_id == job.id
+        assert len(saved_result.content) == len(result.content)
+
+
+def test_complete_ocr_job_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
+    """Test that completing non-existent job raises OCRJobNotFoundError."""
+    from kul_ocr.domain.structs import ResultDTO
+
+    result = factories.generate_ocr_result()
+    result_dto = ResultDTO.from_domain(result)
+
+    with pytest.raises(
+        kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+        match="OCR job not found",
+    ):
+        kul_ocr.service_layer.services.jobs.complete_ocr_job(
+            job_id="nonexistent-job-id", result_dto=result_dto, uow=uow
+        )
+
+
+# --- fail_ocr_job tests ---
+
+
+def test_fail_ocr_job_marks_as_failed_with_error_message(uow: FakeUnitOfWork):
+    """Test that fail_ocr_job marks job as FAILED with error message."""
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.update_status(JobStatus.PROCESSING)
+    uow.jobs.add(job)
+
+    error_message = "OCR processing failed due to timeout"
+
+    failed_dto = kul_ocr.service_layer.services.jobs.fail_ocr_job(
+        job_id=job.id, error_message=error_message, uow=uow
+    )
+
+    # Verify job marked as FAILED
+    assert failed_dto.status == JobStatus.FAILED.value
+    assert failed_dto.error_message == error_message
+
+    # Verify changes committed
+    assert uow.committed is True
+
+
+def test_fail_ocr_job_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
+    """Test that failing non-existent job raises OCRJobNotFoundError."""
+    with pytest.raises(
+        kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+        match="OCR job not found",
+    ):
+        kul_ocr.service_layer.services.jobs.fail_ocr_job(
+            job_id="nonexistent-job-id", error_message="Test error", uow=uow
+        )
+
+
+# --- submit_ocr_job duplicate detection tests ---
+
+
+def test_submit_ocr_job_raises_error_when_active_job_exists(uow: FakeUnitOfWork):
+    """Test that submitting job for document with active job raises DuplicateOCRJobError."""
+    # Create document
+    document = factories.generate_document_without_file()
+    uow.documents.add(document)
+
+    # Create first job (active)
+    first_job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    first_job.document_id = document.id
+    uow.jobs.add(first_job)
+
+    # Try to submit second job for same document
+    with pytest.raises(
+        kul_ocr.service_layer.services.jobs.DuplicateOCRJobError,
+        match=f"Document {document.id} already has a pending or active job",
+    ):
+        kul_ocr.service_layer.services.jobs.submit_ocr_job(
+            document_id=document.id, uow=uow
+        )
+
+
+def test_submit_ocr_job_succeeds_when_previous_job_completed(uow: FakeUnitOfWork):
+    """Test that submitting job succeeds when previous job is COMPLETED."""
+    # Create document
+    document = factories.generate_document_without_file()
+    uow.documents.add(document)
+
+    # Create first job and complete it
+    first_job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    first_job.document_id = document.id
+    first_job.update_status(JobStatus.PROCESSING)
+    first_job.update_status(JobStatus.COMPLETED)
+    uow.jobs.add(first_job)
+
+    # Submit second job for same document (should succeed)
+    second_job_dto = kul_ocr.service_layer.services.jobs.submit_ocr_job(
+        document_id=document.id, uow=uow
+    )
+
+    # Verify second job created
+    assert second_job_dto.document_id == document.id
+    assert second_job_dto.id != first_job.id
+    assert second_job_dto.status == JobStatus.PENDING.value
+
+
+def test_submit_ocr_job_succeeds_when_previous_job_failed(uow: FakeUnitOfWork):
+    """Test that submitting job succeeds when previous job is FAILED."""
+    # Create document
+    document = factories.generate_document_without_file()
+    uow.documents.add(document)
+
+    # Create first job and fail it
+    first_job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    first_job.document_id = document.id
+    first_job.update_status(JobStatus.FAILED, error_message="Test failure")
+    uow.jobs.add(first_job)
+
+    # Submit second job for same document (should succeed)
+    second_job_dto = kul_ocr.service_layer.services.jobs.submit_ocr_job(
+        document_id=document.id, uow=uow
+    )
+
+    # Verify second job created
+    assert second_job_dto.document_id == document.id
+    assert second_job_dto.id != first_job.id
+    assert second_job_dto.status == JobStatus.PENDING.value
