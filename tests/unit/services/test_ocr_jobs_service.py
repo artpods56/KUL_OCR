@@ -621,6 +621,93 @@ def test_cancel_job_with_relayed_outbox_entry_revokes_task(uow: FakeUnitOfWork):
     assert uow.committed is True
 
 
+def test_cancel_processing_job_continues_when_revoke_fails(uow: FakeUnitOfWork):
+    """Test that job cancellation continues even if task revocation fails.
+
+    This tests the exception handler at lines 392-393 in cancel_ocr_job().
+    """
+    from tests.fakes.task_runner import FakeTaskRunner
+    from kul_ocr.domain import model
+    from kul_ocr.domain.enums import OutboxEventType
+
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.update_status(JobStatus.PROCESSING)
+    task_id = "failing-task-id"
+    job.assign_task_id(task_id)
+    uow.jobs.add(job)
+
+    # Add outbox entry
+    outbox_entry = model.OutboxEntry(
+        id=task_id,
+        event_type=OutboxEventType.JOB_SCHEDULING,
+        aggregate_id=job.id,
+        payload={"job_id": job.id},
+    )
+    uow.outbox.add(outbox_entry)
+
+    # Configure task runner to fail on revocation
+    task_runner = FakeTaskRunner()
+    task_runner.fail_revoke_for_task_ids.add(task_id)
+
+    # Should complete without raising exception
+    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+        job_id=job.id, task_runner=task_runner, uow=uow
+    )
+
+    # Job still marked as FAILED despite revocation failure
+    assert result_dto.status == JobStatus.FAILED.value
+    assert "cancel" in result_dto.error_message.lower()
+
+    # Task revocation was attempted but failed (not in revoked list)
+    assert task_id not in task_runner.revoked_tasks
+
+    # Changes still committed
+    assert uow.committed is True
+
+
+def test_cancel_job_continues_when_outbox_revoke_fails(uow: FakeUnitOfWork):
+    """Test that cancellation continues when outbox task revocation fails.
+
+    This tests the exception handler at lines 411-412 in cancel_ocr_job().
+    """
+    from tests.fakes.task_runner import FakeTaskRunner
+    from kul_ocr.domain import model
+    from kul_ocr.domain.enums import OutboxEventType
+
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    task_id = "outbox-failing-task"
+    job.assign_task_id(task_id)
+    uow.jobs.add(job)
+
+    # Create relayed outbox entry (this triggers the second revocation path)
+    outbox_entry = model.OutboxEntry(
+        id=task_id,
+        event_type=OutboxEventType.JOB_SCHEDULING,
+        aggregate_id=job.id,
+        payload={"job_id": job.id},
+    )
+    outbox_entry.mark_as_relayed()
+    uow.outbox.add(outbox_entry)
+
+    # Configure task runner to fail when revoking this specific task
+    task_runner = FakeTaskRunner()
+    task_runner.fail_revoke_for_task_ids.add(task_id)
+
+    # Should complete without raising exception
+    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+        job_id=job.id, task_runner=task_runner, uow=uow
+    )
+
+    # Job still marked as FAILED despite outbox revocation failure
+    assert result_dto.status == JobStatus.FAILED.value
+
+    # Task revocation was attempted but failed (not in revoked list)
+    assert task_id not in task_runner.revoked_tasks
+
+    # Changes still committed
+    assert uow.committed is True
+
+
 # --- complete_ocr_job tests ---
 
 
