@@ -208,16 +208,19 @@ def test_start_ocr_job_processing_job_not_found(uow: FakeUnitOfWork):
 
 
 def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
-    """Test that starting an already processing job raises error."""
+    """Test that starting an already processing job is a no-op."""
     # Create a job that's already processing
     job = factories.generate_ocr_job(status=JobStatus.PROCESSING)
+    original_started_at = job.started_at
     uow.jobs.add(job)
 
-    # Attempting to start it again should fail
-    with pytest.raises(
-        exceptions.InvalidJobStatusTransitionError, match="cannot transition"
-    ):
-        _ = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
+    # Attempting to start it again should be a no-op (same status transition)
+    updated_job = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
+
+    assert updated_job.status == "processing"
+    # Started_at should not change since it's the same status
+    retrieved_job = uow.jobs.get(job.id)
+    assert retrieved_job.started_at == original_started_at
 
 
 # --- retry_failed_job tests ---

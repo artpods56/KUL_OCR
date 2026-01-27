@@ -1,11 +1,16 @@
-from collections.abc import Sequence
+from collections.abc import Sequence, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from enum import Enum
 from pathlib import Path
-from typing import Literal
+from typing import ClassVar, Literal, Any, TypedDict
 
-from kul_ocr.exceptions import DomainException
+from kul_ocr.domain.enums import JobStatus, FileType, DocumentStatus, OutboxEventType
+from kul_ocr.domain.exceptions import (
+    InvalidJobStatusTransitionError,
+    OutboxEntryAlreadyRelayedError,
+)
+from kul_ocr.domain import exceptions
+from kul_ocr.service_layer.helpers import generate_id
 
 """
 --- Value Objects ---
@@ -66,11 +71,7 @@ def wrap_text_in_page_part(
 """
 
 
-class JobStatus(Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
+type AllowedJobStatusTransitions = dict[JobStatus, tuple[tuple[JobStatus, ...], str]]
 
 
 @dataclass
@@ -83,6 +84,25 @@ class Job:
     completed_at: datetime | None = None
     task_id: str | None = None
     status: JobStatus = JobStatus.PENDING
+
+    _ALLOWED_TRANSITIONS: ClassVar[AllowedJobStatusTransitions] = {
+        JobStatus.PENDING: (
+            (JobStatus.PROCESSING, JobStatus.FAILED),
+            "Pending jobs can only start processing or fail.",
+        ),
+        JobStatus.PROCESSING: (
+            (JobStatus.COMPLETED, JobStatus.FAILED),
+            "Processing jobs can only complete or fail.",
+        ),
+        JobStatus.COMPLETED: (
+            (),
+            "Completed jobs cannot transition to another status.",
+        ),
+        JobStatus.FAILED: (
+            (),
+            "Failed jobs cannot transition to another status.",
+        ),
+    }
 
     @property
     def is_terminal(self) -> bool:
@@ -103,89 +123,91 @@ class Job:
             raise ValueError(f"Job {self.id} is terminal but missing timestamps")
         return self.completed_at - self.started_at
 
-    def mark_as_processing(self):
-        if self.status != JobStatus.PENDING:
-            raise InvalidJobStatusTransitionError(
-                job_id=self.id,
-                current=self.status,
-                attempted=JobStatus.PROCESSING,
-            )
-        self.started_at = datetime.now()
-        self.status = JobStatus.PROCESSING
-
-    def complete(self):
-        if self.status != JobStatus.PROCESSING:
-            raise InvalidJobStatusTransitionError(
-                job_id=self.id,
-                current=self.status,
-                attempted=JobStatus.COMPLETED,
-            )
-        self.status = JobStatus.COMPLETED
-        self.completed_at = datetime.now()
-
-    def fail(self, error_message: str):
-        if self.is_terminal:
-            raise InvalidJobStatusTransitionError(
-                job_id=self.id,
-                current=self.status,
-                attempted=JobStatus.FAILED,
-            )
-        self.status = JobStatus.FAILED
-        self.error_message = error_message
-        self.completed_at = datetime.now()
-
     def assign_task_id(self, task_id: str):
         self.task_id = task_id
 
+    def update_status(self, new_status: JobStatus, error_message: str | None = None):
+        if self.status == new_status:
+            return
 
-class FileType(Enum):
-    PDF = "application/pdf"
-    PNG = "image/png"
-    JPG = "image/jpeg"
-    JPEG = "image/jpeg"
-    WEBP = "image/webp"
+        transitions_with_reason = self._ALLOWED_TRANSITIONS.get(self.status)
 
-    @property
-    def extension(self) -> str:
-        return self.name.lower()
-
-    @property
-    def dot_extension(self) -> str:
-        return "." + self.extension
-
-    @property
-    def is_image(self) -> bool:
-        return self.value.startswith("image/")
-
-    def validate_extension(self, filename: str) -> None:
-        """Validate that filename extension matches this file type.
-
-        Args:
-            filename: Name of the file to validate.
-
-        Raises:
-            FileExtensionMismatchError: If extension doesn't match.
-        """
-        from pathlib import Path
-
-        if not filename:
-            return  # No filename to validate
-
-        actual_extension = Path(filename).suffix.lower()
-        if actual_extension and actual_extension != self.dot_extension:
-            raise FileExtensionMismatchError(
-                expected_extension=self.dot_extension, actual_extension=actual_extension
+        if transitions_with_reason is None:
+            raise InvalidJobStatusTransitionError(
+                job_id=self.id,
+                current=self.status,
+                attempted=new_status,
+                reason="Unknown job status has been provided.",
             )
+
+        allowed_targets, reason = transitions_with_reason
+
+        if new_status not in allowed_targets:
+            raise InvalidJobStatusTransitionError(
+                job_id=self.id,
+                current=self.status,
+                attempted=new_status,
+                reason=reason,
+            )
+
+        match new_status:
+            case JobStatus.PROCESSING:
+                self.started_at = datetime.now()
+            case JobStatus.COMPLETED:
+                self.completed_at = datetime.now()
+            case JobStatus.FAILED:
+                self.completed_at = datetime.now()
+                self.error_message = error_message
+            case _:
+                pass
+
+        self.status = new_status
+
+
+type AllowedDocumentStatusTransitions = dict[
+    DocumentStatus, tuple[tuple[DocumentStatus, ...], str]
+]
 
 
 @dataclass
 class Document:
     id: str
-    file_path: str
     file_type: FileType
     uploaded_at: datetime = field(default_factory=datetime.now)
     file_size_bytes: int = 0
     original_filename: str | None = None
+    file_path: str | None = None
+    _status: DocumentStatus = DocumentStatus.PENDING
+    error_message: str | None = None
+
+    _ALLOWED_TRANSITIONS: ClassVar[AllowedDocumentStatusTransitions] = {
+        DocumentStatus.PENDING: (
+            (DocumentStatus.UPLOADING, DocumentStatus.FAILED),
+            "You can only upload or fail pending documents.",
+        ),
+        DocumentStatus.UPLOADING: (
+            (DocumentStatus.READY, DocumentStatus.FAILED),
+            "You can only fail or finish uploading a document.",
+        ),
+        DocumentStatus.FAILED: (
+            (DocumentStatus.PENDING,),
+            "You can only retry by transitioning to pending first.",
+        ),
+        DocumentStatus.READY: (
+            (
+                DocumentStatus.READY,
+                DocumentStatus.FAILED,
+            ),
+            (
+                "You can only fail ready documents. "
+                "Retry by failing with a reason first."
+            ),
+        ),
+    }
+
+    @property
+    def status(self) -> DocumentStatus:
+        return self._status
 
     def __post_init__(self):
         path = Path(self.file_path)
@@ -220,6 +242,39 @@ class Document:
     def is_image(self) -> bool:
         return self.file_type.is_image
 
+    def update_status(self, new_status: DocumentStatus, fail_reason: str | None = None):
+        if self._status == new_status:
+            return
+
+        transitions_with_reason = self._ALLOWED_TRANSITIONS.get(self._status)
+
+        if transitions_with_reason is None:
+            raise exceptions.InvalidDocumentStatusTransitionError(
+                document_id=self.id,
+                current=self._status,
+                attempted=new_status,
+                reason="Unknown document status has been provided.",
+            )
+
+        allowed_targets, reason = transitions_with_reason
+
+        if new_status in allowed_targets:
+            if new_status == DocumentStatus.FAILED:
+                self.error_message = fail_reason or reason
+            else:
+                self.error_message = None
+
+            self._status = new_status
+            return
+
+        else:
+            raise exceptions.InvalidDocumentStatusTransitionError(
+                document_id=self.id,
+                current=self._status,
+                attempted=new_status,
+                reason=reason,
+            )
+
 
 @dataclass
 class PageRef:
@@ -245,22 +300,18 @@ class Result:
 --- Outbox Pattern ---
 """
 
-
-class OutboxEventType(Enum):
-    OCR_JOB_SCHEDULED = "ocr_job_scheduled"
-
-
 TASK_NAMES = {
-    OutboxEventType.OCR_JOB_SCHEDULED: "kul_ocr.entrypoints.tasks.process_ocr_job_task",
+    OutboxEventType.JOB_SCHEDULING: "kul_ocr.entrypoints.tasks.process_ocr_job_task",
+    OutboxEventType.DOCUMENT_UPLOAD: "kul_cor.entrypoints.tasks.upload_document",
 }
 
 
 @dataclass
 class OutboxEntry:
-    id: str
     event_type: OutboxEventType
     aggregate_id: str
-    payload: dict[str, str]
+    payload: Mapping[str, Any]
+    id: str = field(default_factory=generate_id)
     created_at: datetime = field(default_factory=datetime.now)
     relayed_at: datetime | None = None
 
@@ -272,80 +323,3 @@ class OutboxEntry:
         if self.is_relayed:
             raise OutboxEntryAlreadyRelayedError(entry_id=self.id)
         self.relayed_at = datetime.now()
-
-
-class InvalidJobStatusTransitionError(DomainException):
-    code: str = "INVALID_STATUS_TRANSITION"
-
-    def __init__(self, job_id: str, current: JobStatus, attempted: JobStatus):
-        msg = f"Job {job_id} cannot transition from {current.name} to {attempted.name}"
-
-        super().__init__(
-            message=msg,
-            job_id=job_id,
-            current_status=current.value,
-            attempted_status=attempted.value,
-        )
-
-
-class UnsupportedFileTypeError(DomainException):
-    code: str = "UNSUPPORTED_FILE_TYPE"
-
-    def __init__(self, file_type: str, message: str | None = None):
-        msg = message or f"Unsupported file type: {file_type}"
-        super().__init__(message=msg, file_type=file_type)
-
-
-class FileExtensionMismatchError(DomainException):
-    code: str = "FILE_EXTENSION_MISMATCH"
-
-    def __init__(
-        self, expected_extension: str, actual_extension: str, message: str | None = None
-    ):
-        msg = message or (
-            f"File extension mismatch: expected {expected_extension}, "
-            f"got {actual_extension}"
-        )
-        super().__init__(
-            message=msg,
-            expected_extension=expected_extension,
-            actual_extension=actual_extension,
-        )
-
-
-class InvalidJobStatusTransitionErrorDepr(DomainException):
-    code: str = "INVALID_STATUS_TRANSITION"
-
-    def __init__(
-        self,
-        job_id: str,
-        current_status: str,
-        attempted_status: str,
-        message: str | None = None,
-    ):
-        msg = message or (
-            f"Invalid status transition for job {job_id}: "
-            f"{current_status} -> {attempted_status}"
-        )
-        super().__init__(
-            message=msg,
-            job_id=job_id,
-            current_status=current_status,
-            attempted_status=attempted_status,
-        )
-
-
-class UnknownJobStatusError(DomainException):
-    code: str = "UNKNOWN_JOB_STATUS"
-
-    def __init__(self, status: str, message: str | None = None):
-        msg = message or f"Unknown job status {status}."
-        super().__init__(message=msg, status=status)
-
-
-class OutboxEntryAlreadyRelayedError(DomainException):
-    code: str = "OUTBOX_ENTRY_ALREADY_RELAYED"
-
-    def __init__(self, entry_id: str, message: str | None = None):
-        msg = message or f"Outbox entry {entry_id} has already been relayed."
-        super().__init__(message=msg, entry_id=entry_id)
