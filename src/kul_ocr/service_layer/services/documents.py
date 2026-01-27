@@ -132,7 +132,7 @@ def get_document_for_processing(
     with uow:
         document = uow.documents.get_or_raise(document_id)
         return structs.DocumentInput(
-            id=document.id, file_path=document.file_path, file_type=document.file_type
+            id=document.id, file_path=document.file_path or "unknown", file_type=document.file_type
         )
 
 

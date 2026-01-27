@@ -132,8 +132,8 @@ class TestDeleteOCRJobIntegration:
         document_id, job_id = _create_job_with_document(uow, JobStatus.PENDING)
 
         with pytest.raises(
-            exceptions.InvalidJobStatusTransitionErrorDepr,
-            match="Cannot delete job",
+            exceptions.InvalidJobStatusTransitionError,
+            match="cannot transition",
         ):
             kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
@@ -154,8 +154,8 @@ class TestDeleteOCRJobIntegration:
             uow.commit()
 
         with pytest.raises(
-            exceptions.InvalidJobStatusTransitionErrorDepr,
-            match="Cannot delete job",
+            exceptions.InvalidJobStatusTransitionError,
+            match="cannot transition",
         ):
             kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 

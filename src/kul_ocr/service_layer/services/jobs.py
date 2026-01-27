@@ -147,11 +147,11 @@ def delete_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> None:
 
         # Business rule validation stays in service
         if not job.is_terminal:
-            raise exceptions.InvalidJobStatusTransitionErrorDepr(
+            raise exceptions.InvalidJobStatusTransitionError(
                 job_id=job_id,
-                current_status=job.status.value,
-                attempted_status="terminal (completed/failed)",
-                message=f"Cannot delete job {job_id} - job is in {job.status.value} state. Only terminal jobs (completed, failed) can be deleted.",
+                current=job.status,
+                attempted=model.JobStatus.FAILED,
+                reason="Cannot delete non-terminal jobs."
             )
 
         # Repository handles cascade
@@ -223,10 +223,11 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> structs.Jo
         ocr_job.update_status(enums.JobStatus.PROCESSING)
 
         # Create outbox entry for reliable task scheduling
-        payload: model.JobSchedulingPayload = {
-            "job_id": ocr_job.id,
-            "task_id": task_id,
-            "document_id": ocr_job.document_id,
+        payload: model.JobProcessingPayload = {
+            "job_id": ocr_job.id
+            # "job_id": ocr_job.id,
+            # "task_id": task_id,
+            # "document_id": ocr_job.document_id,
         }
 
         outbox_entry = model.OutboxEntry(

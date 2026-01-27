@@ -54,7 +54,13 @@ def get_file_storage() -> ports.FileStorage:
             f"Storage type '{app_config.storage_type}' is not implemented. ",
         )
 
-    return storage_class.from_config(app_config)
+    match storage_class:
+        case local.LocalFileStorage:
+            return local.LocalFileStorage(app_config.storage_root)
+        case _:
+            raise NotImplementedError(f"Storage type '{storage_class}' is not implemented.")
+
+
 
 
 @lru_cache

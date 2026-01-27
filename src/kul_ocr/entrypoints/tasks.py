@@ -13,7 +13,7 @@ from kul_ocr.entrypoints.celery_app import app
 from kul_ocr.entrypoints import dependencies
 from kul_ocr.entrypoints.dependencies import fresh_uow, get_task_runner
 from kul_ocr.service_layer.helpers import generate_id
-from kul_ocr.service_layer.services import outbox, jobs
+from kul_ocr.service_layer.services import outbox, jobs, documents
 
 logger = get_task_logger(__name__)
 
@@ -22,7 +22,7 @@ logger = get_task_logger(__name__)
 
 
 @app.task(bind=True, max_retries=3)
-def relay_outbox_task(self: celery.Task) -> dict[str, Any]:  # pyright: ignore[reportMissingTypeArgument]
+def relay_outbox_task(self) -> dict[str, Any]:
     """Relay pending outbox entries to Celery.
 
     This task runs periodically (via Celery Beat) to pick up any pending
@@ -44,11 +44,11 @@ def relay_outbox_task(self: celery.Task) -> dict[str, Any]:  # pyright: ignore[r
 
     except Exception as exc:
         logger.error(f"Failed to relay outbox entries: {exc}")
-        raise self.retry(exc=exc, countdown=10)  # pyright: ignore[reportAny]
+        raise self.retry(exc=exc, countdown=10)
 
 
 @app.task(bind=True, max_retries=3)
-def cleanup_outbox_task(self: celery.Task) -> dict[str, int]:  # pyright: ignore[reportMissingTypeArgument]
+def cleanup_outbox_task(self) -> dict[str, int]:
     """Clean up old relayed outbox entries.
 
     This task runs periodically (via Celery Beat) to remove old relayed
@@ -68,41 +68,43 @@ def cleanup_outbox_task(self: celery.Task) -> dict[str, int]:  # pyright: ignore
 
     except Exception as exc:
         logger.error(f"Failed to clean up outbox entries: {exc}")
-        raise self.retry(exc=exc, countdown=60)  # pyright: ignore[reportAny]
+        raise self.retry(exc=exc, countdown=60)
 
 
 @app.task(bind=True, max_retries=3)
-def process_ocr_job_task(self, job_id: str):
+def process_job(self, **kwargs: Unpack[model.JobProcessingPayload]):
     """Process an OCR job asynchronously using split transactions.
 
     This task is scheduled by the outbox relay after start_ocr_job_processing
     has already marked the job as PROCESSING.
     """
+    job_id = kwargs["job_id"]
+
     ocr_engine = dependencies.get_ocr_engine()
     document_loader = dependencies.get_document_loader()
 
     try:
         # Get job info - job should already be in PROCESSING state
         with fresh_uow() as uow:
-            job_dto = kul_ocr.service_layer.services.jobs.get_ocr_job(job_id, uow)
+            job_dto = jobs.get_ocr_job(job_id, uow)
             document_id = job_dto.document_id
 
         with fresh_uow() as uow:
             doc_input = (
-                kul_ocr.service_layer.services.documents.get_document_for_processing(
+               documents.get_document_for_processing(
                     str(document_id), uow
                 )
             )
 
         logger.info(f"Starting OCR processing for job {job_id}")
-        result_dto = kul_ocr.service_layer.services.documents.process_document(
+        result_dto = documents.process_document(
             doc_input=doc_input,
             ocr_engine=ocr_engine,
             document_loader=document_loader,
         )
 
         with fresh_uow() as uow:
-            _ = kul_ocr.service_layer.services.jobs.complete_ocr_job(
+            _ = jobs.complete_ocr_job(
                 job_id, result_dto, uow
             )
             uow.commit()
@@ -133,6 +135,8 @@ def upload_document(self, **kwargs: Unpack[model.DocumentUploadPayload]):
     staging_file_path = kwargs["staging_file_path"]
     uploaded_file_path = kwargs["uploaded_file_path"]
 
+
+
     with fresh_uow() as uow:
         document = uow.documents.get_or_raise(document_id)
 
@@ -140,6 +144,9 @@ def upload_document(self, **kwargs: Unpack[model.DocumentUploadPayload]):
             return
 
         try:
+
+            document.update_status(enums.DocumentStatus.UPLOADING)
+
             storage = dependencies.get_file_storage()
 
             storage.move(
@@ -154,8 +161,7 @@ def upload_document(self, **kwargs: Unpack[model.DocumentUploadPayload]):
         except Exception as e:
             logger.error(
                 "Failed to upload document.",
-                document_id=document_id,
-                error=str(e),
+                exc_info=e,
             )
             if self.request.retries >= self.max_retries:
                 with fresh_uow() as uow:

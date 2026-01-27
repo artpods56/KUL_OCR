@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import ClassVar, Literal, TypedDict
+from typing import ClassVar, Literal, TypedDict, Mapping, Any
 
 from kul_ocr.domain.enums import JobStatus, FileType, DocumentStatus, OutboxEventType
 from kul_ocr.domain.exceptions import (
@@ -171,13 +171,13 @@ type AllowedDocumentStatusTransitions = dict[
 
 @dataclass
 class Document:
-    original_filename: str
     file_type: FileType
     uploaded_at: datetime = field(default_factory=datetime.now)
     file_size_bytes: int = 0
     file_path: str | None = None
     _status: DocumentStatus = DocumentStatus.PENDING
     error_message: str | None = None
+    original_filename: str | None = None
     id: str = field(default_factory=generate_id)
 
     _ALLOWED_TRANSITIONS: ClassVar[AllowedDocumentStatusTransitions] = {
@@ -306,12 +306,11 @@ class Result:
 """
 
 
-class JobSchedulingPayload(TypedDict):
+
+class JobProcessingPayload(TypedDict):
     """Payload for JOB_SCHEDULING outbox events."""
 
     job_id: str
-    task_id: str
-    document_id: str
 
 
 class DocumentUploadPayload(TypedDict):
@@ -322,11 +321,11 @@ class DocumentUploadPayload(TypedDict):
     uploaded_file_path: str
 
 
-type OutboxPayload = JobSchedulingPayload | DocumentUploadPayload
+type OutboxPayload = JobProcessingPayload | DocumentUploadPayload
 
 
 TASK_NAMES = {
-    OutboxEventType.JOB_SCHEDULING: "kul_ocr.entrypoints.tasks.process_ocr_job_task",
+    OutboxEventType.JOB_SCHEDULING: "kul_ocr.entrypoints.tasks.process_job",
     OutboxEventType.DOCUMENT_UPLOAD: "kul_ocr.entrypoints.tasks.upload_document",
 }
 
