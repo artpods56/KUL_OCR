@@ -27,7 +27,7 @@ documents = Table(
     "documents",
     metadata,
     Column("id", String(255), primary_key=True),
-    Column("file_path", String(255), nullable=False),
+    Column("file_path", String(255), nullable=True),
     Column("file_type", Enum(enums.FileType), nullable=False),
     Column("uploaded_at", DateTime, nullable=True),
     Column("file_size_bytes", Integer, nullable=True),

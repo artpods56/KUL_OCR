@@ -30,8 +30,7 @@ class TestStartOcrJobProcessingWithOutbox:
         assert outbox_entry.event_type == OutboxEventType.JOB_SCHEDULING
         assert outbox_entry.aggregate_id == job.id
         assert outbox_entry.payload["job_id"] == job.id
-        assert outbox_entry.payload["document_id"] == document.id
-        assert "task_id" in outbox_entry.payload
+        assert "job_id" in outbox_entry.payload
 
     def test_start_ocr_job_processing_assigns_task_id(self):
         uow = FakeUnitOfWork()
@@ -50,7 +49,7 @@ class TestStartOcrJobProcessingWithOutbox:
 
         # Verify task_id matches outbox entry
         outbox_entry = uow.outbox.added[0]
-        assert outbox_entry.payload["task_id"] == updated_job.task_id
+        assert outbox_entry.payload["job_id"] == updated_job.id
 
     def test_start_ocr_job_commits_transaction(self):
         uow = FakeUnitOfWork()

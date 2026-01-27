@@ -385,8 +385,8 @@ def test_delete_pending_job_raises_error(uow: FakeUnitOfWork):
     uow.jobs.add(job)
 
     with pytest.raises(
-        exceptions.InvalidJobStatusTransitionErrorDepr,
-        match="Cannot delete job",
+        exceptions.InvalidJobStatusTransitionError,
+        match="cannot transition",
     ):
         kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
 
@@ -398,8 +398,8 @@ def test_delete_processing_job_raises_error(uow: FakeUnitOfWork):
     uow.jobs.add(job)
 
     with pytest.raises(
-        exceptions.InvalidJobStatusTransitionErrorDepr,
-        match="Cannot delete job",
+        exceptions.InvalidJobStatusTransitionError,
+        match="cannot transition",
     ):
         kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
 

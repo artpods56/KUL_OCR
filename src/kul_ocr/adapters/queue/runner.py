@@ -11,21 +11,29 @@ class CeleryTaskRunner(protocols.TaskRunner):
         task_name = model.TASK_NAMES.get(entry.event_type)
         if task_name is None:
             raise ValueError(f"No task configured for event type: {entry.event_type}")
-        match entry.event_type:
-            case enums.OutboxEventType.JOB_SCHEDULING:
-                payload = cast(model.JobSchedulingPayload, entry.payload)
-                _ = app.send_task(
-                    task_name,
-                    task_id=entry.id,
-                    kwargs={"job_id": payload["job_id"]},
-                )
-            case enums.OutboxEventType.DOCUMENT_UPLOAD:
-                payload = cast(model.DocumentUploadPayload, entry.payload)
-                _ = app.send_task(
-                    task_name,
-                    task_id=entry.id,
-                    kwargs=payload,
-                )
+
+        _ = app.send_task(
+            task_name,
+            task_id=entry.id,
+            kwargs={**entry.payload},
+        )
+
+        # match entry.event_type:
+        #     case enums.OutboxEventType.JOB_SCHEDULING:
+        #
+        #         _ = app.send_task(
+        #             task_name,
+        #             task_id=entry.id,
+        #             kwargs={**entry.payload},
+        #         )
+        #     case enums.OutboxEventType.DOCUMENT_UPLOAD:
+        #
+        #
+        #         _ = app.send_task(
+        #             task_name,
+        #             task_id=entry.id,
+        #             kwargs={**payload},
+        #         )
 
     @override
     def revoke_task(self, task_id: str) -> None:

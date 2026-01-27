@@ -37,7 +37,7 @@ class InvalidJobStatusTransitionError(DomainException):
         self, job_id: str, current: JobStatus, attempted: JobStatus, reason: str
     ):
         msg = (
-            f"Job: {job_id} cannot transition from {current.name} to {attempted.name}"
+            f"Job: {job_id} cannot transition from {current.name} to {attempted.name}."
             f"{reason}"
         )
 
@@ -60,7 +60,7 @@ class InvalidDocumentStatusTransitionError(DomainException):
         reason: str,
     ):
         msg = (
-            f"Document: {document_id} cannot transition from {current.name} to {attempted.name}"
+            f"Document: {document_id} cannot transition from {current.name} to {attempted.name}. "
             f"{reason}"
         )
 
