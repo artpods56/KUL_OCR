@@ -29,8 +29,8 @@ def test_retry_non_failed_job_raises_error(uow):
     uow.jobs.add(job)
     uow.commit()
     with pytest.raises(
-        exceptions.InvalidJobStatusTransitionErrorDepr,
-        match="Invalid status transition for job",
+        exceptions.InvalidJobStatusTransitionError,
+        match="cannot transition",
     ):
         kul_ocr.service_layer.services.jobs.retry_ocr_job(job.id, uow)
 

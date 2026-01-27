@@ -112,28 +112,6 @@ class FileContentMissmatchError(DomainException):
         )
 
 
-class InvalidJobStatusTransitionErrorDepr(DomainException):
-    code: str = "INVALID_STATUS_TRANSITION"
-
-    def __init__(
-        self,
-        job_id: str,
-        current_status: str,
-        attempted_status: str,
-        message: str | None = None,
-    ):
-        msg = message or (
-            f"Invalid status transition for job {job_id}: "
-            f"{current_status} -> {attempted_status}"
-        )
-        super().__init__(
-            message=msg,
-            job_id=job_id,
-            current_status=current_status,
-            attempted_status=attempted_status,
-        )
-
-
 class UnknownJobStatusError(DomainException):
     code: str = "UNKNOWN_JOB_STATUS"
 

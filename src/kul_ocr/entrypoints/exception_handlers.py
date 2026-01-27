@@ -3,10 +3,9 @@ from typing import final
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
-import kul_ocr.adapters.database.repository
-import kul_ocr.domain.model
-import kul_ocr.service_layer.parsing
-import kul_ocr.service_layer.services.jobs
+from kul_ocr.adapters.database import repository
+from kul_ocr.service_layer import parsing
+from kul_ocr.service_layer.services import jobs
 from kul_ocr.domain import exceptions
 
 
@@ -28,7 +27,7 @@ def register_handlers(app: FastAPI):
         ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
     )
     app.add_exception_handler(
-        kul_ocr.service_layer.parsing.FileContentMismatchError,
+        parsing.FileContentMismatchError,
         ExceptionResponseFactory(status.HTTP_422_UNPROCESSABLE_CONTENT),
     )
     app.add_exception_handler(
@@ -36,12 +35,12 @@ def register_handlers(app: FastAPI):
         ExceptionResponseFactory(status.HTTP_413_CONTENT_TOO_LARGE),
     )
     app.add_exception_handler(
-        kul_ocr.adapters.database.repository.DocumentNotFoundError,
+        repository.DocumentNotFoundError,
         ExceptionResponseFactory(status.HTTP_404_NOT_FOUND),
     )
 
     app.add_exception_handler(
-        kul_ocr.service_layer.services.jobs.DuplicateOCRJobError,
+        jobs.DuplicateOCRJobError,
         ExceptionResponseFactory(status.HTTP_409_CONFLICT),
     )
 
@@ -51,17 +50,12 @@ def register_handlers(app: FastAPI):
     )
 
     app.add_exception_handler(
-        exceptions.InvalidJobStatusTransitionErrorDepr,
-        ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
-    )
-
-    app.add_exception_handler(
         exceptions.UnknownJobStatusError,
         ExceptionResponseFactory(status.HTTP_400_BAD_REQUEST),
     )
 
     app.add_exception_handler(
-        kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+        repository.OCRJobNotFoundError,
         ExceptionResponseFactory(status.HTTP_404_NOT_FOUND),
     )
 

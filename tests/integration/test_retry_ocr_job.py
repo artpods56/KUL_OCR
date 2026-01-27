@@ -128,7 +128,7 @@ async def test_retry_non_failed_job_endpoint_returns_400(
     # Assert
     assert response.status_code == 400
     data = response.json()
-    assert "invalid status transition for job" in data["detail"].lower()
+    assert "cannot transition" in data["detail"].lower()
 
 
 @pytest.mark.asyncio

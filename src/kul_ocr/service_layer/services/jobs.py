@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 
-import kul_ocr.domain.model
 from kul_ocr.domain import structs, model, enums, exceptions
 from kul_ocr.domain.protocols import TaskRunner
 from kul_ocr.domain.exceptions import DomainException
@@ -91,16 +90,23 @@ def get_ocr_jobs(
     uow: AbstractUnitOfWork,
     status: str | None = None,
     document_id: str | None = None,
-) -> Sequence[structs.JobDTO]:
-    """Gets OCR jobs with optional filtering by status and/or document ID.
+    skip: int = 0,
+    limit: int = 20,
+) -> tuple[Sequence[structs.JobDTO], int]:
+    """Gets OCR jobs with optional filtering and pagination.
 
     Args:
         uow: Unit of Work instance.
         status: Optional status to filter by.
         document_id: Optional document ID to filter by.
+        skip: Number of items to skip (offset).
+        limit: Maximum number of items to return.
 
     Returns:
-        A sequence of JobDTO matching the filters.
+        Tuple of (job DTOs, total count).
+
+    Raises:
+        exceptions.UnknownJobStatusError: If invalid status provided.
     """
     with uow:
         if status:
@@ -108,8 +114,22 @@ def get_ocr_jobs(
                 raise exceptions.UnknownJobStatusError(status=status)
 
         job_status = enums.JobStatus(status) if status else None
-        jobs = uow.jobs.list_by_filters(status=job_status, document_id=document_id)
-        return [structs.JobDTO.from_domain(job) for job in jobs]
+
+        # Get paginated jobs
+        jobs = uow.jobs.list_by_filters(
+            status=job_status,
+            document_id=document_id,
+            skip=skip,
+            limit=limit,
+        )
+
+        # Get total count
+        total = uow.jobs.count_by_filters(
+            status=job_status,
+            document_id=document_id,
+        )
+
+        return [structs.JobDTO.from_domain(job) for job in jobs], total
 
 
 def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[structs.JobDTO]:
@@ -140,7 +160,7 @@ def delete_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> None:
 
     Raises:
         exceptions.OCRJobNotFoundError: If the job does not exist.
-        exceptions.InvalidJobStatusTransitionErrorDepr: If the job is not in terminal state.
+        exceptions.InvalidJobStatusTransitionError: If the job is not in terminal state.
     """
     with uow:
         job = uow.jobs.get_or_raise(job_id)
@@ -213,7 +233,7 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> structs.Jo
 
     Raises:
         exceptions.OCRJobNotFoundError: If the OCR job with the given ID does not exist.
-        exceptions.InvalidJobStatusTransitionErrorDepr: If job is not in PENDING status.
+        exceptions.InvalidJobStatusTransitionError: If job is not in PENDING status.
     """
     task_id = generate_id()
 
@@ -223,12 +243,7 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> structs.Jo
         ocr_job.update_status(enums.JobStatus.PROCESSING)
 
         # Create outbox entry for reliable task scheduling
-        payload: model.JobProcessingPayload = {
-            "job_id": ocr_job.id
-            # "job_id": ocr_job.id,
-            # "task_id": task_id,
-            # "document_id": ocr_job.document_id,
-        }
+        payload: model.JobProcessingPayload = {"job_id": ocr_job.id}
 
         outbox_entry = model.OutboxEntry(
             id=generate_id(),
@@ -322,15 +337,16 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> structs.Job
 
     Raises:
         exceptions.OCRJobNotFoundError: If the original job does not exist.
-        exceptions.InvalidJobStatusTransitionErrorDepr: If the job is not in FAILED status.
+        exceptions.InvalidJobStatusTransitionError: If the job is not in FAILED status.
     """
     original_job = uow.jobs.get_or_raise(failed_job_id)
 
     if original_job.status != enums.JobStatus.FAILED:
-        raise exceptions.InvalidJobStatusTransitionErrorDepr(
+        raise exceptions.InvalidJobStatusTransitionError(
             job_id=failed_job_id,
-            current_status=str(original_job.status.value),
-            attempted_status=enums.JobStatus.PENDING.value,
+            current=original_job.status,
+            attempted=enums.JobStatus.PENDING,
+            reason=" Only failed jobs can be retried.",
         )
 
     new_job = model.Job(id=generate_id(), document_id=original_job.document_id)
@@ -368,17 +384,17 @@ def cancel_ocr_job(
                 try:
                     task_id = ocr_job.task_id
                     if task_id is None:
-                        raise exceptions.InvalidJobStatusTransitionErrorDepr(
+                        raise exceptions.InvalidJobStatusTransitionError(
                             job_id=ocr_job.id,
-                            current_status=ocr_job.status.value,
-                            attempted_status=enums.JobStatus.FAILED.value,
-                            message="",
+                            current=ocr_job.status,
+                            attempted=enums.JobStatus.FAILED,
+                            reason=" Cannot cancel processing job without task_id.",
                         )
                     task_runner.revoke_task(task_id)
 
-                    ocr_job.update_status(enums.JobStatus.FAILED, error_message="[REV")
+                    ocr_job.update_status(enums.JobStatus.FAILED, error_message="[REVOKED]: Task revoked by user")
                 except Exception as e:
-                    print(e)
+                    logger.exception("Failed to revoke task", task_id=task_id, error=str(e))
 
         task_id = ocr_job.task_id
 
@@ -387,12 +403,6 @@ def cancel_ocr_job(
             if outbox_entry.is_relayed:
                 _ = task_runner.revoke_task(task_id)
 
-        # try:
-        #
-        #     outbox_entry = uow.outbox.get_or_raise(ocr_job.task_id)
-        #
-        #     _ = task_runner.revoke_task(ocr_job.task_id)
-        #
         if ocr_job.status == enums.JobStatus.PENDING:
             ocr_job.update_status(enums.JobStatus.FAILED, error_message="Cancelled by user")
         elif ocr_job.status == enums.JobStatus.PROCESSING:
@@ -419,7 +429,7 @@ def retry_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO:
 
     Raises:
         exceptions.OCRJobNotFoundError: If the original job does not exist.
-        exceptions.InvalidJobStatusTransitionErrorDepr: If the job is not in FAILED status.
+        exceptions.InvalidJobStatusTransitionError: If the job is not in FAILED status.
     """
     logger.info("Retrying failed OCR job", job_id=job_id)
 

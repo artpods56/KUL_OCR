@@ -268,8 +268,8 @@ def test_retry_failed_job_wrong_status(uow: FakeUnitOfWork, status: JobStatus):
     uow.jobs.add(job)
 
     with pytest.raises(
-        exceptions.InvalidJobStatusTransitionErrorDepr,
-        match="Invalid status transition",
+        exceptions.InvalidJobStatusTransitionError,
+        match="cannot transition",
     ):
         _ = kul_ocr.service_layer.services.jobs.retry_failed_job(job.id, uow)
 
@@ -380,7 +380,7 @@ def test_delete_failed_job_success(uow: FakeUnitOfWork):
 
 
 def test_delete_pending_job_raises_error(uow: FakeUnitOfWork):
-    """Test that deleting a pending job raises InvalidJobStatusTransitionErrorDepr."""
+    """Test that deleting a pending job raises InvalidJobStatusTransitionError."""
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     uow.jobs.add(job)
 
@@ -392,7 +392,7 @@ def test_delete_pending_job_raises_error(uow: FakeUnitOfWork):
 
 
 def test_delete_processing_job_raises_error(uow: FakeUnitOfWork):
-    """Test that deleting a processing job raises InvalidJobStatusTransitionErrorDepr."""
+    """Test that deleting a processing job raises InvalidJobStatusTransitionError."""
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     job.update_status(JobStatus.PROCESSING)
     uow.jobs.add(job)
