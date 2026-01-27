@@ -6,8 +6,6 @@ import celery
 from billiard.einfo import ExceptionInfo
 from celery.utils.log import get_task_logger
 
-import kul_ocr.service_layer.services.documents
-
 from kul_ocr.domain import enums, model
 from kul_ocr.entrypoints.celery_app import app
 from kul_ocr.entrypoints import dependencies

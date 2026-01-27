@@ -7,8 +7,8 @@ from sqlalchemy.engine.create import create_engine
 from sqlalchemy.orm.session import Session, sessionmaker
 
 from kul_ocr import config
-from kul_ocr.adapters.loaders.filesystem import FileSystemDocumentLoader
-from kul_ocr.adapters.ocr.tesseract import TesseractOCREngine, TesseractEngineConfig
+from kul_ocr.adapters.loaders import filesystem
+from kul_ocr.adapters.ocr import tesseract
 from kul_ocr.adapters.storages import local
 from kul_ocr.domain import ports, protocols
 from kul_ocr.domain.ports import FileStorage
@@ -113,12 +113,12 @@ def get_session_factory(engine: Engine | None = None) -> sessionmaker[Session]:
 
 def get_ocr_engine() -> ports.OCREngine:
     """Get an engine for OCR operations."""
-    return TesseractOCREngine(config=TesseractEngineConfig.from_env())
+    return tesseract.TesseractOCREngine(config=tesseract.TesseractEngineConfig.from_env())
 
 
 def get_document_loader() -> ports.DocumentLoader:
     """Get a loader for document content."""
-    return FileSystemDocumentLoader(storage=get_file_storage())
+    return filesystem.FileSystemDocumentLoader(storage=get_file_storage())
 
 
 def get_task_runner() -> protocols.TaskRunner:

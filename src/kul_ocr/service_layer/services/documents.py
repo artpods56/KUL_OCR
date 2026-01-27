@@ -9,10 +9,6 @@ from kul_ocr.service_layer.parsing import (
     validate_and_get_file_type,
     sanitize_filename,
 )
-from kul_ocr.service_layer.services.validator import (
-    validate_file_extension,
-    validate_mime_type,
-)
 from kul_ocr.service_layer.services import validator
 from kul_ocr.service_layer.uow import AbstractUnitOfWork
 from kul_ocr import config

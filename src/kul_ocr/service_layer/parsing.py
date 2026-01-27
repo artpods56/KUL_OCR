@@ -3,7 +3,6 @@ from pathlib import Path
 
 import filetype
 
-import kul_ocr.domain.model
 from kul_ocr.domain import model, enums, exceptions
 from kul_ocr.domain.exceptions import DomainException
 
