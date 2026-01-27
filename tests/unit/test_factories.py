@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 
-from kul_ocr.domain import model
+from kul_ocr.domain import model, enums
 from tests import factories
 
 
@@ -13,26 +13,26 @@ class TestGenerateOCRJob:
         job = factories.generate_ocr_job()
 
         assert isinstance(job, model.Job)
-        assert job.status == model.JobStatus.PENDING
+        assert job.status == enums.JobStatus.PENDING
         assert isinstance(job.id, str)
         assert len(job.id) > 0
         assert isinstance(job.document_id, str)
         assert len(job.document_id) > 0
 
     def test_generates_job_with_specified_status(self):
-        job = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+        job = factories.generate_ocr_job(status=enums.JobStatus.COMPLETED)
 
-        assert job.status == model.JobStatus.COMPLETED
+        assert job.status == enums.JobStatus.COMPLETED
 
     def test_generates_job_with_processing_status(self):
-        job = factories.generate_ocr_job(status=model.JobStatus.PROCESSING)
+        job = factories.generate_ocr_job(status=enums.JobStatus.PROCESSING)
 
-        assert job.status == model.JobStatus.PROCESSING
+        assert job.status == enums.JobStatus.PROCESSING
 
     def test_generates_job_with_failed_status(self):
-        job = factories.generate_ocr_job(status=model.JobStatus.FAILED)
+        job = factories.generate_ocr_job(status=enums.JobStatus.FAILED)
 
-        assert job.status == model.JobStatus.FAILED
+        assert job.status == enums.JobStatus.FAILED
 
     def test_generates_unique_job_ids(self):
         job1 = factories.generate_ocr_job()
@@ -44,7 +44,7 @@ class TestGenerateOCRJob:
     def test_generates_job_with_random_status_when_none(self):
         job = factories.generate_ocr_job(status=None)
 
-        assert job.status in list(model.JobStatus)
+        assert job.status in list(enums.JobStatus)
 
 
 class TestGenerateOCRJobs:
@@ -63,10 +63,10 @@ class TestGenerateOCRJobs:
 
     def test_generates_jobs_with_specified_status(self):
         jobs = factories.generate_ocr_jobs(
-            jobs_count=3, status=model.JobStatus.COMPLETED
+            jobs_count=3, status=enums.JobStatus.COMPLETED
         )
 
-        assert all(job.status == model.JobStatus.COMPLETED for job in jobs)
+        assert all(job.status == enums.JobStatus.COMPLETED for job in jobs)
 
     def test_generates_jobs_with_unique_ids(self):
         jobs = factories.generate_ocr_jobs(jobs_count=20)
@@ -89,16 +89,16 @@ class TestGenerateDocument:
         assert isinstance(document, model.Document)
         assert isinstance(document.id, str)
         assert len(document.id) > 0
-        assert document.file_type in list(model.FileType)
+        assert document.file_type in list(enums.FileType)
         assert document.file_size_bytes == 0
         assert str(tmp_path) in document.file_path
 
     def test_generates_document_with_specified_file_type(self, tmp_path: Path):
         document = factories.generate_document(
-            dir_path=tmp_path, file_type=model.FileType.PDF
+            dir_path=tmp_path, file_type=enums.FileType.PDF
         )
 
-        assert document.file_type == model.FileType.PDF
+        assert document.file_type == enums.FileType.PDF
 
     def test_generates_document_with_specified_file_size(self, tmp_path: Path):
         document = factories.generate_document(
@@ -115,7 +115,7 @@ class TestGenerateDocument:
         assert doc1.file_path != doc2.file_path
 
     def test_generates_document_with_all_file_types(self, tmp_path: Path):
-        for file_type in model.FileType:
+        for file_type in enums.FileType:
             document = factories.generate_document(
                 dir_path=tmp_path, file_type=file_type
             )
@@ -139,10 +139,10 @@ class TestGenerateDocuments:
 
     def test_generates_documents_with_specified_file_type(self, tmp_path: Path):
         documents = factories.generate_documents(
-            dir_path=tmp_path, documents_count=3, file_type=model.FileType.PNG
+            dir_path=tmp_path, documents_count=3, file_type=enums.FileType.PNG
         )
 
-        assert all(doc.file_type == model.FileType.PNG for doc in documents)
+        assert all(doc.file_type == enums.FileType.PNG for doc in documents)
 
     def test_generates_documents_with_unique_ids(self, tmp_path: Path):
         documents = factories.generate_documents(dir_path=tmp_path, documents_count=15)

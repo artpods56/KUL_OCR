@@ -5,7 +5,7 @@ import pytest
 from PIL import Image
 
 from kul_ocr.adapters.loaders.filesystem import FileSystemDocumentLoader
-from kul_ocr.domain import model, structs
+from kul_ocr.domain import model, structs, enums
 from tests.fakes.storages import FakeFileStorage
 
 
@@ -57,7 +57,7 @@ class TestFileSystemDocumentLoader:
         )
 
         doc_input = structs.DocumentInput(
-            id="doc-1", file_path="test_image.png", file_type=model.FileType.PNG
+            id="doc-1", file_path="test_image.png", file_type=enums.FileType.PNG
         )
 
         pages = list(loader.load_pages(doc_input))
@@ -81,7 +81,7 @@ class TestFileSystemDocumentLoader:
         )
 
         doc_input = structs.DocumentInput(
-            id="doc-2", file_path="test_rgba.png", file_type=model.FileType.PNG
+            id="doc-2", file_path="test_rgba.png", file_type=enums.FileType.PNG
         )
 
         pages = list(loader.load_pages(doc_input))
@@ -98,7 +98,7 @@ class TestFileSystemDocumentLoader:
         fake_storage.save(stream=io.BytesIO(pdf_bytes), file_path=Path("test.pdf"))
 
         doc_input = structs.DocumentInput(
-            id="doc-3", file_path="test.pdf", file_type=model.FileType.PDF
+            id="doc-3", file_path="test.pdf", file_type=enums.FileType.PDF
         )
 
         pages = list(loader.load_pages(doc_input))
@@ -119,7 +119,7 @@ class TestFileSystemDocumentLoader:
         fake_storage.save(stream=io.BytesIO(pdf_bytes), file_path=Path("test.pdf"))
 
         doc_input = structs.DocumentInput(
-            id="doc-4", file_path="test.pdf", file_type=model.FileType.PDF
+            id="doc-4", file_path="test.pdf", file_type=enums.FileType.PDF
         )
 
         pages_iterator = loader.load_pages(doc_input)
@@ -128,13 +128,13 @@ class TestFileSystemDocumentLoader:
         assert hasattr(pages_iterator, "__next__")
 
     @pytest.mark.parametrize(
-        "file_type,format", [(model.FileType.PNG, "PNG"), (model.FileType.JPEG, "JPEG")]
+        "file_type,format", [(enums.FileType.PNG, "PNG"), (enums.FileType.JPEG, "JPEG")]
     )
     def test_load_different_image_formats(
         self,
         loader: FileSystemDocumentLoader,
         fake_storage: FakeFileStorage,
-        file_type: model.FileType,
+        file_type: enums.FileType,
         format: str,
     ):
         """Test loading different image formats."""

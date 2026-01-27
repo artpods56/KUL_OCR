@@ -6,16 +6,27 @@ import kul_ocr.adapters.database.repository
 import kul_ocr.domain.model
 import kul_ocr.service_layer.services.documents
 import kul_ocr.service_layer.services.results
-from kul_ocr.domain.model import FileType, JobStatus
+from kul_ocr.config import StorageSettings
+from kul_ocr.domain import exceptions
+from kul_ocr.domain.enums import JobStatus, FileType
 from tests import factories
 from tests.fakes.uow import FakeUnitOfWork
 from tests.fakes.storages import FakeFileStorage
+
 
 
 @pytest.fixture
 def fake_uow() -> FakeUnitOfWork:
     return FakeUnitOfWork()
 
+@pytest.fixture
+def fake_storage_config(tmp_path: Path) -> StorageSettings:
+    return StorageSettings(
+        storage_type="local",
+        storage_root=tmp_path,
+        staging_prefix="staging",
+        documents_prefix="documents"
+    )
 
 def test_get_document_returns_existing_document(
     fake_uow: FakeUnitOfWork, tmp_path: Path
@@ -43,37 +54,46 @@ def test_upload_document(fake_uow: FakeUnitOfWork, tmp_path: Path):
 
     fake_storage = FakeFileStorage()
 
+    # Prepare the document
+    document = kul_ocr.service_layer.services.documents.prepare_document(
+        file_name="test.pdf",
+        file_type=FileType.PDF,
+        file_size=26,
+    )
+
+    staging_path = Path("staging") / f"{document.id}.pdf"
+    uploaded_path = Path("documents") / f"{document.id}.pdf"
+
     result = kul_ocr.service_layer.services.documents.upload_document(
         file_stream=BytesIO(b"%PDF-1.4 fake file content"),
-        file_size=26,
-        file_type=FileType.PDF,
+        document=document,
+        staging_file_path=staging_path,
+        uploaded_file_path=uploaded_path,
         storage=fake_storage,
         uow=fake_uow,
     )
 
     assert result.id is not None
     assert result.file_type == FileType.PDF.value
+    assert result.original_filename == "test.pdf"
 
 
 def test_upload_document_extension_mismatch(fake_uow: FakeUnitOfWork, tmp_path: Path):
     """Test that document with mismatched extension raises FileExtensionMismatchError."""
     from io import BytesIO
 
-    fake_storage = FakeFileStorage()
-
     file_stream = BytesIO(b"%PDF-1.4 fake pdf content")
-    file_name = "test.txt"
+    file_name = "test.txt"  # .txt extension but PDF file_type
 
     with pytest.raises(
-        kul_ocr.domain.model.FileExtensionMismatchError, match="File extension mismatch"
+        exceptions.FileExtensionMismatchError, match="File extension mismatch"
     ):
-        _ = kul_ocr.service_layer.services.documents.upload_document(
-            original_filename=file_name,
+        _ = kul_ocr.service_layer.services.documents.validate_uploaded_file(
             file_stream=file_stream,
             file_size=24,
             file_type=FileType.PDF,
-            storage=fake_storage,
-            uow=fake_uow,
+            max_bytes=50 * 1024 * 1024,
+            file_name=file_name,
         )
 
 

@@ -147,6 +147,7 @@ def upload_document(self, **kwargs: Unpack[model.DocumentUploadPayload]):
                 destination_path=Path(uploaded_file_path),
             )
 
+            document.file_path = uploaded_file_path
             document.update_status(enums.DocumentStatus.READY)
             uow.commit()
 

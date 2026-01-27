@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 from kul_ocr.adapters.ocr.tesseract import TesseractEngineConfig, TesseractOCREngine
-from kul_ocr.domain import model
+from kul_ocr.domain import model, enums
 
 
 @pytest.fixture
@@ -81,11 +81,11 @@ class TestTesseractOCREngine:
     @pytest.mark.parametrize(
         "file_type,expected_support",
         [
-            (model.FileType.PDF, False),
-            (model.FileType.PNG, True),
-            (model.FileType.JPG, True),
-            (model.FileType.JPEG, True),
-            (model.FileType.WEBP, False),
+            (enums.FileType.PDF, False),
+            (enums.FileType.PNG, True),
+            (enums.FileType.JPG, True),
+            (enums.FileType.JPEG, True),
+            (enums.FileType.WEBP, False),
         ],
     )
     @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
@@ -93,7 +93,7 @@ class TestTesseractOCREngine:
         self,
         mock_pytesseract,
         config: TesseractEngineConfig,
-        file_type: model.FileType,
+        file_type: enums.FileType,
         expected_support: bool,
     ):
         mock_pytesseract.get_tesseract_version.return_value = "5.0.0"

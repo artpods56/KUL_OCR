@@ -5,7 +5,7 @@ from typing import Self, cast, final, override
 import pytesseract
 from PIL import Image
 
-from kul_ocr.domain import model, ports
+from kul_ocr.domain import model, ports, enums
 from kul_ocr.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -29,9 +29,9 @@ class TesseractEngineConfig:
 @final
 class TesseractOCREngine(ports.OCREngine):
     SUPPORTED_FILE_TYPES = {
-        model.FileType.PNG,
-        model.FileType.JPG,
-        model.FileType.JPEG,
+        enums.FileType.PNG,
+        enums.FileType.JPG,
+        enums.FileType.JPEG,
     }
 
     def __init__(self, config: TesseractEngineConfig):
@@ -70,5 +70,5 @@ class TesseractOCREngine(ports.OCREngine):
         return str(pytesseract.get_tesseract_version())
 
     @override
-    def supports_file_type(self, file_type: model.FileType) -> bool:
+    def supports_file_type(self, file_type: enums.FileType) -> bool:
         return file_type in self.SUPPORTED_FILE_TYPES

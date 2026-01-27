@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from PIL import Image
 
 from kul_ocr.domain import model
-from kul_ocr.domain.model import FileType
+from kul_ocr.domain.enums import FileType
 
 
 @dataclass(slots=True)
@@ -30,21 +30,21 @@ class DocumentInput:
 @dataclass(frozen=True)
 class DocumentDTO:
     id: str
-    file_path: str
+    original_filename: str
     file_type: str
     uploaded_at: datetime
     file_size_bytes: int
-    original_filename: str | None = None
+    file_path: str | None = None
 
     @classmethod
     def from_domain(cls, document: model.Document) -> Self:
         return cls(
             id=document.id,
-            file_path=document.file_path,
+            original_filename=document.original_filename,
             file_type=document.file_type.value,
             uploaded_at=document.uploaded_at,
             file_size_bytes=document.file_size_bytes,
-            original_filename=document.original_filename,
+            file_path=document.file_path,
         )
 
 

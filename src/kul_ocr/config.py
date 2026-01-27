@@ -52,13 +52,17 @@ class DatabaseSettings(BaseSettings):
             return f"{self.db_scheme}://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
 
-class AppConfig(DatabaseSettings):
+class StorageSettings(BaseSettings):
+    storage_type: str
+    storage_root: Path
+    staging_prefix: str = "staging"
+    documents_prefix: str = "documents"
+
+
+class AppConfig(DatabaseSettings, StorageSettings):
     model_config = SettingsConfigDict(
         env_prefix="KUL_OCR_", env_file=REPO_ROOT / ".env", extra="allow"
     )
-
-    storage_type: str
-    storage_root: Path
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 

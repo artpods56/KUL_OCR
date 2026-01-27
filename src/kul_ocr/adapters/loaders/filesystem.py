@@ -6,7 +6,7 @@ from typing import cast, override
 import pymupdf  # PyMuPDF
 from PIL import Image
 
-from kul_ocr.domain import model, ports, structs
+from kul_ocr.domain import model, ports, structs, enums
 
 
 class FileSystemDocumentLoader(ports.DocumentLoader):
@@ -62,7 +62,7 @@ class FileSystemDocumentLoader(ports.DocumentLoader):
     def load_pages(
         self, doc_input: structs.DocumentInput
     ) -> Iterator[structs.PageInput]:
-        if doc_input.file_type == model.FileType.PDF:
+        if doc_input.file_type == enums.FileType.PDF:
             yield from self._load_pdf_stream(doc_input)
         elif doc_input.file_type.is_image:
             yield from self._load_single_image(doc_input)

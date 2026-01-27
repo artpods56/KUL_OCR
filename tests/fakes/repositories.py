@@ -9,7 +9,7 @@ from kul_ocr.adapters.database.repository import (
     AbstractOCRResultRepository,
     AbstractOutboxRepository,
 )
-from kul_ocr.domain import model
+from kul_ocr.domain import model, enums
 
 
 @final
@@ -75,7 +75,7 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
         return list(self._jobs.values())
 
     @override
-    def list_by_status(self, job_status: model.JobStatus) -> Sequence[model.Job]:
+    def list_by_status(self, job_status: enums.JobStatus) -> Sequence[model.Job]:
         return [j for j in self._jobs.values() if j.status == job_status]
 
     @override
@@ -85,7 +85,7 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
     @override
     def list_by_filters(
         self,
-        status: model.JobStatus | None = None,
+        status: enums.JobStatus | None = None,
         document_id: str | None = None,
     ) -> Sequence[model.Job]:
         jobs = list(self._jobs.values())
@@ -110,7 +110,7 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
         completed = [
             j
             for j in self._jobs.values()
-            if j.document_id == document_id and j.status == model.JobStatus.COMPLETED
+            if j.document_id == document_id and j.status == enums.JobStatus.COMPLETED
         ]
         if not completed:
             return None

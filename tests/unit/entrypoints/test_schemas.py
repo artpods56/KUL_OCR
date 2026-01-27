@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 from pydantic import ValidationError
 
-from kul_ocr.domain import model
+from kul_ocr.domain import model, enums
 from kul_ocr.entrypoints import schemas
 from tests import factories
 
@@ -27,14 +27,14 @@ class TestDocumentResponse:
     @pytest.mark.parametrize(
         "file_type",
         [
-            model.FileType.PDF,
-            model.FileType.PNG,
-            model.FileType.JPEG,
-            model.FileType.WEBP,
+            enums.FileType.PDF,
+            enums.FileType.PNG,
+            enums.FileType.JPEG,
+            enums.FileType.WEBP,
         ],
     )
     def test_from_domain_with_different_file_types(
-        self, file_type: model.FileType, tmp_path: Path
+        self, file_type: enums.FileType, tmp_path: Path
     ):
         document = factories.generate_document(
             file_type=file_type,
@@ -57,7 +57,8 @@ class TestDocumentResponseValidation:
         year=2022, month=1, day=1, hour=12, minute=0, second=0, tzinfo=None
     )
     VALID_PATH = "/tmp/valid_file.pdf"
-    VALID_TYPE = model.FileType.PDF
+    VALID_FILENAME = "document.pdf"
+    VALID_TYPE = enums.FileType.PDF
     VALID_SIZE = 1024
 
     INVALID_ENUM = SampleEnum.TEST
@@ -66,53 +67,53 @@ class TestDocumentResponseValidation:
         with pytest.raises((ValidationError, ValueError), match="UUID"):
             schemas.DocumentResponse(
                 id=UUID("not-a-uuid"),
-                file_path=self.VALID_PATH,
+                original_filename=self.VALID_FILENAME,
                 file_type=self.VALID_TYPE,
                 file_size_bytes=self.VALID_SIZE,
                 uploaded_at=self.VALID_DATE,
-                original_filename=None,
+                file_path=self.VALID_PATH,
             )
 
     def test_rejects_unsupported_mime_type(self):
         with pytest.raises(ValidationError, match="validation error"):
             schemas.DocumentResponse(
                 id=self.VALID_UUID,
-                file_path=self.VALID_PATH,
+                original_filename=self.VALID_FILENAME,
                 file_type=self.INVALID_ENUM,
                 file_size_bytes=self.VALID_SIZE,
                 uploaded_at=self.VALID_DATE,
-                original_filename=None,
+                file_path=self.VALID_PATH,
             )
 
     def test_rejects_negative_file_size(self):
         with pytest.raises(ValidationError, match="greater than or equal to 0"):
             schemas.DocumentResponse(
                 id=self.VALID_UUID,
-                file_path=self.VALID_PATH,
+                original_filename=self.VALID_FILENAME,
                 file_type=self.VALID_TYPE,
                 file_size_bytes=-50,
                 uploaded_at=self.VALID_DATE,
-                original_filename=None,
+                file_path=self.VALID_PATH,
             )
 
-    def test_rejects_path_traversal(self):
+    def test_rejects_path_traversal_in_file_path(self):
         with pytest.raises(ValidationError, match="traversal characters"):
             schemas.DocumentResponse(
                 id=self.VALID_UUID,
-                file_path="../../etc/passwd",
+                original_filename=self.VALID_FILENAME,
                 file_type=self.VALID_TYPE,
                 file_size_bytes=self.VALID_SIZE,
                 uploaded_at=self.VALID_DATE,
-                original_filename=None,
+                file_path="../../etc/passwd",
             )
 
-    def test_rejects_empty_file_path(self):
+    def test_rejects_empty_original_filename(self):
         with pytest.raises(ValidationError, match="empty"):
             schemas.DocumentResponse(
                 id=self.VALID_UUID,
-                file_path="   ",
+                original_filename="   ",
                 file_type=self.VALID_TYPE,
                 file_size_bytes=self.VALID_SIZE,
                 uploaded_at=self.VALID_DATE,
-                original_filename=None,
+                file_path=self.VALID_PATH,
             )
