@@ -83,6 +83,13 @@ class DocumentListResponse(BaseModel):
             total=len(documents),
         )
 
+    @classmethod
+    def from_dto(cls, documents: Sequence[structs.DocumentDTO]) -> Self:
+        return cls(
+            documents=[DocumentResponse.from_dto(doc) for doc in documents],
+            total=len(documents),
+        )
+
 
 class TextPartResponse(BaseModel):
     text: str

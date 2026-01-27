@@ -76,7 +76,7 @@ def upload_document(
 def list_documents(
     uow: UnitOfWorkDep,
 ) -> schemas.DocumentListResponse:
-    return services.get_documents(uow)
+    return schemas.DocumentListResponse.from_dto(services.get_documents(uow))
 
 
 @router.get(
