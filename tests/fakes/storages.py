@@ -36,7 +36,6 @@ class FakeFileStorage(ports.FileStorage):
 
     @override
     def move(self, source_path: pathlib.Path, destination_path: pathlib.Path) -> None:
-
         bytes = self.files[str(source_path)]
         del self.files[str(source_path)]
         self.files[str(destination_path)] = bytes

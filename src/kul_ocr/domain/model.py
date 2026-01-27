@@ -306,7 +306,6 @@ class Result:
 """
 
 
-
 class JobProcessingPayload(TypedDict):
     """Payload for JOB_SCHEDULING outbox events."""
 

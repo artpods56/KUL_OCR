@@ -24,7 +24,6 @@ def validate_uploaded_file(
     max_bytes: int,
     file_name: str | None = None,
 ) -> None:
-
     validator.validate_file_size(file_size, max_bytes)
 
     if file_name:
@@ -36,22 +35,25 @@ def validate_uploaded_file(
 
     validator.validate_mime_type(file_type, uploaded_mime)
 
-def prepare_document(file_name: str, file_type: enums.FileType, file_size: int)-> model.Document:
+
+def prepare_document(
+    file_name: str, file_type: enums.FileType, file_size: int
+) -> model.Document:
     return model.Document(
         file_type=file_type,
         file_size_bytes=file_size,
         original_filename=sanitize_filename(file_name),
     )
 
-def upload_document(
-        file_stream: ports.FileStreamProtocol,
-        document: model.Document,
-        staging_file_path: Path,
-        uploaded_file_path: Path,
-        storage: ports.FileStorage,
-        uow: AbstractUnitOfWork,
-) -> structs.DocumentDTO:
 
+def upload_document(
+    file_stream: ports.FileStreamProtocol,
+    document: model.Document,
+    staging_file_path: Path,
+    uploaded_file_path: Path,
+    storage: ports.FileStorage,
+    uow: AbstractUnitOfWork,
+) -> structs.DocumentDTO:
     storage.save(file_stream, staging_file_path)
 
     with uow:
@@ -128,7 +130,9 @@ def get_document_for_processing(
     with uow:
         document = uow.documents.get_or_raise(document_id)
         return structs.DocumentInput(
-            id=document.id, file_path=document.file_path or "unknown", file_type=document.file_type
+            id=document.id,
+            file_path=document.file_path or "unknown",
+            file_type=document.file_type,
         )
 
 

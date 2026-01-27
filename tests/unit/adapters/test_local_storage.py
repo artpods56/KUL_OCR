@@ -104,9 +104,7 @@ class TestLocalFileStorage:
         assert full_path.exists()
         assert full_path.stat().st_size == 0
 
-    def test_save_with_large_file(
-        self, storage: LocalFileStorage, storage_root: Path
-    ):
+    def test_save_with_large_file(self, storage: LocalFileStorage, storage_root: Path):
         file_path = Path("large_file.bin")
         large_content = b"X" * (10 * 1024 * 1024)  # 10 MB
         large_stream = io.BytesIO(large_content)
@@ -218,9 +216,7 @@ class TestLocalFileStorage:
         storage.move(src_path, dst_path)
         assert full_dst.exists()
 
-    def test_move_raises_not_found_when_both_missing(
-        self, storage: LocalFileStorage
-    ):
+    def test_move_raises_not_found_when_both_missing(self, storage: LocalFileStorage):
         """Test that move raises error when both source and destination are missing."""
         from kul_ocr.domain import exceptions
 

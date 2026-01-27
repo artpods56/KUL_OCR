@@ -70,8 +70,12 @@ def upload_document(
     )
 
     # Build storage paths using config
-    staging_file_path = Path(config.staging_prefix) / f"{document.id}{file_type.dot_extension}"
-    uploaded_file_path = Path(config.documents_prefix) / f"{document.id}{file_type.dot_extension}"
+    staging_file_path = (
+        Path(config.staging_prefix) / f"{document.id}{file_type.dot_extension}"
+    )
+    uploaded_file_path = (
+        Path(config.documents_prefix) / f"{document.id}{file_type.dot_extension}"
+    )
 
     return schemas.DocumentResponse.from_dto(
         documents.upload_document(
@@ -89,9 +93,7 @@ def upload_document(
 def list_documents(
     uow: UnitOfWorkDep,
 ) -> schemas.DocumentListResponse:
-    return schemas.DocumentListResponse.from_dto(
-        documents.get_documents(uow)
-    )
+    return schemas.DocumentListResponse.from_dto(documents.get_documents(uow))
 
 
 @router.get(
@@ -115,9 +117,7 @@ def get_latest_result(
     document_id: str,
     uow: dependencies.UnitOfWorkDep,
 ) -> schemas.ResultResponse:
-    result = results.get_latest_result_for_document(
-        document_id, uow
-    )
+    result = results.get_latest_result_for_document(document_id, uow)
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -168,9 +168,7 @@ def create_ocr_job(
     uow: UnitOfWorkDep,
 ) -> schemas.JobResponse:
     return schemas.JobResponse.from_dto(
-        jobs.submit_ocr_job(
-            str(request.document_id), uow
-        )
+        jobs.submit_ocr_job(str(request.document_id), uow)
     )
 
 
@@ -186,14 +184,10 @@ def start_ocr_job(
     the Celery task.
     """
     try:
-        job_dto = jobs.start_ocr_job_processing(
-            str(job_id), uow=uow
-        )
+        job_dto = jobs.start_ocr_job_processing(str(job_id), uow=uow)
         return schemas.JobResponse.from_dto(job_dto)
     except Exception as e:
-        job_dto = jobs.fail_ocr_job(
-            str(job_id), str(e), uow=uow
-        )
+        job_dto = jobs.fail_ocr_job(str(job_id), str(e), uow=uow)
         return schemas.JobResponse.from_dto(job_dto)
 
 
@@ -220,9 +214,7 @@ def retry_ocr_job(
     uow: UnitOfWorkDep,
 ) -> schemas.JobResponse:
     logger.info("Retry requested for OCR job %s", job_id)
-    return schemas.JobResponse.from_dto(
-        jobs.retry_ocr_job(str(job_id), uow)
-    )
+    return schemas.JobResponse.from_dto(jobs.retry_ocr_job(str(job_id), uow))
 
 
 @router.get("/ocr/jobs", response_model=schemas.JobListResponse)
@@ -290,9 +282,7 @@ def get_ocr_job_by_id(
     job_id: UUID,
     uow: dependencies.UnitOfWorkDep,
 ) -> schemas.JobResponse:
-    return schemas.JobResponse.from_dto(
-        jobs.get_ocr_job_response(str(job_id), uow)
-    )
+    return schemas.JobResponse.from_dto(jobs.get_ocr_job_response(str(job_id), uow))
 
 
 @router.post("/ocr/jobs/{job_id}/cancel")
@@ -301,9 +291,7 @@ def cancel_ocr_job(
     uow: UnitOfWorkDep,
 ) -> schemas.JobResponse:
     try:
-        return schemas.JobResponse.from_dto(
-        jobs.cancel_ocr_job(str(job_id), uow)
-        )
+        return schemas.JobResponse.from_dto(jobs.cancel_ocr_job(str(job_id), uow))
     except repository.OCRJobNotFoundError:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
 

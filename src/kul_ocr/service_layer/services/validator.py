@@ -40,6 +40,7 @@ def validate_mime_type(file_type: enums.FileType, mime_type: str) -> None:
             actual_mime=mime_type,
         )
 
+
 def validate_file_size(file_size: int, max_bytes: int) -> None:
     if file_size > max_bytes:
         raise exceptions.FileSizeExceededError(

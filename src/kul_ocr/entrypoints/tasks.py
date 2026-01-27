@@ -88,11 +88,7 @@ def process_job(self, **kwargs: Unpack[model.JobProcessingPayload]):
             document_id = job_dto.document_id
 
         with fresh_uow() as uow:
-            doc_input = (
-               documents.get_document_for_processing(
-                    str(document_id), uow
-                )
-            )
+            doc_input = documents.get_document_for_processing(str(document_id), uow)
 
         logger.info(f"Starting OCR processing for job {job_id}")
         result_dto = documents.process_document(
@@ -102,9 +98,7 @@ def process_job(self, **kwargs: Unpack[model.JobProcessingPayload]):
         )
 
         with fresh_uow() as uow:
-            _ = jobs.complete_ocr_job(
-                job_id, result_dto, uow
-            )
+            _ = jobs.complete_ocr_job(job_id, result_dto, uow)
             uow.commit()
 
         logger.info(f"Successfully processed job {job_id}")
@@ -133,8 +127,6 @@ def upload_document(self, **kwargs: Unpack[model.DocumentUploadPayload]):
     staging_file_path = kwargs["staging_file_path"]
     uploaded_file_path = kwargs["uploaded_file_path"]
 
-
-
     with fresh_uow() as uow:
         document = uow.documents.get_or_raise(document_id)
 
@@ -142,7 +134,6 @@ def upload_document(self, **kwargs: Unpack[model.DocumentUploadPayload]):
             return
 
         try:
-
             document.update_status(enums.DocumentStatus.UPLOADING)
 
             storage = dependencies.get_file_storage()

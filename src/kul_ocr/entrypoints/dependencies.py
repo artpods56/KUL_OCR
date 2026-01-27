@@ -58,9 +58,9 @@ def get_file_storage() -> ports.FileStorage:
         case local.LocalFileStorage:
             return local.LocalFileStorage(app_config.storage_root)
         case _:
-            raise NotImplementedError(f"Storage type '{storage_class}' is not implemented.")
-
-
+            raise NotImplementedError(
+                f"Storage type '{storage_class}' is not implemented."
+            )
 
 
 @lru_cache
@@ -113,7 +113,9 @@ def get_session_factory(engine: Engine | None = None) -> sessionmaker[Session]:
 
 def get_ocr_engine() -> ports.OCREngine:
     """Get an engine for OCR operations."""
-    return tesseract.TesseractOCREngine(config=tesseract.TesseractEngineConfig.from_env())
+    return tesseract.TesseractOCREngine(
+        config=tesseract.TesseractEngineConfig.from_env()
+    )
 
 
 def get_document_loader() -> ports.DocumentLoader:

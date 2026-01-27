@@ -3,10 +3,16 @@
 import pytest
 from unittest.mock import patch
 
+from pyright.cli import entrypoint
+
 from kul_ocr.adapters.queue.runner import CeleryTaskRunner
 from kul_ocr.domain import model, enums
 from tests.fakes.celery_app import FakeCeleryApp
-from tests.factories import generate_outbox_entry
+from tests.factories import (
+    generate_document_upload_outbox_entry,
+    generate_job_scheduling_outbox_entry,
+    generate_outbox_entries,
+)
 
 
 class TestCeleryTaskRunner:
@@ -33,22 +39,12 @@ class TestCeleryTaskRunner:
     @pytest.fixture
     def job_scheduling_entry(self) -> model.OutboxEntry:
         """Provide a JOB_SCHEDULING outbox entry."""
-        return generate_outbox_entry(
-            event_type=enums.OutboxEventType.JOB_SCHEDULING,
-            payload={"job_id": "test-job-123"},
-        )
+        return generate_job_scheduling_outbox_entry()
 
     @pytest.fixture
     def document_upload_entry(self) -> model.OutboxEntry:
         """Provide a DOCUMENT_UPLOAD outbox entry."""
-        return generate_outbox_entry(
-            event_type=enums.OutboxEventType.DOCUMENT_UPLOAD,
-            payload={
-                "document_id": "doc-456",
-                "staging_file_path": "/tmp/staging/file.pdf",
-                "uploaded_file_path": "/storage/file.pdf",
-            },
-        )
+        return generate_document_upload_outbox_entry()
 
 
 class TestScheduleTask(TestCeleryTaskRunner):
@@ -71,7 +67,7 @@ class TestScheduleTask(TestCeleryTaskRunner):
 
         assert sent_task.task_name == "kul_ocr.entrypoints.tasks.process_job"
         assert sent_task.task_id == job_scheduling_entry.id
-        assert sent_task.kwargs == {"job_id": "test-job-123"}
+        assert sent_task.kwargs == job_scheduling_entry.payload
         assert sent_task.args == ()
 
     def test_schedule_document_upload_task_success(
@@ -89,11 +85,7 @@ class TestScheduleTask(TestCeleryTaskRunner):
 
         assert sent_task.task_name == "kul_ocr.entrypoints.tasks.upload_document"
         assert sent_task.task_id == document_upload_entry.id
-        assert sent_task.kwargs == {
-            "document_id": "doc-456",
-            "staging_file_path": "/tmp/staging/file.pdf",
-            "uploaded_file_path": "/storage/file.pdf",
-        }
+        assert sent_task.kwargs == document_upload_entry.payload
 
     def test_schedule_task_with_unknown_event_type(
         self, fake_celery_app: FakeCeleryApp
@@ -110,10 +102,9 @@ class TestScheduleTask(TestCeleryTaskRunner):
             # Remove the mapping temporarily
             del model.TASK_NAMES[enums.OutboxEventType.JOB_SCHEDULING]
 
-            entry = generate_outbox_entry(
-                event_type=enums.OutboxEventType.JOB_SCHEDULING,
-                payload={"job_id": "test-job"},
-            )
+            entry = generate_document_upload_outbox_entry()
+
+            entry.event_type = enums.OutboxEventType.JOB_SCHEDULING
 
             with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
                 with pytest.raises(ValueError) as exc_info:
@@ -123,10 +114,8 @@ class TestScheduleTask(TestCeleryTaskRunner):
                 assert "OutboxEventType.JOB_SCHEDULING" in str(exc_info.value)
 
         finally:
-            # Restore original task names
             model.TASK_NAMES.update(original_task_names)
 
-        # Verify no task was sent
         assert len(fake_celery_app.sent_tasks) == 0
 
     def test_schedule_task_celery_send_task_fails(
@@ -145,84 +134,43 @@ class TestScheduleTask(TestCeleryTaskRunner):
             assert "Failed to send task" in str(exc_info.value)
             assert "process_job" in str(exc_info.value)
 
-    def test_schedule_task_preserves_payload_data(self, fake_celery_app: FakeCeleryApp):
+    @pytest.fixture
+    def test_schedule_task_preserves_payload_data(
+        self, fake_celery_app: FakeCeleryApp, job_scheduling_entry: model.OutboxEntry
+    ):
         """Test that payload data is preserved exactly when scheduling."""
-        # Create entry with complex payload data - cast to avoid type checker issues
-        from typing import cast
-
-        complex_payload = cast(
-            model.JobProcessingPayload,
-            {
-                "job_id": "complex-job-456",
-                "extra_data": "should be preserved",
-                "nested": {"key": "value", "number": 42},
-            },
-        )
-
-        entry = generate_outbox_entry(
-            event_type=enums.OutboxEventType.JOB_SCHEDULING, payload=complex_payload
-        )
 
         runner = CeleryTaskRunner()
 
         with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
-            runner.schedule_task(entry)
+            runner.schedule_task(job_scheduling_entry)
 
         sent_task = fake_celery_app.sent_tasks[0]
 
         # Verify all payload data is preserved
-        assert sent_task.kwargs == complex_payload
-        assert sent_task.task_id == entry.id
+        assert sent_task.kwargs == job_scheduling_entry.payload
+        assert sent_task.task_id == job_scheduling_entry.id
 
-    def test_schedule_multiple_tasks(self, fake_celery_app: FakeCeleryApp):
+    @pytest.mark.parametrize(
+        "event_type",
+        [enums.OutboxEventType.JOB_SCHEDULING, enums.OutboxEventType.DOCUMENT_UPLOAD],
+    )
+    def test_schedule_multiple_tasks(
+        self, fake_celery_app: FakeCeleryApp, event_type: enums.OutboxEventType
+    ):
         """Test scheduling multiple tasks of different types."""
         runner = CeleryTaskRunner()
 
-        # Create multiple entries
-        job_entry = generate_outbox_entry(
-            event_type=enums.OutboxEventType.JOB_SCHEDULING, payload={"job_id": "job-1"}
-        )
-
-        doc_entry = generate_outbox_entry(
-            event_type=enums.OutboxEventType.DOCUMENT_UPLOAD,
-            payload={
-                "document_id": "doc-1",
-                "staging_file_path": "/tmp/1",
-                "uploaded_file_path": "/storage/1",
-            },
-        )
-
-        doc_entry = generate_outbox_entry(
-            event_type=enums.OutboxEventType.DOCUMENT_UPLOAD,
-            payload={
-                "document_id": "doc-1",
-                "staging_file_path": "/tmp/1",
-                "uploaded_file_path": "/storage/1",
-            },
-            aggregate_id="entry-2",
-        )
+        entries = generate_outbox_entries(event_type=event_type)
 
         with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
-            runner.schedule_task(job_entry)
-            runner.schedule_task(doc_entry)
+            _ = [runner.schedule_task(entry) for entry in entries]
 
-        # Verify both tasks were sent
-        assert len(fake_celery_app.sent_tasks) == 2
+        assert len(fake_celery_app.sent_tasks) == len(entries)
 
-        # Check job scheduling task
-        job_task = fake_celery_app.get_sent_task(
-            "kul_ocr.entrypoints.tasks.process_job"
-        )
-        assert job_task is not None
-        assert job_task.task_id == job_entry.id
-        assert job_task.kwargs == {"job_id": "job-1"}
-
-        # Check document upload task
-        doc_task = fake_celery_app.get_sent_task(
-            "kul_ocr.entrypoints.tasks.upload_document"
-        )
-        assert doc_task is not None
-        assert doc_task.task_id == doc_entry.id
+        for entry, sent_task in zip(entries, fake_celery_app.sent_tasks):
+            assert entry.payload == sent_task.kwargs
+            assert entry.id == sent_task.task_id
 
 
 class TestRevokeTask(TestCeleryTaskRunner):
@@ -330,42 +278,20 @@ class TestCeleryTaskRunnerIntegration(TestCeleryTaskRunner):
         """Test error resilience - failures don't affect subsequent operations."""
         runner = CeleryTaskRunner()
 
-        # Configure to fail on specific task name
         failing_task_name = "kul_ocr.entrypoints.tasks.process_job"
+
         fake_celery_app.fail_send_task_for_names.add(failing_task_name)
 
-        job_entry = generate_outbox_entry(
-            event_type=enums.OutboxEventType.JOB_SCHEDULING,
-            payload={"job_id": "failing-job"},
-        )
+        job_entry = generate_job_scheduling_outbox_entry()
 
-        doc_entry = generate_outbox_entry(
-            event_type=enums.OutboxEventType.DOCUMENT_UPLOAD,
-            payload={
-                "document_id": "succeeding-doc",
-                "staging_file_path": "/tmp/file",
-                "uploaded_file_path": "/storage/file",
-            },
-        )
-
-        doc_entry = generate_outbox_entry(
-            event_type=enums.OutboxEventType.DOCUMENT_UPLOAD,
-            payload={
-                "document_id": "succeeding-doc",
-                "staging_file_path": "/tmp/file",
-                "uploaded_file_path": "/storage/file",
-            },
-        )
+        doc_entry = generate_document_upload_outbox_entry()
 
         with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
-            # First task should fail
             with pytest.raises(RuntimeError):
                 runner.schedule_task(job_entry)
 
-            # Second task should succeed
             runner.schedule_task(doc_entry)
 
-        # Verify only the successful task was recorded
         assert len(fake_celery_app.sent_tasks) == 1
         assert (
             fake_celery_app.sent_tasks[0].task_name

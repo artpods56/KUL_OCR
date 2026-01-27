@@ -215,7 +215,9 @@ def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
     uow.jobs.add(job)
 
     # Attempting to start it again should be a no-op (same status transition)
-    updated_job = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
+    updated_job = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(
+        job.id, uow
+    )
 
     assert updated_job.status == "processing"
     # Started_at should not change since it's the same status

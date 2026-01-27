@@ -171,7 +171,7 @@ def delete_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> None:
                 job_id=job_id,
                 current=job.status,
                 attempted=model.JobStatus.FAILED,
-                reason="Cannot delete non-terminal jobs."
+                reason="Cannot delete non-terminal jobs.",
             )
 
         # Repository handles cascade
@@ -390,7 +390,9 @@ def cancel_ocr_job(
                     try:
                         task_runner.revoke_task(task_id)
                     except Exception as e:
-                        logger.exception("Failed to revoke task", task_id=task_id, error=str(e))
+                        logger.exception(
+                            "Failed to revoke task", task_id=task_id, error=str(e)
+                        )
                         # Continue with cancellation even if revoke fails
 
                 ocr_job.update_status(

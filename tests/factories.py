@@ -40,7 +40,8 @@ def generate_document(
     document_path = Path(dir_path / document_id).with_suffix(file_type.dot_extension)
 
     return model.Document(
-        original_filename=original_filename or f"test_document{file_type.dot_extension}",
+        original_filename=original_filename
+        or f"test_document{file_type.dot_extension}",
         file_type=file_type,
         file_path=str(document_path),
         file_size_bytes=file_size_in_bytes,
@@ -60,7 +61,8 @@ def generate_document_without_file(
     document_id = generate_id()
 
     return model.Document(
-        original_filename=original_filename or f"test_document{file_type.dot_extension}",
+        original_filename=original_filename
+        or f"test_document{file_type.dot_extension}",
         file_type=file_type,
         file_path=f"/fake/path/{document_id}{file_type.dot_extension}",
         file_size_bytes=file_size_in_bytes,
@@ -150,30 +152,30 @@ def generate_ocr_results(
 
 
 # --- Outbox Entry Factories ---
-
-
-def generate_outbox_entry(
-    event_type: enums.OutboxEventType = enums.OutboxEventType.JOB_SCHEDULING,
+def generate_job_scheduling_outbox_entry(
     aggregate_id: str | None = None,
-    payload: model.OutboxPayload | None = None,
 ) -> model.OutboxEntry:
-    """Generate an outbox entry for testing."""
-    agg_id = aggregate_id or generate_id()
-
-    if payload is None:
-        if event_type == enums.OutboxEventType.JOB_SCHEDULING:
-            payload: model.JobProcessingPayload = {"job_id": agg_id}
-        else:  # DOCUMENT_UPLOAD
-            payload = model.DocumentUploadPayload(
-                document_id=agg_id,
-                staging_file_path=f"/staging/{agg_id}",
-                uploaded_file_path=f"/uploaded/{agg_id}",
-            )
+    payload: model.JobProcessingPayload = {"job_id": generate_id()}
 
     return model.OutboxEntry(
-        id=generate_id(),
-        event_type=event_type,
-        aggregate_id=agg_id,
+        event_type=enums.OutboxEventType.JOB_SCHEDULING,
+        aggregate_id=aggregate_id or generate_id(),
+        payload=payload,
+    )
+
+
+def generate_document_upload_outbox_entry(
+    aggregate_id: str | None = None,
+) -> model.OutboxEntry:
+    payload: model.DocumentUploadPayload = {
+        "document_id": generate_id(),
+        "staging_file_path": "staging/path",
+        "uploaded_file_path": "uploaded/path",
+    }
+
+    return model.OutboxEntry(
+        event_type=enums.OutboxEventType.DOCUMENT_UPLOAD,
+        aggregate_id=aggregate_id or generate_id(),
         payload=payload,
     )
 
@@ -183,4 +185,8 @@ def generate_outbox_entries(
     event_type: enums.OutboxEventType = enums.OutboxEventType.JOB_SCHEDULING,
 ) -> Sequence[model.OutboxEntry]:
     """Generate multiple outbox entries for testing."""
-    return [generate_outbox_entry(event_type=event_type) for _ in range(count)]
+    match event_type:
+        case enums.OutboxEventType.JOB_SCHEDULING:
+            return [generate_job_scheduling_outbox_entry() for _ in range(count)]
+        case enums.OutboxEventType.DOCUMENT_UPLOAD:
+            return [generate_document_upload_outbox_entry() for _ in range(count)]

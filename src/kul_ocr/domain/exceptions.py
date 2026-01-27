@@ -11,6 +11,7 @@ class DomainException(Exception):
         self.context: dict[str, Any] = context
         self.context["code"] = self.code
 
+
 class FileDownloadError(DomainException):
     code: str = "FILE_DOWNLOAD_FAILED"
 

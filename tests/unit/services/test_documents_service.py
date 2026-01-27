@@ -14,10 +14,10 @@ from tests.fakes.uow import FakeUnitOfWork
 from tests.fakes.storages import FakeFileStorage
 
 
-
 @pytest.fixture
 def fake_uow() -> FakeUnitOfWork:
     return FakeUnitOfWork()
+
 
 @pytest.fixture
 def fake_storage_config(tmp_path: Path) -> StorageSettings:
@@ -25,8 +25,9 @@ def fake_storage_config(tmp_path: Path) -> StorageSettings:
         storage_type="local",
         storage_root=tmp_path,
         staging_prefix="staging",
-        documents_prefix="documents"
+        documents_prefix="documents",
     )
+
 
 def test_get_document_returns_existing_document(
     fake_uow: FakeUnitOfWork, tmp_path: Path

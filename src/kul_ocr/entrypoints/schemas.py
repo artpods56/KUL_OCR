@@ -22,7 +22,9 @@ class DocumentResponse(BaseModel):
     }
 
     id: UUID = Field(..., description="Unique UUID of the document")
-    original_filename: str = Field(..., description="Original filename as uploaded by the client")
+    original_filename: str = Field(
+        ..., description="Original filename as uploaded by the client"
+    )
     file_type: enums.FileType = Field(..., description="MIME type of the file")
     uploaded_at: datetime = Field(..., description="Upload timestamp")
     file_size_bytes: int = Field(
