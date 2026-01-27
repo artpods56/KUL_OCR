@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from kul_ocr.domain import exceptions
+import kul_ocr.domain.model
 from kul_ocr.domain.model import Job, JobStatus
 
 
@@ -48,14 +48,18 @@ class TestOCRJob:
         job.mark_as_processing()
         assert job.status == JobStatus.PROCESSING
 
-        with pytest.raises(exceptions.InvalidJobStatusTransitionError) as excinfo:
+        with pytest.raises(
+            kul_ocr.domain.model.InvalidJobStatusTransitionError
+        ) as excinfo:
             job.mark_as_processing()
             assert "already been processed" in str(excinfo.value)
             assert job.status == JobStatus.PROCESSING
 
     def test_cannot_complete_pending_job(self):
         job = Job(document_id="test-doc", id="test-job-mark-as-processing")
-        with pytest.raises(exceptions.InvalidJobStatusTransitionError) as excinfo:
+        with pytest.raises(
+            kul_ocr.domain.model.InvalidJobStatusTransitionError
+        ) as excinfo:
             job.complete()
             assert "not a processed job" in str(excinfo.value)
 
@@ -64,7 +68,9 @@ class TestOCRJob:
         job.mark_as_processing()
         job.complete()
 
-        with pytest.raises(exceptions.InvalidJobStatusTransitionError) as excinfo:
+        with pytest.raises(
+            kul_ocr.domain.model.InvalidJobStatusTransitionError
+        ) as excinfo:
             assert job.is_terminal, "Job is already in a terminal state"
             job.complete()
             assert "can only complete processed jobs" in str(excinfo.value)

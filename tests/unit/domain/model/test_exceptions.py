@@ -1,4 +1,7 @@
 import pytest
+
+import kul_ocr.adapters.storages.local
+import kul_ocr.domain.model
 from kul_ocr.domain import exceptions
 
 
@@ -51,41 +54,45 @@ class TestFileUploadError:
 
     def test_can_be_raised(self):
         """Should be able to raise FileUploadError."""
-        with pytest.raises(exceptions.FileUploadError):
-            raise exceptions.FileUploadError("Upload failed")
+        with pytest.raises(kul_ocr.adapters.storages.local.FileUploadError):
+            raise kul_ocr.adapters.storages.local.FileUploadError("Upload failed")
 
     def test_can_be_caught_as_base_exception(self):
         """Should be catchable as OCRDomainException."""
         with pytest.raises(exceptions.OCRDomainException):
-            raise exceptions.FileUploadError("Upload failed")
+            raise kul_ocr.adapters.storages.local.FileUploadError("Upload failed")
 
     def test_preserved_error_message(self) -> None:
         """Should preserve the error message."""
         message = "Failed to upload file.pdf"
-        with pytest.raises(exceptions.FileUploadError, match=message):
-            raise exceptions.FileUploadError(message)
+        with pytest.raises(
+            kul_ocr.adapters.storages.local.FileUploadError, match=message
+        ):
+            raise kul_ocr.adapters.storages.local.FileUploadError(message)
 
     def test_can_be_caught_as_exception(self):
         """Should be catchable as generic Exception."""
         with pytest.raises(Exception):
-            raise exceptions.FileUploadError("Upload failed")
+            raise kul_ocr.adapters.storages.local.FileUploadError("Upload failed")
 
     def test_exception_chaining(self):
         """Should support exception chaining with 'raise from'."""
         original_error = ValueError("Invalid path")
-        with pytest.raises(exceptions.FileUploadError) as exc_info:
+        with pytest.raises(kul_ocr.adapters.storages.local.FileUploadError) as exc_info:
             try:
                 raise original_error
             except ValueError as e:
-                raise exceptions.FileUploadError("Upload failed") from e
+                raise kul_ocr.adapters.storages.local.FileUploadError(
+                    "Upload failed"
+                ) from e
         assert exc_info.value.__cause__ is original_error
 
     def test_specific_exception_cauth_before_base(self):
         """More specific exceptions should be cauth before base exceptions."""
         caught_exception = None
         try:
-            raise exceptions.FileUploadError("Upload failed")
-        except exceptions.FileUploadError:
+            raise kul_ocr.adapters.storages.local.FileUploadError("Upload failed")
+        except kul_ocr.adapters.storages.local.FileUploadError:
             caught_exception = "specific"
         except exceptions.OCRDomainException:
             caught_exception = "base"
@@ -110,7 +117,7 @@ class TestFileDownloadError:
     def test_can_be_caught_as_base_exception(self):
         """Should be catchable as OCRDomainException."""
         with pytest.raises(exceptions.OCRDomainException):
-            raise exceptions.FileUploadError("Upload failed")
+            raise kul_ocr.adapters.storages.local.FileUploadError("Upload failed")
 
     def test_preserved_error_message(self) -> None:
         """Should preserve the error message."""
@@ -154,38 +161,46 @@ class TestUnsupportedFileTypeError:
     def text_inherits_from_exception(self):
         """UnsupportedFileTypeError should inherit from OCRDomainException."""
         assert issubclass(
-            exceptions.UnsupportedFileTypeError, exceptions.OCRDomainException
+            kul_ocr.domain.model.UnsupportedFileTypeError, exceptions.OCRDomainException
         )
 
     def test_can_be_raised(self):
         """Should be able to raise UnsupportedFileTypeError."""
-        with pytest.raises(exceptions.UnsupportedFileTypeError):
-            raise exceptions.UnsupportedFileTypeError("File type not supported")
+        with pytest.raises(kul_ocr.domain.model.UnsupportedFileTypeError):
+            raise kul_ocr.domain.model.UnsupportedFileTypeError(
+                "File type not supported"
+            )
 
     def test_can_be_caught_as_base_exception(self):
         """Should be catchable as OCRDomainException."""
         with pytest.raises(exceptions.OCRDomainException):
-            raise exceptions.UnsupportedFileTypeError("File type not supported")
+            raise kul_ocr.domain.model.UnsupportedFileTypeError(
+                "File type not supported"
+            )
 
     def test_preserved_error_message(self) -> None:
         """Should preserve the error message."""
         message = "Unsupported file type: .exe"
-        with pytest.raises(exceptions.UnsupportedFileTypeError, match=message):
-            raise exceptions.UnsupportedFileTypeError(message)
+        with pytest.raises(
+            kul_ocr.domain.model.UnsupportedFileTypeError, match=message
+        ):
+            raise kul_ocr.domain.model.UnsupportedFileTypeError(message)
 
     def test_can_be_caught_as_exception(self):
         """Should be catchable as generic Exception."""
         with pytest.raises(Exception):
-            raise exceptions.UnsupportedFileTypeError("File type not supported")
+            raise kul_ocr.domain.model.UnsupportedFileTypeError(
+                "File type not supported"
+            )
 
     def test_exception_chaining(self):
         """Should support exception chaining with 'raise from'."""
         original_error = ValueError("Wrong type")
-        with pytest.raises(exceptions.UnsupportedFileTypeError) as exc_info:
+        with pytest.raises(kul_ocr.domain.model.UnsupportedFileTypeError) as exc_info:
             try:
                 raise original_error
             except ValueError as e:
-                raise exceptions.UnsupportedFileTypeError(
+                raise kul_ocr.domain.model.UnsupportedFileTypeError(
                     "File type not supported"
                 ) from e
         assert exc_info.value.__cause__ is original_error
@@ -194,8 +209,10 @@ class TestUnsupportedFileTypeError:
         """More specific exceptions should be cauth before base exceptions."""
         caught_exception = None
         try:
-            raise exceptions.UnsupportedFileTypeError("File type not supported")
-        except exceptions.UnsupportedFileTypeError:
+            raise kul_ocr.domain.model.UnsupportedFileTypeError(
+                "File type not supported"
+            )
+        except kul_ocr.domain.model.UnsupportedFileTypeError:
             caught_exception = "specific"
         except exceptions.OCRDomainException:
             caught_exception = "base"

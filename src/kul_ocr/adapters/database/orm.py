@@ -31,6 +31,7 @@ documents = Table(
     Column("file_type", Enum(model.FileType), nullable=False),
     Column("uploaded_at", DateTime, nullable=True),
     Column("file_size_bytes", Integer, nullable=True),
+    Column("original_filename", String(500), nullable=True),
 )
 
 ocr_jobs = Table(
@@ -42,6 +43,7 @@ ocr_jobs = Table(
     Column("error_message", String(255), nullable=True),
     Column("started_at", DateTime, nullable=True),
     Column("completed_at", DateTime, nullable=True),
+    Column("task_id", String(255), nullable=True),
     Column("status", Enum(model.JobStatus), nullable=False),
 )
 
@@ -91,6 +93,42 @@ ocr_results = Table(
 )
 
 
+@final
+class PayloadType(TypeDecorator[dict[str, str] | None]):
+    """TypeDecorator to serialize/deserialize outbox payload as JSON."""
+
+    impl = Text
+    cache_ok = True
+
+    @override
+    def process_bind_param(
+        self, value: dict[str, str] | None, dialect: Dialect
+    ) -> str | None:
+        if value is None:
+            return None
+        return msgspec.json.encode(value).decode("utf-8")
+
+    @override
+    def process_result_value(
+        self, value: str | None, dialect: Dialect
+    ) -> dict[str, str] | None:
+        if value is None:
+            return None
+        return msgspec.json.decode(value, type=dict[str, str])
+
+
+outbox_entries = Table(
+    "outbox_entries",
+    metadata,
+    Column("id", String(255), primary_key=True),
+    Column("event_type", Enum(model.OutboxEventType), nullable=False),
+    Column("aggregate_id", String(255), nullable=False, index=True),
+    Column("payload", PayloadType, nullable=False),
+    Column("created_at", DateTime, nullable=False, index=True),
+    Column("relayed_at", DateTime, nullable=True, index=True),
+)
+
+
 def start_mappers():
     """
     Initialize ORM mappings for all database models.
@@ -125,5 +163,13 @@ def start_mappers():
             "job": relationship(
                 model.Job, backref="result", foreign_keys=[ocr_results.c.job_id]
             ),
+        },
+    )
+
+    _ = mapper_registry.map_imperatively(
+        model.OutboxEntry,
+        outbox_entries,
+        properties={
+            "event_type": outbox_entries.c.event_type,
         },
     )

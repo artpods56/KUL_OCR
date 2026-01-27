@@ -4,12 +4,11 @@ from typing import Self, cast, final, override
 
 import pytesseract
 from PIL import Image
-from structlog import get_logger
 
 from kul_ocr.domain import model, ports
-from kul_ocr.utils.logger import Logger
+from kul_ocr.utils.logger import get_logger
 
-logger: Logger = get_logger()
+logger = get_logger(__name__)
 
 
 @dataclass

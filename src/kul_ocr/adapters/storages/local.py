@@ -8,6 +8,7 @@ from typing import Self, final, override
 
 from kul_ocr import config
 from kul_ocr.domain import exceptions, ports
+from kul_ocr.exceptions import DomainException
 
 
 @final
@@ -31,7 +32,7 @@ class LocalFileStorage(ports.FileStorage):
             with full_file_path.open("wb") as dest:
                 shutil.copyfileobj(stream, dest)
         except OSError as e:
-            raise exceptions.FileUploadError(
+            raise FileUploadError(
                 f"Failed to save file {full_file_path} to the file system: {e}"
             ) from e
 
@@ -43,9 +44,7 @@ class LocalFileStorage(ports.FileStorage):
         try:
             file = io.open(full_file_path, "rb")
         except FileNotFoundError as e:
-            raise exceptions.FileUploadError(
-                f"Could not find file {full_file_path}: {e}"
-            )
+            raise FileUploadError(f"Could not find file {full_file_path}: {e}")
         except OSError as e:
             raise exceptions.FileDownloadError(
                 f"Failed to download file {full_file_path} from the file system: {e}"
@@ -66,3 +65,11 @@ class LocalFileStorage(ports.FileStorage):
             raise exceptions.FileDownloadError(
                 f"Failed to remove file {full_file_path}: {e}"
             )
+
+
+class FileUploadError(DomainException):
+    code: str = "FILE_UPLOAD_FAILED"
+
+    def __init__(self, file_path: str, message: str | None = None):
+        msg = message or f"Failed to upload file to: {file_path}"
+        super().__init__(message=msg, file_path=file_path)

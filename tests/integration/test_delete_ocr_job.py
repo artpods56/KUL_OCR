@@ -1,5 +1,8 @@
 import pytest
 
+import kul_ocr.adapters.database.repository
+import kul_ocr.domain.model
+import kul_ocr.service_layer.services.jobs
 from kul_ocr.domain.model import (
     BoundingBox,
     Document,
@@ -13,8 +16,6 @@ from kul_ocr.domain.model import (
     Result,
     TextPart,
 )
-from kul_ocr.domain import exceptions
-from kul_ocr.service_layer import services
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
 
@@ -102,7 +103,7 @@ class TestDeleteOCRJobIntegration:
             job.complete()
             uow.commit()
 
-        services.delete_ocr_job(job_id, uow)
+        kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             deleted_job = uow.jobs.get(job_id)
@@ -118,7 +119,7 @@ class TestDeleteOCRJobIntegration:
             job.fail("Test error")
             uow.commit()
 
-        services.delete_ocr_job(job_id, uow)
+        kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             deleted_job = uow.jobs.get(job_id)
@@ -127,13 +128,14 @@ class TestDeleteOCRJobIntegration:
     def test_delete_pending_job_raises_invalid_status_error(
         self, uow: SqlAlchemyUnitOfWork
     ):
-        """Test that deleting a pending job raises InvalidJobStatusTransitionError."""
+        """Test that deleting a pending job raises InvalidJobStatusTransitionErrorDepr."""
         document_id, job_id = _create_job_with_document(uow, JobStatus.PENDING)
 
         with pytest.raises(
-            exceptions.InvalidJobStatusTransitionError, match="Cannot delete job"
+            kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr,
+            match="Cannot delete job",
         ):
-            services.delete_ocr_job(job_id, uow)
+            kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             job = uow.jobs.get(job_id)
@@ -142,7 +144,7 @@ class TestDeleteOCRJobIntegration:
     def test_delete_processing_job_raises_invalid_status_error(
         self, uow: SqlAlchemyUnitOfWork
     ):
-        """Test that deleting a processing job raises InvalidJobStatusTransitionError."""
+        """Test that deleting a processing job raises InvalidJobStatusTransitionErrorDepr."""
         document_id, job_id = _create_job_with_document(uow, JobStatus.PENDING)
 
         with uow:
@@ -152,9 +154,10 @@ class TestDeleteOCRJobIntegration:
             uow.commit()
 
         with pytest.raises(
-            exceptions.InvalidJobStatusTransitionError, match="Cannot delete job"
+            kul_ocr.domain.model.InvalidJobStatusTransitionErrorDepr,
+            match="Cannot delete job",
         ):
-            services.delete_ocr_job(job_id, uow)
+            kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             job = uow.jobs.get(job_id)
@@ -166,8 +169,11 @@ class TestDeleteOCRJobIntegration:
         """Test that deleting a non-existent job raises OCRJobNotFoundError."""
         fake_job_id = generate_id()
 
-        with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR job not found"):
-            services.delete_ocr_job(fake_job_id, uow)
+        with pytest.raises(
+            kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+            match="OCR job not found",
+        ):
+            kul_ocr.service_layer.services.jobs.delete_ocr_job(fake_job_id, uow)
 
     def test_delete_job_also_deletes_associated_result(self, uow: SqlAlchemyUnitOfWork):
         """Test that deleting a job also deletes the associated Result."""
@@ -177,7 +183,7 @@ class TestDeleteOCRJobIntegration:
             result = uow.results.get(result_id)
             assert result is not None
 
-        services.delete_ocr_job(job_id, uow)
+        kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             deleted_job = uow.jobs.get(job_id)
@@ -189,7 +195,7 @@ class TestDeleteOCRJobIntegration:
         """Test that deleting a job does not delete the associated document."""
         document_id, job_id, result_id = _create_job_with_result(uow)
 
-        services.delete_ocr_job(job_id, uow)
+        kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             document = uow.documents.get(document_id)

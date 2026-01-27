@@ -1,10 +1,11 @@
 from datetime import datetime
-from typing import ClassVar, Self, Sequence
+from typing import ClassVar, Self
 from uuid import UUID
-
+from collections.abc import Sequence
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 
 from kul_ocr.domain import model, structs
+from kul_ocr.utils.misc import nobeartype
 from kul_ocr.domain.model import JobStatus
 
 
@@ -29,6 +30,9 @@ class DocumentResponse(BaseModel):
     file_size_bytes: int = Field(
         ..., ge=0, description="Size of the file in bytes (must be non-negative)"
     )
+    original_filename: str | None = Field(
+        None, description="Original filename as uploaded by the client"
+    )
 
     @field_validator("file_path")
     @classmethod
@@ -49,6 +53,23 @@ class DocumentResponse(BaseModel):
             )
         return v
 
+    @field_validator("original_filename")
+    @classmethod
+    def validate_original_filename(cls, v: str | None) -> str | None:
+        if v is not None:
+            v = v.strip()
+            if not v:
+                return None
+            if ".." in v or "/" in v or "\\" in v:
+                raise ValueError(
+                    "Original filename cannot contain path traversal characters"
+                )
+            if len(v) > 500:
+                raise ValueError(
+                    "Original filename exceeds maximum length of 500 characters"
+                )
+        return v
+
     @classmethod
     def from_domain(cls, document: model.Document) -> Self:
         return cls(
@@ -57,6 +78,7 @@ class DocumentResponse(BaseModel):
             file_type=document.file_type,
             uploaded_at=document.uploaded_at,
             file_size_bytes=document.file_size_bytes,
+            original_filename=document.original_filename,
         )
 
     @classmethod
@@ -67,6 +89,7 @@ class DocumentResponse(BaseModel):
             file_type=model.FileType(document.file_type),
             uploaded_at=document.uploaded_at,
             file_size_bytes=document.file_size_bytes,
+            original_filename=document.original_filename,
         )
 
 
@@ -119,6 +142,7 @@ class PagePartResponse(BaseModel):
 
     @field_validator("width", "height")
     @classmethod
+    @nobeartype
     def validate_dimensions(cls, v: int, info: ValidationInfo) -> int:
         if v <= 0:
             raise ValueError(f"{info.field_name} must be positive (got {v})")
@@ -277,4 +301,37 @@ class TaskResponse(BaseModel):
 
 class ProcessJobTaskResponse(TaskResponse):
     job_id: UUID
+    task_id: UUID
     status: JobStatus
+
+
+class OutboxEntryResponse(BaseModel):
+    id: UUID
+    event_type: model.OutboxEventType
+    aggregate_id: UUID
+    created_at: datetime
+    is_pending: bool
+    relayed_at: datetime | None
+
+    @classmethod
+    def from_dto(cls, entry: structs.OutboxEntryDTO) -> Self:
+        return cls(
+            id=UUID(entry.id),
+            aggregate_id=UUID(entry.aggregate_id),
+            event_type=model.OutboxEventType(entry.event_type),
+            created_at=entry.created_at,
+            is_pending=entry.is_pending,
+            relayed_at=entry.relayed_at,
+        )
+
+
+class OutboxRelayerResponse(BaseModel):
+    relayed_entries: list[OutboxEntryResponse]
+    total: int
+
+    @classmethod
+    def from_dto(cls, entries: Sequence[structs.OutboxEntryDTO]) -> Self:
+        return cls(
+            relayed_entries=[OutboxEntryResponse.from_dto(entry) for entry in entries],
+            total=len(entries),
+        )

@@ -7,14 +7,13 @@ from kul_ocr.adapters.database import orm
 from kul_ocr.config import get_app_config
 from kul_ocr.entrypoints.dependencies import get_engine
 
-from kul_ocr.utils.logger import setup_logging, Logger
-from structlog import get_logger
+from kul_ocr.utils.logger import setup_logging, get_logger
 
 setup_logging()
 
 _ = load_dotenv()
 
-logger: Logger = get_logger()
+logger = get_logger(__name__)
 
 
 def create_database(database_uri: str | None = None) -> Engine:

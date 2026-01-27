@@ -71,7 +71,7 @@ async def test_upload_document_success(
     override_dependencies: None,
 ) -> None:
     """Test successful document upload via POST /documents endpoint."""
-    file_content: bytes = b"fake pdf content"
+    file_content: bytes = b"%PDF-1.4 fake pdf content"
     files = {"file": ("test.pdf", BytesIO(file_content), "application/pdf")}
 
     response = await client.post("/documents", files=files)
@@ -98,11 +98,11 @@ async def test_upload_document_size_limit_exceeded(
     """Should return 413 when file exceeds configured size limit."""
 
     mock_config = MagicMock()
-    mock_config.max_upload_size_mb = 10 / (1024 * 1024)
+    mock_config.max_upload_size_mb = int(10 / (1024 * 1024))
     app.dependency_overrides[dependencies.get_config] = lambda: mock_config
 
     try:
-        file_content = b"File size exceeds limit"
+        file_content = b"%PDF-1.4 File size exceeds limit"
         files = {"file": ("too_big.pdf", BytesIO(file_content), "application/pdf")}
 
         response = await client.post("/documents", files=files)

@@ -10,6 +10,7 @@ class FakeUnitOfWork(AbstractUnitOfWork):
         self.documents = repositories.FakeDocumentRepository()
         self.results = repositories.FakeOcrResultRepository()
         self.jobs = repositories.FakeOcrJobRepository(results_repo=self.results)
+        self.outbox = repositories.FakeOutboxRepository()
         self.committed: bool = False
 
     @override

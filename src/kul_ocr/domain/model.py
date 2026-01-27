@@ -5,8 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal
 
-from kul_ocr.domain import exceptions
-
+from kul_ocr.exceptions import DomainException
 
 """
 --- Value Objects ---
@@ -82,6 +81,7 @@ class Job:
     error_message: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    task_id: str | None = None
     status: JobStatus = JobStatus.PENDING
 
     @property
@@ -105,34 +105,37 @@ class Job:
 
     def mark_as_processing(self):
         if self.status != JobStatus.PENDING:
-            raise exceptions.InvalidJobStatusTransitionError(
+            raise InvalidJobStatusTransitionError(
                 job_id=self.id,
-                current_status=self.status.value,
-                attempted_status=JobStatus.PROCESSING.value,
+                current=self.status,
+                attempted=JobStatus.PROCESSING,
             )
         self.started_at = datetime.now()
         self.status = JobStatus.PROCESSING
 
     def complete(self):
         if self.status != JobStatus.PROCESSING:
-            raise exceptions.InvalidJobStatusTransitionError(
+            raise InvalidJobStatusTransitionError(
                 job_id=self.id,
-                current_status=self.status.value,
-                attempted_status=JobStatus.COMPLETED.value,
+                current=self.status,
+                attempted=JobStatus.COMPLETED,
             )
         self.status = JobStatus.COMPLETED
         self.completed_at = datetime.now()
 
     def fail(self, error_message: str):
         if self.is_terminal:
-            raise exceptions.InvalidJobStatusTransitionError(
+            raise InvalidJobStatusTransitionError(
                 job_id=self.id,
-                current_status=self.status.value,
-                attempted_status=JobStatus.FAILED.value,
+                current=self.status,
+                attempted=JobStatus.FAILED,
             )
         self.status = JobStatus.FAILED
         self.error_message = error_message
         self.completed_at = datetime.now()
+
+    def assign_task_id(self, task_id: str):
+        self.task_id = task_id
 
 
 class FileType(Enum):
@@ -170,7 +173,7 @@ class FileType(Enum):
 
         actual_extension = Path(filename).suffix.lower()
         if actual_extension and actual_extension != self.dot_extension:
-            raise exceptions.FileExtensionMismatchError(
+            raise FileExtensionMismatchError(
                 expected_extension=self.dot_extension, actual_extension=actual_extension
             )
 
@@ -182,6 +185,7 @@ class Document:
     file_type: FileType
     uploaded_at: datetime = field(default_factory=datetime.now)
     file_size_bytes: int = 0
+    original_filename: str | None = None
 
     def __post_init__(self):
         path = Path(self.file_path)
@@ -202,6 +206,13 @@ class Document:
     @property
     def mime_type(self) -> str:
         return self.file_type.value
+
+    @property
+    def display_name(self) -> str:
+        """Return the original filename if available, otherwise the storage name."""
+        if self.original_filename:
+            return self.original_filename
+        return self.name
 
     def is_pdf(self) -> bool:
         return self.file_type == FileType.PDF
@@ -228,3 +239,113 @@ class Result:
     job_id: str
     content: Sequence[ProcessedPage]
     creation_time: datetime = field(default_factory=datetime.now)
+
+
+"""
+--- Outbox Pattern ---
+"""
+
+
+class OutboxEventType(Enum):
+    OCR_JOB_SCHEDULED = "ocr_job_scheduled"
+
+
+TASK_NAMES = {
+    OutboxEventType.OCR_JOB_SCHEDULED: "kul_ocr.entrypoints.tasks.process_ocr_job_task",
+}
+
+
+@dataclass
+class OutboxEntry:
+    id: str
+    event_type: OutboxEventType
+    aggregate_id: str
+    payload: dict[str, str]
+    created_at: datetime = field(default_factory=datetime.now)
+    relayed_at: datetime | None = None
+
+    @property
+    def is_relayed(self) -> bool:
+        return self.relayed_at is not None
+
+    def mark_as_relayed(self) -> None:
+        if self.is_relayed:
+            raise OutboxEntryAlreadyRelayedError(entry_id=self.id)
+        self.relayed_at = datetime.now()
+
+
+class InvalidJobStatusTransitionError(DomainException):
+    code: str = "INVALID_STATUS_TRANSITION"
+
+    def __init__(self, job_id: str, current: JobStatus, attempted: JobStatus):
+        msg = f"Job {job_id} cannot transition from {current.name} to {attempted.name}"
+
+        super().__init__(
+            message=msg,
+            job_id=job_id,
+            current_status=current.value,
+            attempted_status=attempted.value,
+        )
+
+
+class UnsupportedFileTypeError(DomainException):
+    code: str = "UNSUPPORTED_FILE_TYPE"
+
+    def __init__(self, file_type: str, message: str | None = None):
+        msg = message or f"Unsupported file type: {file_type}"
+        super().__init__(message=msg, file_type=file_type)
+
+
+class FileExtensionMismatchError(DomainException):
+    code: str = "FILE_EXTENSION_MISMATCH"
+
+    def __init__(
+        self, expected_extension: str, actual_extension: str, message: str | None = None
+    ):
+        msg = message or (
+            f"File extension mismatch: expected {expected_extension}, "
+            f"got {actual_extension}"
+        )
+        super().__init__(
+            message=msg,
+            expected_extension=expected_extension,
+            actual_extension=actual_extension,
+        )
+
+
+class InvalidJobStatusTransitionErrorDepr(DomainException):
+    code: str = "INVALID_STATUS_TRANSITION"
+
+    def __init__(
+        self,
+        job_id: str,
+        current_status: str,
+        attempted_status: str,
+        message: str | None = None,
+    ):
+        msg = message or (
+            f"Invalid status transition for job {job_id}: "
+            f"{current_status} -> {attempted_status}"
+        )
+        super().__init__(
+            message=msg,
+            job_id=job_id,
+            current_status=current_status,
+            attempted_status=attempted_status,
+        )
+
+
+class UnknownJobStatusError(DomainException):
+    code: str = "UNKNOWN_JOB_STATUS"
+
+    def __init__(self, status: str, message: str | None = None):
+        msg = message or f"Unknown job status {status}."
+        super().__init__(message=msg, status=status)
+
+
+class OutboxEntryAlreadyRelayedError(DomainException):
+    code: str = "OUTBOX_ENTRY_ALREADY_RELAYED"
+
+    def __init__(self, entry_id: str, message: str | None = None):
+        msg = message or f"Outbox entry {entry_id} has already been relayed."
+        super().__init__(message=msg, entry_id=entry_id)

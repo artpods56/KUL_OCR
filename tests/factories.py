@@ -142,3 +142,34 @@ def generate_ocr_results(
 ) -> Sequence[model.Result]:
     """Generate multiple OCR results."""
     return [generate_ocr_result() for _ in range(results_count)]
+
+
+# --- Outbox Entry Factories ---
+
+
+def generate_outbox_entry(
+    event_type: model.OutboxEventType = model.OutboxEventType.OCR_JOB_SCHEDULED,
+    aggregate_id: str | None = None,
+    payload: dict[str, str] | None = None,
+) -> model.OutboxEntry:
+    """Generate an outbox entry for testing."""
+    agg_id = aggregate_id or generate_id()
+    return model.OutboxEntry(
+        id=generate_id(),
+        event_type=event_type,
+        aggregate_id=agg_id,
+        payload=payload
+        or {
+            "job_id": agg_id,
+            "task_id": generate_id(),
+            "document_id": generate_id(),
+        },
+    )
+
+
+def generate_outbox_entries(
+    count: int = 5,
+    event_type: model.OutboxEventType = model.OutboxEventType.OCR_JOB_SCHEDULED,
+) -> Sequence[model.OutboxEntry]:
+    """Generate multiple outbox entries for testing."""
+    return [generate_outbox_entry(event_type=event_type) for _ in range(count)]

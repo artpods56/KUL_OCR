@@ -631,11 +631,13 @@ api_client = BackendAPIClient()
 **Location:** `frontend/web/views.py`
 
 ```python
+import kul_ocr.service_layer.services.documents
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.http import HttpResponse
 from api_client.client import api_client
 from web.forms import DocumentUploadForm
+
 
 def upload_document(request):
     """Handle document upload form"""
@@ -645,7 +647,7 @@ def upload_document(request):
             try:
                 file = request.FILES['file']
                 # Call backend API
-                result = api_client.upload_document(file, file.name)
+                result = kul_ocr.service_layer.services.documents.upload_document(file, file.name)
                 messages.success(
                     request,
                     f"Document uploaded successfully: {result['id']}"
@@ -658,17 +660,19 @@ def upload_document(request):
 
     return render(request, 'web/upload.html', {'form': form})
 
+
 def document_detail(request, document_id):
     """Display document details and OCR results"""
     try:
         # Call backend API
-        document = api_client.get_document(document_id)
+        document = kul_ocr.service_layer.services.documents.get_document(document_id)
         return render(request, 'web/document_detail.html', {
             'document': document
         })
     except Exception as e:
         messages.error(request, f"Error loading document: {str(e)}")
         return redirect('upload_document')
+
 
 def list_jobs(request):
     """List OCR jobs with optional filtering"""
