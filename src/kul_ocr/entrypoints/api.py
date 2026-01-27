@@ -1,4 +1,3 @@
-from sys import exception
 from typing import Annotated
 from uuid import UUID
 import logging
@@ -11,7 +10,6 @@ from kul_ocr.adapters.database import orm
 from kul_ocr.entrypoints import dependencies, exception_handlers, schemas, tasks
 from kul_ocr.entrypoints.dependencies import UnitOfWorkDep
 from kul_ocr.service_layer import parsing, services
-from kul_ocr.domain import exceptions
 
 _ = load_dotenv()
 
@@ -68,7 +66,7 @@ def get_document(
     document_id: UUID,
     uow: dependencies.UnitOfWorkDep,
 ) -> schemas.DocumentResponse:
-    return services.get_document(document_id, uow)
+    return services.get_document(str(document_id), uow)
 
 
 @router.get(
@@ -141,11 +139,11 @@ def start_ocr_job(
     uow: UnitOfWorkDep,
 ) -> schemas.JobResponse:
     try:
-        response = services.start_ocr_job_processing(job_id, uow=uow)
+        response = services.start_ocr_job_processing(str(job_id), uow=uow)
         tasks.process_ocr_job_task.delay(str(job_id))
         return response
     except Exception as e:
-        job = services.fail_ocr_job(job_id, str(e), uow=uow)
+        job = services.fail_ocr_job(str(job_id), str(e), uow=uow)
         return schemas.JobResponse.from_domain(job)
 
 
@@ -158,7 +156,7 @@ def delete_ocr_job(
     job_id: UUID,
     uow: UnitOfWorkDep,
 ) -> Response:
-    services.delete_ocr_job(job_id, uow)
+    services.delete_ocr_job(str(job_id), uow)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -172,7 +170,7 @@ def retry_ocr_job(
     uow: UnitOfWorkDep,
 ) -> schemas.JobResponse:
     logger.info("Retry requested for OCR job %s", job_id)
-    return services.retry_ocr_job(job_id, uow)
+    return services.retry_ocr_job(str(job_id), uow)
 
 
 @router.get("/ocr/jobs", response_model=schemas.JobListResponse)
@@ -188,7 +186,9 @@ def list_ocr_jobs(
         UUID | None, Query(description="Filter by document ID")
     ] = None,
 ) -> schemas.JobListResponse:
-    return services.get_ocr_jobs(uow=uow, status=status, document_id=document_id)
+    return services.get_ocr_jobs(
+        uow=uow, status=status, document_id=str(document_id) if document_id else None
+    )
 
 
 @router.get(

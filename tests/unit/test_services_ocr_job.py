@@ -1,6 +1,6 @@
 from kul_ocr.entrypoints.schemas import JobResponse
 import pytest
-from uuid import uuid4, UUID
+from uuid import uuid4
 from kul_ocr.domain import model, exceptions
 from kul_ocr.service_layer import services
 

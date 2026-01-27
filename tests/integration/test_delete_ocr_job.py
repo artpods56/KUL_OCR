@@ -166,9 +166,7 @@ class TestDeleteOCRJobIntegration:
         """Test that deleting a non-existent job raises OCRJobNotFoundError."""
         fake_job_id = generate_id()
 
-        with pytest.raises(
-            exceptions.OCRJobNotFoundError, match="OCR Job .* not found"
-        ):
+        with pytest.raises(exceptions.OCRJobNotFoundError, match="OCR job not found"):
             services.delete_ocr_job(fake_job_id, uow)
 
     def test_delete_job_also_deletes_associated_result(self, uow: SqlAlchemyUnitOfWork):
