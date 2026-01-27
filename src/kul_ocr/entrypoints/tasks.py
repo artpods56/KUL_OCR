@@ -1,6 +1,6 @@
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, override, Unpack, TypedDict
+from typing import Any, override, Unpack
 
 import celery
 from billiard.einfo import ExceptionInfo
@@ -8,7 +8,7 @@ from celery.utils.log import get_task_logger
 
 import kul_ocr.service_layer.services.documents
 
-from kul_ocr.domain import enums
+from kul_ocr.domain import enums, model
 from kul_ocr.entrypoints.celery_app import app
 from kul_ocr.entrypoints import dependencies
 from kul_ocr.entrypoints.dependencies import fresh_uow, get_task_runner
@@ -127,14 +127,8 @@ def process_ocr_job_task(self, job_id: str):
         raise self.retry(exc=exc, countdown=60 * (2**self.request.retries))  # pyright: ignore[reportAny]
 
 
-class UploadDocumentTaskKwargs(TypedDict):
-    document_id: str
-    staging_file_path: str
-    uploaded_file_path: str
-
-
 @app.task(bind=True, max_retries=3)
-def upload_document(self, **kwargs: Unpack[UploadDocumentTaskKwargs]):
+def upload_document(self, **kwargs: Unpack[model.DocumentUploadPayload]):
     document_id = kwargs["document_id"]
     staging_file_path = kwargs["staging_file_path"]
     uploaded_file_path = kwargs["uploaded_file_path"]

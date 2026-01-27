@@ -1,106 +1,82 @@
 from pathlib import Path
 from typing import Sequence
 
-import kul_ocr.adapters.storages.local
-from kul_ocr.domain import ports, model, structs, exceptions
+from kul_ocr.domain import ports, model, structs, enums
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.parsing import (
     MIN_MAGIC_BYTES,
-    validate_file_content,
+    get_mime_from_bytes,
+    validate_and_get_file_type,
     sanitize_filename,
 )
+from kul_ocr.service_layer.services.validator import (
+    validate_file_extension,
+    validate_mime_type,
+)
+from kul_ocr.service_layer.services import validator
 from kul_ocr.service_layer.uow import AbstractUnitOfWork
-
+from kul_ocr import config
 from kul_ocr.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def upload_document(
+def validate_uploaded_file(
     file_stream: ports.FileStreamProtocol,
     file_size: int,
-    file_type: model.FileType,
-    storage: ports.FileStorage,
-    uow: AbstractUnitOfWork,
-    original_filename: str | None = None,
-    max_bytes: int | None = None,
-) -> structs.DocumentDTO:
-    """Uploads a document to storage and saves it in the database.
+    file_type: enums.FileType,
+    max_bytes: int,
+    file_name: str | None = None,
+) -> None:
 
-    Saves the provided file stream to the storage system, generates a unique ID
-    for the document, and persists its metadata in the database.
+    validator.validate_file_size(file_size, max_bytes)
 
-    Args:
-        file_stream: A file-like object containing the document data.
-        file_size: Size of the file in bytes.
-        file_type: The type/format of the file (e.g., PDF, PNG).
-        storage: Storage system used to save the file.
-        uow: Unit of Work instance.
-        original_filename: The original filename from the client upload (optional).
-        max_bytes: Optional maximum file size in bytes for validation.
-
-    Returns:
-        The created DocumentDTO.
-
-    Raises:
-        exceptions.FileUploadError: If saving the file to storage fails.
-        ValueError: If the file extension doesn't match the declared file type.
-        FileSizeExceededError: If file exceeds max_bytes limit.
-    """
-    logger.info(
-        "Starting document upload", file_type=file_type.value, file_size_bytes=file_size
-    )
-
-    if max_bytes is not None and file_size > max_bytes:
-        raise exceptions.FileSizeExceededError(
-            file_size=file_size,
-            max_bytes=max_bytes,
-        )
+    if file_name:
+        validator.validate_file_extension(file_type, file_name)
 
     header_bytes = file_stream.read(MIN_MAGIC_BYTES)
     _ = file_stream.seek(0)
-    validate_file_content(header_bytes, file_type)
+    uploaded_mime = get_mime_from_bytes(header_bytes)
 
-    file_type.validate_extension(
-        original_filename or ("unknown" + file_type.dot_extension)
+    validator.validate_mime_type(file_type, uploaded_mime)
+
+def prepare_document(file_name: str, file_type: enums.FileType, file_size: int)-> model.Document:
+    return model.Document(
+        file_type=file_type,
+        file_size_bytes=file_size,
+        original_filename=sanitize_filename(file_name),
     )
 
-    sanitized_filename = sanitize_filename(original_filename)
+def upload_document(
+        file_stream: ports.FileStreamProtocol,
+        document: model.Document,
+        staging_file_path: Path,
+        uploaded_file_path: Path,
+        storage: ports.FileStorage,
+        uow: AbstractUnitOfWork,
+) -> structs.DocumentDTO:
+
+    storage.save(file_stream, staging_file_path)
 
     with uow:
-        document_uuid = generate_id()
-        storage_file_path = Path(document_uuid + file_type.dot_extension)
+        uow.documents.add(document)
 
-        document = model.Document(
-            id=document_uuid,
-            file_path=str(storage_file_path),
-            file_type=file_type,
-            file_size_bytes=file_size,
-            original_filename=sanitized_filename,
+        payload: model.DocumentUploadPayload = {
+            "document_id": document.id,
+            "staging_file_path": str(staging_file_path),
+            "uploaded_file_path": str(uploaded_file_path),
+        }
+
+        uow.outbox.add(
+            model.OutboxEntry(
+                event_type=enums.OutboxEventType.DOCUMENT_UPLOAD,
+                aggregate_id=document.id,
+                payload=payload,
+            )
         )
+        uow.commit()
 
-        try:
-            uow.documents.add(document)
-            storage.save(stream=file_stream, file_path=storage_file_path)
-            uow.commit()
-
-            logger.info(
-                "Document uploaded successfully",
-                document_id=str(document.id),
-                file_path=str(storage_file_path),
-            )
-
-            return structs.DocumentDTO.from_domain(document)
-
-        except kul_ocr.adapters.storages.local.FileUploadError as e:
-            logger.error(
-                "Document upload failed",
-                document_id=document_uuid,
-                error=str(e),
-                exc_info=True,
-            )
-            uow.rollback()
-            raise
+        return structs.DocumentDTO.from_domain(document)
 
 
 def get_documents(uow: AbstractUnitOfWork) -> Sequence[structs.DocumentDTO]:

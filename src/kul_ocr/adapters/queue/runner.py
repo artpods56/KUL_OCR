@@ -1,6 +1,6 @@
-from typing import override
+from typing import cast, override
 
-from kul_ocr.domain import model, protocols
+from kul_ocr.domain import model, protocols, enums
 
 
 class CeleryTaskRunner(protocols.TaskRunner):
@@ -12,11 +12,19 @@ class CeleryTaskRunner(protocols.TaskRunner):
         if task_name is None:
             raise ValueError(f"No task configured for event type: {entry.event_type}")
         match entry.event_type:
-            case model.OutboxEventType.OCR_JOB_SCHEDULED:
+            case enums.OutboxEventType.JOB_SCHEDULING:
+                payload = cast(model.JobSchedulingPayload, entry.payload)
                 _ = app.send_task(
                     task_name,
-                    task_id=entry.aggregate_id,
-                    kwargs={"job_id": entry.payload["job_id"]},
+                    task_id=entry.id,
+                    kwargs={"job_id": payload["job_id"]},
+                )
+            case enums.OutboxEventType.DOCUMENT_UPLOAD:
+                payload = cast(model.DocumentUploadPayload, entry.payload)
+                _ = app.send_task(
+                    task_name,
+                    task_id=entry.id,
+                    kwargs=payload,
                 )
 
     @override
