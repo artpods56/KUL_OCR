@@ -429,3 +429,193 @@ def test_delete_job_also_deletes_associated_result(uow: FakeUnitOfWork):
     assert uow.jobs.get(job.id) is None
     assert uow.results.get_by_job_id(job.id) is None
     assert uow.committed is True
+
+
+# --- cancel_ocr_job tests ---
+
+
+def test_cancel_pending_job(uow: FakeUnitOfWork):
+    """Test cancelling a PENDING job marks it as FAILED with cancellation message."""
+    from tests.fakes.task_runner import FakeTaskRunner
+
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    uow.jobs.add(job)
+
+    task_runner = FakeTaskRunner()
+    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+        job_id=job.id, task_runner=task_runner, uow=uow
+    )
+
+    # Verify job is marked as FAILED
+    assert result_dto.status == JobStatus.FAILED.value
+    assert result_dto.error_message is not None
+    assert "cancel" in result_dto.error_message.lower()
+
+    # Verify no task revocation attempted (PENDING job has no task)
+    assert len(task_runner.revoked_tasks) == 0
+
+    # Verify changes committed
+    assert uow.committed is True
+
+
+def test_cancel_processing_job_with_task_id(uow: FakeUnitOfWork):
+    """Test cancelling a PROCESSING job with task_id revokes the task."""
+    from tests.fakes.task_runner import FakeTaskRunner
+    from kul_ocr.domain import model
+    from kul_ocr.domain.enums import OutboxEventType
+
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.update_status(JobStatus.PROCESSING)
+    task_id = "test-task-id-123"
+    job.assign_task_id(task_id)
+    uow.jobs.add(job)
+
+    # Add outbox entry for outbox cleanup path
+    outbox_entry = model.OutboxEntry(
+        id=task_id,
+        event_type=OutboxEventType.JOB_SCHEDULING,
+        aggregate_id=job.id,
+        payload={"job_id": job.id},
+    )
+    uow.outbox.add(outbox_entry)
+
+    task_runner = FakeTaskRunner()
+    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+        job_id=job.id, task_runner=task_runner, uow=uow
+    )
+
+    # Verify job is marked as FAILED
+    assert result_dto.status == JobStatus.FAILED.value
+    assert result_dto.error_message is not None
+    assert "cancel" in result_dto.error_message.lower()
+
+    # Verify task was revoked
+    assert task_id in task_runner.revoked_tasks
+
+    # Verify changes committed
+    assert uow.committed is True
+
+
+def test_cancel_processing_job_without_task_id_still_cancels(uow: FakeUnitOfWork):
+    """Test cancelling a PROCESSING job without task_id still cancels successfully.
+
+    Since task_id is None, no revocation is attempted, but the job is still
+    marked as FAILED and changes are committed.
+    """
+    from tests.fakes.task_runner import FakeTaskRunner
+
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.update_status(JobStatus.PROCESSING)
+    # task_id is None
+    uow.jobs.add(job)
+
+    task_runner = FakeTaskRunner()
+
+    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+        job_id=job.id, task_runner=task_runner, uow=uow
+    )
+
+    # Job successfully updated to FAILED
+    assert result_dto.status == JobStatus.FAILED.value
+    assert result_dto.error_message is not None
+    assert "cancel" in result_dto.error_message.lower()
+
+    # No task revocation occurred (no task_id)
+    assert len(task_runner.revoked_tasks) == 0
+
+    # Changes are committed
+    assert uow.committed is True
+
+
+def test_cancel_completed_job_returns_unchanged(uow: FakeUnitOfWork):
+    """Test cancelling a COMPLETED job returns it unchanged."""
+    from tests.fakes.task_runner import FakeTaskRunner
+
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.update_status(JobStatus.PROCESSING)
+    job.update_status(JobStatus.COMPLETED)
+    uow.jobs.add(job)
+
+    task_runner = FakeTaskRunner()
+    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+        job_id=job.id, task_runner=task_runner, uow=uow
+    )
+
+    # Job should remain COMPLETED
+    assert result_dto.status == JobStatus.COMPLETED.value
+    assert result_dto.error_message is None
+
+    # No revocation should occur
+    assert len(task_runner.revoked_tasks) == 0
+
+
+def test_cancel_failed_job_returns_unchanged(uow: FakeUnitOfWork):
+    """Test cancelling a FAILED job returns it unchanged."""
+    from tests.fakes.task_runner import FakeTaskRunner
+
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    job.update_status(JobStatus.FAILED, error_message="Previous error")
+    uow.jobs.add(job)
+
+    task_runner = FakeTaskRunner()
+    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+        job_id=job.id, task_runner=task_runner, uow=uow
+    )
+
+    # Job should remain FAILED with original error
+    assert result_dto.status == JobStatus.FAILED.value
+    assert result_dto.error_message == "Previous error"
+
+    # No revocation should occur
+    assert len(task_runner.revoked_tasks) == 0
+
+
+def test_cancel_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
+    """Test cancelling non-existent job raises OCRJobNotFoundError."""
+    from tests.fakes.task_runner import FakeTaskRunner
+
+    task_runner = FakeTaskRunner()
+
+    with pytest.raises(
+        kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+        match="OCR job not found",
+    ):
+        kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+            job_id="nonexistent-job-id", task_runner=task_runner, uow=uow
+        )
+
+
+def test_cancel_job_with_relayed_outbox_entry_revokes_task(uow: FakeUnitOfWork):
+    """Test cancelling job with relayed outbox entry also revokes via outbox cleanup path."""
+    from tests.fakes.task_runner import FakeTaskRunner
+    from kul_ocr.domain import model
+    from kul_ocr.domain.enums import OutboxEventType
+
+    job = factories.generate_ocr_job(status=JobStatus.PENDING)
+    task_id = "outbox-task-id"
+    job.assign_task_id(task_id)
+    uow.jobs.add(job)
+
+    # Create outbox entry that's been relayed
+    outbox_entry = model.OutboxEntry(
+        id=task_id,
+        event_type=OutboxEventType.JOB_SCHEDULING,
+        aggregate_id=job.id,
+        payload={"job_id": job.id},
+    )
+    outbox_entry.mark_as_relayed()
+    uow.outbox.add(outbox_entry)
+
+    task_runner = FakeTaskRunner()
+    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+        job_id=job.id, task_runner=task_runner, uow=uow
+    )
+
+    # Verify job cancelled
+    assert result_dto.status == JobStatus.FAILED.value
+
+    # Verify task was revoked via outbox cleanup path
+    assert task_id in task_runner.revoked_tasks
+
+    # Verify changes committed
+    assert uow.committed is True

@@ -361,9 +361,11 @@ def cancel_ocr_job(
     """Cancels an OCR job.
 
     Marks a PENDING or PROCESSING job as failed with a cancellation message.
+    COMPLETED and FAILED jobs are returned unchanged.
 
     Args:
         job_id: The unique identifier of the OCR job.
+        task_runner: Task runner for revoking active tasks.
         uow: Unit of Work instance.
 
     Returns:
@@ -376,42 +378,40 @@ def cancel_ocr_job(
         ocr_job = uow.jobs.get_or_raise(job_id)
 
         match ocr_job.status:
-            # means the task hasn't been put in the outbox yet
             case enums.JobStatus.PENDING:
-                ocr_job.update_status(enums.JobStatus.FAILED, error_message="[CANCELED]: User cancelled job")
+                ocr_job.update_status(
+                    enums.JobStatus.FAILED, error_message="Cancelled by user"
+                )
 
             case enums.JobStatus.PROCESSING:
-                try:
-                    task_id = ocr_job.task_id
-                    if task_id is None:
-                        raise exceptions.InvalidJobStatusTransitionError(
-                            job_id=ocr_job.id,
-                            current=ocr_job.status,
-                            attempted=enums.JobStatus.FAILED,
-                            reason=" Cannot cancel processing job without task_id.",
-                        )
-                    task_runner.revoke_task(task_id)
+                # Try to revoke the task if task_id exists
+                task_id = ocr_job.task_id
+                if task_id:
+                    try:
+                        task_runner.revoke_task(task_id)
+                    except Exception as e:
+                        logger.exception("Failed to revoke task", task_id=task_id, error=str(e))
+                        # Continue with cancellation even if revoke fails
 
-                    ocr_job.update_status(enums.JobStatus.FAILED, error_message="[REVOKED]: Task revoked by user")
-                except Exception as e:
-                    logger.exception("Failed to revoke task", task_id=task_id, error=str(e))
+                ocr_job.update_status(
+                    enums.JobStatus.FAILED,
+                    error_message="Cancelled by user - processing may continue until worker picks up cancellation",
+                )
 
+            case _:  # COMPLETED or FAILED
+                return structs.JobDTO.from_domain(ocr_job)
+
+        # Additional outbox cleanup: revoke task if outbox entry has been relayed
         task_id = ocr_job.task_id
-
         if task_id:
-            outbox_entry = uow.outbox.get_or_raise(task_id)
-            if outbox_entry.is_relayed:
-                _ = task_runner.revoke_task(task_id)
-
-        if ocr_job.status == enums.JobStatus.PENDING:
-            ocr_job.update_status(enums.JobStatus.FAILED, error_message="Cancelled by user")
-        elif ocr_job.status == enums.JobStatus.PROCESSING:
-            ocr_job.update_status(
-                enums.JobStatus.FAILED,
-                error_message="Cancelled by user - note: processing may continue until worker picks up cancellation"
-            )
-        else:
-            return structs.JobDTO.from_domain(ocr_job)
+            try:
+                outbox_entry = uow.outbox.get(task_id)
+                if outbox_entry and outbox_entry.is_relayed:
+                    task_runner.revoke_task(task_id)
+            except Exception as e:
+                logger.exception(
+                    "Failed to revoke outbox task", task_id=task_id, error=str(e)
+                )
 
         uow.commit()
         return structs.JobDTO.from_domain(ocr_job)
