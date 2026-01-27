@@ -12,7 +12,7 @@ from tests import factories
 
 
 @pytest.fixture
-def uow():
+def uow() -> FakeUnitOfWork:
     return FakeUnitOfWork()
 
 

@@ -162,11 +162,7 @@ def generate_outbox_entry(
 
     if payload is None:
         if event_type == enums.OutboxEventType.JOB_SCHEDULING:
-            payload = model.JobProcessingPayload(
-                job_id=agg_id,
-                task_id=generate_id(),
-                document_id=generate_id(),
-            )
+            payload: model.JobProcessingPayload = {"job_id": agg_id}
         else:  # DOCUMENT_UPLOAD
             payload = model.DocumentUploadPayload(
                 document_id=agg_id,

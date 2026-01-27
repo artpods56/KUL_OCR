@@ -3,7 +3,7 @@
 These tests use a real SQLite database and test the full request/response cycle.
 """
 
-from collections.abc import Iterator
+from collections.abc import AsyncGenerator, Iterator
 from uuid import uuid4
 
 import pytest
@@ -58,7 +58,9 @@ def override_dependencies(integration_session_factory) -> Iterator[None]:
 
 
 @pytest_asyncio.fixture
-async def integration_client(override_dependencies) -> AsyncClient:
+async def integration_client(
+    override_dependencies: dict,
+) -> AsyncGenerator[AsyncClient, None]:
     """Create an async client that uses the test database."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"

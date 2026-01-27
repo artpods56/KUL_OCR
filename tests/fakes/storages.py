@@ -17,8 +17,7 @@ class FakeFileStorage(ports.FileStorage):
     files: dict[str, bytes] = field(default_factory=dict)
 
     @classmethod
-    @override
-    def from_config(cls, app_config: config.AppConfig) -> Self:
+    def from_config(cls, _app_config: config.AppConfig) -> Self:
         return cls()
 
     @override
