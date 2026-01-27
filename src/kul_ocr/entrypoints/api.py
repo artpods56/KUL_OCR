@@ -9,7 +9,7 @@ from fastapi import Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
 
-import kul_ocr.adapters.database.repository
+from kul_ocr.adapters.database import repository
 from kul_ocr.service_layer.services import documents, jobs, results
 
 from kul_ocr.adapters.database import orm
@@ -237,13 +237,47 @@ def list_ocr_jobs(
     document_id: Annotated[
         UUID | None, Query(description="Filter by document ID")
     ] = None,
+    skip: Annotated[
+        int,
+        Query(
+            ge=0,
+            description="Number of items to skip (offset)",
+        ),
+    ] = 0,
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=100,
+            description="Maximum number of items to return (max: 100)",
+        ),
+    ] = 20,
 ) -> schemas.JobListResponse:
-    job_dtos = jobs.get_ocr_jobs(
-        uow=uow, status=status, document_id=str(document_id) if document_id else None
+    """List OCR jobs with optional filtering and pagination.
+
+    Args:
+        uow: Unit of work dependency
+        status: Optional status filter
+        document_id: Optional document ID filter
+        skip: Pagination offset (default: 0)
+        limit: Page size (default: 20, max: 100)
+
+    Returns:
+        Paginated list of jobs with metadata
+    """
+    job_dtos, total = jobs.get_ocr_jobs(
+        uow=uow,
+        status=status,
+        document_id=str(document_id) if document_id else None,
+        skip=skip,
+        limit=limit,
     )
+
     return schemas.JobListResponse(
         jobs=[schemas.JobResponse.from_dto(dto) for dto in job_dtos],
-        total=len(job_dtos),
+        total=total,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -270,7 +304,7 @@ def cancel_ocr_job(
         return schemas.JobResponse.from_dto(
         jobs.cancel_ocr_job(str(job_id), uow)
         )
-    except kul_ocr.adapters.database.repository.OCRJobNotFoundError:
+    except repository.OCRJobNotFoundError:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
 
 

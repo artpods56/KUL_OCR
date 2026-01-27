@@ -287,10 +287,17 @@ class JobListResponse(BaseModel):
 
     jobs: list[JobResponse]
     total: int
+    skip: int
+    limit: int
 
     @classmethod
     def from_domain(cls, jobs: list[model.Job]) -> Self:
-        return cls(jobs=[JobResponse.from_domain(job) for job in jobs], total=len(jobs))
+        return cls(
+            jobs=[JobResponse.from_domain(job) for job in jobs],
+            total=len(jobs),
+            skip=0,
+            limit=len(jobs),
+        )
 
 
 class TaskResponse(BaseModel):

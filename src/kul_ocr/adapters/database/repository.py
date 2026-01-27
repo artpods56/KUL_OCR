@@ -69,8 +69,19 @@ class AbstractOCRJobRepository(abc.ABC):
         self,
         status: enums.JobStatus | None = None,
         document_id: str | None = None,
+        skip: int = 0,
+        limit: int = 20,
     ) -> Sequence[model.Job]:
-        """List jobs filtered by optional status and/or document_id at SQL level."""
+        """List jobs filtered by optional status and/or document_id with pagination."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def count_by_filters(
+        self,
+        status: enums.JobStatus | None = None,
+        document_id: str | None = None,
+    ) -> int:
+        """Count total jobs matching the filters."""
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -195,13 +206,39 @@ class SQLAlchemyOcrJobRepository(AbstractOCRJobRepository):
         self,
         status: enums.JobStatus | None = None,
         document_id: str | None = None,
+        skip: int = 0,
+        limit: int = 20,
     ) -> Sequence[model.Job]:
         statement = select(model.Job)
         if status is not None:
             statement = statement.where(orm.ocr_jobs.c.status == status)
         if document_id is not None:
             statement = statement.where(orm.ocr_jobs.c.document_id == document_id)
+
+        # Add ordering for consistent pagination
+        statement = statement.order_by(orm.ocr_jobs.c.created_at.desc())
+
+        # Add pagination
+        statement = statement.offset(skip).limit(limit)
+
         return self._session.scalars(statement).all()
+
+    @override
+    def count_by_filters(
+        self,
+        status: enums.JobStatus | None = None,
+        document_id: str | None = None,
+    ) -> int:
+        from sqlalchemy import func
+
+        statement = select(func.count()).select_from(orm.ocr_jobs)
+        if status is not None:
+            statement = statement.where(orm.ocr_jobs.c.status == status)
+        if document_id is not None:
+            statement = statement.where(orm.ocr_jobs.c.document_id == document_id)
+
+        result = self._session.execute(statement).scalar()
+        return result if result is not None else 0
 
     @override
     def has_active_job_for_document(self, document_id: str) -> bool:

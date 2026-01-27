@@ -87,13 +87,36 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
         self,
         status: enums.JobStatus | None = None,
         document_id: str | None = None,
+        skip: int = 0,
+        limit: int = 20,
     ) -> Sequence[model.Job]:
         jobs = list(self._jobs.values())
+
         if status is not None:
             jobs = [j for j in jobs if j.status == status]
         if document_id is not None:
             jobs = [j for j in jobs if j.document_id == document_id]
-        return jobs
+
+        # Sort by created_at descending (newest first)
+        jobs.sort(key=lambda j: j.created_at, reverse=True)
+
+        # Apply pagination
+        return jobs[skip : skip + limit]
+
+    @override
+    def count_by_filters(
+        self,
+        status: enums.JobStatus | None = None,
+        document_id: str | None = None,
+    ) -> int:
+        jobs = list(self._jobs.values())
+
+        if status is not None:
+            jobs = [j for j in jobs if j.status == status]
+        if document_id is not None:
+            jobs = [j for j in jobs if j.document_id == document_id]
+
+        return len(jobs)
 
     @override
     def has_active_job_for_document(self, document_id: str) -> bool:
@@ -124,9 +147,7 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
     def delete_with_cascade(self, job: model.Job) -> None:
         # Delete associated results if we have access to the results repository
         if self._results_repo:
-            results_to_delete = [
-                r for r in self._results_repo._results.values() if r.job_id == job.id
-            ]
+            results_to_delete = self._results_repo.get_results_by_job_id(job.id)
             for result in results_to_delete:
                 self._results_repo.delete(result)
         # Then delete the job
@@ -155,6 +176,10 @@ class FakeOcrResultRepository(AbstractOCRResultRepository):
     @override
     def get_by_job_id(self, job_id: str) -> model.Result | None:
         return next((r for r in self._results.values() if r.job_id == job_id), None)
+
+    def get_results_by_job_id(self, job_id: str) -> list[model.Result]:
+        """Get all results for a specific job."""
+        return [r for r in self._results.values() if r.job_id == job_id]
 
     @override
     def delete(self, ocr_result: model.Result) -> None:
