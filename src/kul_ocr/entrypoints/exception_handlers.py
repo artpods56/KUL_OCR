@@ -33,7 +33,7 @@ def register_handlers(app: FastAPI):
     )
     app.add_exception_handler(
         exceptions.FileSizeExceededError,
-        ExceptionResponseFactory(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE),
+        ExceptionResponseFactory(status.HTTP_413_CONTENT_TOO_LARGE),
     )
     app.add_exception_handler(
         kul_ocr.adapters.database.repository.DocumentNotFoundError,

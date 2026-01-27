@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Sequence
+from collections.abc import Sequence
 
 from kul_ocr.domain import structs
 from kul_ocr.domain.protocols import TaskRunner

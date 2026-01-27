@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Iterator
+from collections.abc import Iterator
 
 from kul_ocr.domain import structs, ports
 from kul_ocr.service_layer.uow import AbstractUnitOfWork
