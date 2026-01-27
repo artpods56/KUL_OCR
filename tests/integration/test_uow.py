@@ -1,9 +1,7 @@
 from kul_ocr.domain.model import (
     BoundingBox,
     Document,
-    FileType,
     Job,
-    JobStatus,
     PageMetadata,
     PagePart,
     PageRef,
@@ -11,6 +9,7 @@ from kul_ocr.domain.model import (
     Result,
     TextPart,
 )
+from kul_ocr.domain.enums import JobStatus, FileType
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
 
@@ -199,7 +198,7 @@ def test_uow_updates_are_persisted(uow: SqlAlchemyUnitOfWork):
     with uow:
         retrieved_job = uow.jobs.get(job_id)
         assert retrieved_job is not None
-        retrieved_job.mark_as_processing()
+        retrieved_job.update_status(JobStatus.PROCESSING)
         uow.commit()
 
     # Verify the update was persisted
