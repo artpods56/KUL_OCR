@@ -17,8 +17,7 @@ class FakeFileStorage(ports.FileStorage):
     files: dict[str, bytes] = field(default_factory=dict)
 
     @classmethod
-    @override
-    def from_config(cls, app_config: config.AppConfig) -> Self:
+    def from_config(cls, _app_config: config.AppConfig) -> Self:
         return cls()
 
     @override
@@ -36,8 +35,14 @@ class FakeFileStorage(ports.FileStorage):
         yield BytesIO(self.files[path])
 
     @override
+    def move(self, source_path: pathlib.Path, destination_path: pathlib.Path) -> None:
+        bytes = self.files[str(source_path)]
+        del self.files[str(source_path)]
+        self.files[str(destination_path)] = bytes
+
+    @override
     def delete(self, file_path: pathlib.Path) -> None:
-        self.files.pop(str(file_path), None)
+        _ = self.files.pop(str(file_path), None)
 
     @property
     def save_call_count(self) -> int:

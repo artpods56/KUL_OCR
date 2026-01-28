@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
 from kul_ocr.adapters.database import orm
-from kul_ocr.domain.model import JobStatus
+from kul_ocr.domain.enums import JobStatus
 from kul_ocr.entrypoints import dependencies
 from kul_ocr.entrypoints.api import app
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
@@ -76,8 +76,8 @@ async def test_retry_failed_job_endpoint(
     document = factories.generate_document_without_file()
     failed_job = factories.generate_ocr_job(status=JobStatus.PENDING)
     failed_job.document_id = document.id
-    failed_job.mark_as_processing()
-    failed_job.fail("Test failure")
+    failed_job.update_status(JobStatus.PROCESSING)
+    failed_job.update_status(JobStatus.FAILED, error_message="Test failure")
 
     # Store values before committing (to avoid detached instance issues)
     failed_job_id = failed_job.id
@@ -110,8 +110,8 @@ async def test_retry_non_failed_job_endpoint_returns_400(
     document = factories.generate_document_without_file()
     completed_job = factories.generate_ocr_job(status=JobStatus.PENDING)
     completed_job.document_id = document.id
-    completed_job.mark_as_processing()
-    completed_job.complete()
+    completed_job.update_status(JobStatus.PROCESSING)
+    completed_job.update_status(JobStatus.COMPLETED)
 
     # Store values before committing
     completed_job_id = completed_job.id
@@ -128,7 +128,7 @@ async def test_retry_non_failed_job_endpoint_returns_400(
     # Assert
     assert response.status_code == 400
     data = response.json()
-    assert "invalid status transition for job" in data["detail"].lower()
+    assert "cannot transition" in data["detail"].lower()
 
 
 @pytest.mark.asyncio

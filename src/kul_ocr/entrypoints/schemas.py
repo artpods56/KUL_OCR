@@ -1,11 +1,12 @@
 from datetime import datetime
 from typing import ClassVar, Self
 from uuid import UUID
-
+from collections.abc import Sequence
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 
-from kul_ocr.domain import model
-from kul_ocr.domain.model import JobStatus
+from kul_ocr.domain import model, structs, enums
+from kul_ocr.utils.misc import nobeartype
+from kul_ocr.domain.enums import JobStatus
 
 
 class DocumentResponse(BaseModel):
@@ -21,23 +22,32 @@ class DocumentResponse(BaseModel):
     }
 
     id: UUID = Field(..., description="Unique UUID of the document")
-    file_path: str = Field(
-        ..., min_length=1, max_length=500, description="Path to the stored file"
+    original_filename: str = Field(
+        ..., description="Original filename as uploaded by the client"
     )
-    file_type: model.FileType = Field(..., description="MIME type of the file")
+    file_type: enums.FileType = Field(..., description="MIME type of the file")
     uploaded_at: datetime = Field(..., description="Upload timestamp")
     file_size_bytes: int = Field(
         ..., ge=0, description="Size of the file in bytes (must be non-negative)"
     )
+    file_path: str | None = Field(
+        None, min_length=1, max_length=500, description="Path to the stored file"
+    )
 
-    @field_validator("file_path")
+    @field_validator("original_filename")
     @classmethod
-    def validate_file_path(cls, v: str) -> str:
+    def validate_original_filename(cls, v: str) -> str:
         v = v.strip()
         if not v:
-            raise ValueError("File path cannot be empty or whitespace only")
-        if ".." in v:
-            raise ValueError("File path cannot contain traversal characters (..)")
+            raise ValueError("Original filename cannot be empty or whitespace only")
+        if ".." in v or "/" in v or "\\" in v:
+            raise ValueError(
+                "Original filename cannot contain path traversal characters"
+            )
+        if len(v) > 500:
+            raise ValueError(
+                "Original filename exceeds maximum length of 500 characters"
+            )
         return v
 
     @field_validator("file_type")
@@ -49,14 +59,58 @@ class DocumentResponse(BaseModel):
             )
         return v
 
+    @field_validator("file_path")
+    @classmethod
+    def validate_file_path(cls, v: str | None) -> str | None:
+        if v is not None:
+            v = v.strip()
+            if not v:
+                return None
+            if ".." in v:
+                raise ValueError("File path cannot contain traversal characters (..)")
+        return v
+
     @classmethod
     def from_domain(cls, document: model.Document) -> Self:
         return cls(
             id=UUID(document.id),
-            file_path=document.file_path,
+            original_filename=document.original_filename,
             file_type=document.file_type,
             uploaded_at=document.uploaded_at,
             file_size_bytes=document.file_size_bytes,
+            file_path=document.file_path,
+        )
+
+    @classmethod
+    def from_dto(cls, document: structs.DocumentDTO) -> Self:
+        return cls(
+            id=UUID(document.id),
+            original_filename=document.original_filename,
+            file_type=enums.FileType(document.file_type),
+            uploaded_at=document.uploaded_at,
+            file_size_bytes=document.file_size_bytes,
+            file_path=document.file_path,
+        )
+
+
+class DocumentListResponse(BaseModel):
+    """List of documents."""
+
+    documents: list[DocumentResponse]
+    total: int
+
+    @classmethod
+    def from_domain(cls, documents: list[model.Document]) -> Self:
+        return cls(
+            documents=[DocumentResponse.from_domain(doc) for doc in documents],
+            total=len(documents),
+        )
+
+    @classmethod
+    def from_dto(cls, documents: Sequence[structs.DocumentDTO]) -> Self:
+        return cls(
+            documents=[DocumentResponse.from_dto(doc) for doc in documents],
+            total=len(documents),
         )
 
 
@@ -88,6 +142,7 @@ class PagePartResponse(BaseModel):
 
     @field_validator("width", "height")
     @classmethod
+    @nobeartype
     def validate_dimensions(cls, v: int, info: ValidationInfo) -> int:
         if v <= 0:
             raise ValueError(f"{info.field_name} must be positive (got {v})")
@@ -107,9 +162,13 @@ class ResultContentResponse(BaseModel):
         return v
 
     @classmethod
-    def from_domain(cls, result: model.Result) -> Self:
+    def from_result_content(cls, content: Sequence[model.ProcessedPage]) -> Self:
+        """Convert ProcessedPage sequence to ResultContentResponse.
+
+        Used by both from_domain() and from_dto() to avoid duplication.
+        """
         pages = []
-        for processed_page in result.content:
+        for processed_page in content:
             parts = [
                 TextPartResponse(
                     text=part.text,
@@ -126,6 +185,10 @@ class ResultContentResponse(BaseModel):
             )
             pages.append(page_response)
         return cls(pages=pages)
+
+    @classmethod
+    def from_domain(cls, result: model.Result) -> Self:
+        return cls.from_result_content(result.content)
 
 
 class ResultResponse(BaseModel):
@@ -144,6 +207,16 @@ class ResultResponse(BaseModel):
             id=UUID(result.id),
             job_id=UUID(result.job_id),
             content=ResultContentResponse.from_domain(result),
+            creation_time=result.creation_time,
+        )
+
+    @classmethod
+    def from_dto(cls, result: structs.ResultDTO) -> Self:
+        """Convert ResultDTO to ResultResponse schema."""
+        return cls(
+            id=UUID(result.id),
+            job_id=UUID(result.job_id),
+            content=ResultContentResponse.from_result_content(result.content),
             creation_time=result.creation_time,
         )
 
@@ -177,7 +250,7 @@ class JobResponse(BaseModel):
 
     id: UUID
     document_id: UUID
-    status: model.JobStatus
+    status: enums.JobStatus
     created_at: datetime
     started_at: datetime | None = None
     completed_at: datetime | None = None
@@ -195,6 +268,19 @@ class JobResponse(BaseModel):
             error_message=job.error_message,
         )
 
+    @classmethod
+    def from_dto(cls, job: structs.JobDTO) -> Self:
+        """Convert JobDTO to JobResponse schema."""
+        return cls(
+            id=UUID(job.id),
+            document_id=UUID(job.document_id),
+            status=enums.JobStatus(job.status),  # String back to enum
+            created_at=job.created_at,
+            started_at=job.started_at,
+            completed_at=job.completed_at,
+            error_message=job.error_message,
+        )
+
 
 class JobListResponse(BaseModel):
     """Paginated list of OCR jobs."""
@@ -203,10 +289,17 @@ class JobListResponse(BaseModel):
 
     jobs: list[JobResponse]
     total: int
+    skip: int
+    limit: int
 
     @classmethod
     def from_domain(cls, jobs: list[model.Job]) -> Self:
-        return cls(jobs=[JobResponse.from_domain(job) for job in jobs], total=len(jobs))
+        return cls(
+            jobs=[JobResponse.from_domain(job) for job in jobs],
+            total=len(jobs),
+            skip=0,
+            limit=len(jobs),
+        )
 
 
 class TaskResponse(BaseModel):
@@ -215,4 +308,37 @@ class TaskResponse(BaseModel):
 
 class ProcessJobTaskResponse(TaskResponse):
     job_id: UUID
+    task_id: UUID
     status: JobStatus
+
+
+class OutboxEntryResponse(BaseModel):
+    id: UUID
+    event_type: enums.OutboxEventType
+    aggregate_id: UUID
+    created_at: datetime
+    is_pending: bool
+    relayed_at: datetime | None
+
+    @classmethod
+    def from_dto(cls, entry: structs.OutboxEntryDTO) -> Self:
+        return cls(
+            id=UUID(entry.id),
+            aggregate_id=UUID(entry.aggregate_id),
+            event_type=enums.OutboxEventType(entry.event_type),
+            created_at=entry.created_at,
+            is_pending=entry.is_pending,
+            relayed_at=entry.relayed_at,
+        )
+
+
+class OutboxRelayerResponse(BaseModel):
+    relayed_entries: list[OutboxEntryResponse]
+    total: int
+
+    @classmethod
+    def from_dto(cls, entries: Sequence[structs.OutboxEntryDTO]) -> Self:
+        return cls(
+            relayed_entries=[OutboxEntryResponse.from_dto(entry) for entry in entries],
+            total=len(entries),
+        )

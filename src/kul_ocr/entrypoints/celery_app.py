@@ -49,4 +49,15 @@ app.conf.update(
     worker_prefetch_multiplier=1,
     task_default_retry_delay=60,
     task_max_retries=3,
+    # Beat schedule for outbox relay and cleanup
+    beat_schedule={
+        "relay-outbox-entries": {
+            "task": "kul_ocr.entrypoints.tasks.relay_outbox_task",
+            "schedule": 5.0,  # Run every 5 seconds
+        },
+        "cleanup-outbox-entries": {
+            "task": "kul_ocr.entrypoints.tasks.cleanup_outbox_task",
+            "schedule": 86400.0,  # Run once per day (24 hours)
+        },
+    },
 )

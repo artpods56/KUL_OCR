@@ -1,96 +1,157 @@
+from typing import Any
+
+from kul_ocr.domain.enums import DocumentStatus, JobStatus
+
+
 class DomainException(Exception):
-    """Base exception for all domain-related errors."""
+    code: str = "INTERNAL_ERROR"
 
-    pass
-
-
-# Alias for backward compatibility in tests
-OCRDomainException = DomainException
-
-
-class FileUploadError(DomainException):
-    """Raised when a file upload operation fails."""
-
-    def __init__(self, file_path: str, message: str | None = None):
-        self.file_path = file_path
-        self.message = message or f"Failed to upload file to: {file_path}"
-        super().__init__(self.message)
+    def __init__(self, message: str, **context: Any):
+        super().__init__(message)
+        self.context: dict[str, Any] = context
+        self.context["code"] = self.code
 
 
 class FileDownloadError(DomainException):
-    """Raised when a file download operation fails."""
+    code: str = "FILE_DOWNLOAD_FAILED"
 
     def __init__(self, file_path: str, message: str | None = None):
-        self.file_path = file_path
-        self.message = message or f"Failed to download file from: {file_path}"
-        super().__init__(self.message)
+        msg = message or f"Failed to download file from: {file_path}"
+        super().__init__(message=msg, file_path=file_path)
 
 
-class UnsupportedFileTypeError(DomainException):
-    """Raised when an unsupported file type is provided."""
+class FileSizeExceededError(DomainException):
+    code: str = "FILE_SIZE_EXCEEDED"
 
-    def __init__(self, file_type: str, message: str | None = None):
-        self.file_type = file_type
-        self.message = message or f"Unsupported file type: {file_type}"
-        super().__init__(self.message)
-
-
-class DocumentNotFoundError(DomainException):
-    """Raised when a document cannot be found."""
-
-    def __init__(self, document_id: str, message: str | None = None):
-        self.document_id = document_id
-        self.message = message or f"Document not found: {document_id}"
-        super().__init__(self.message)
-
-
-class OCRJobNotFoundError(DomainException):
-    """Raised when an OCR job cannot be found."""
-
-    def __init__(self, job_id: str, message: str | None = None):
-        self.job_id = job_id
-        self.message = message or f"OCR job not found: {job_id}"
-        super().__init__(self.message)
-
-
-class DuplicateOCRJobError(DomainException):
-    """Raised when a duplicate OCR job is submitted for the same document."""
-
-    def __init__(
-        self, document_id: str, job_id: str | None = None, message: str | None = None
-    ):
-        self.document_id = document_id
-        self.job_id = job_id
-        self.message = message or (
-            f"Document {document_id} already has a pending or active job"
-            + (f": {job_id}" if job_id else "")
+    def __init__(self, file_size: int, max_bytes: int, message: str | None = None):
+        msg = (
+            message
+            or f"File size {file_size} bytes exceeds maximum allowed size of {max_bytes} bytes"
         )
-        super().__init__(self.message)
+        super().__init__(message=msg, file_size=file_size, max_bytes=max_bytes)
 
 
 class InvalidJobStatusTransitionError(DomainException):
-    """Raised when a job status transition is invalid."""
+    code: str = "INVALID_JOB_STATUS_TRANSITION"
+
+    def __init__(
+        self, job_id: str, current: JobStatus, attempted: JobStatus, reason: str
+    ):
+        msg = (
+            f"Job: {job_id} cannot transition from {current.name} to {attempted.name}."
+            f"{reason}"
+        )
+
+        super().__init__(
+            message=msg,
+            job_id=job_id,
+            current_status=current.value,
+            attempted_status=attempted.value,
+        )
+
+
+class InvalidDocumentStatusTransitionError(DomainException):
+    code: str = "INVALID_DOCUMENT_STATUS_TRANSITION"
 
     def __init__(
         self,
-        job_id: str,
-        current_status: str,
-        attempted_status: str,
-        message: str | None = None,
+        document_id: str,
+        current: DocumentStatus,
+        attempted: DocumentStatus,
+        reason: str,
     ):
-        self.job_id = job_id
-        self.current_status = current_status
-        self.attempted_status = attempted_status
-        self.message = message or (
-            f"Invalid status transition for job {job_id}: "
-            f"{current_status} -> {attempted_status}"
+        msg = (
+            f"Document: {document_id} cannot transition from {current.name} to {attempted.name}. "
+            f"{reason}"
         )
-        super().__init__(self.message)
+
+        super().__init__(
+            message=msg,
+            document_id=document_id,
+            current_status=current.value,
+            attempted_status=attempted.value,
+        )
+
+
+class UnsupportedFileTypeError(DomainException):
+    code: str = "UNSUPPORTED_FILE_TYPE"
+
+    def __init__(self, file_type: str, message: str | None = None):
+        msg = message or f"Unsupported file type: {file_type}"
+        super().__init__(message=msg, file_type=file_type)
+
+
+class FileExtensionMismatchError(DomainException):
+    code: str = "FILE_EXTENSION_MISMATCH"
+
+    def __init__(
+        self, expected_extension: str, actual_extension: str, message: str | None = None
+    ):
+        msg = message or (
+            f"File extension mismatch: expected {expected_extension}, "
+            f"got {actual_extension}"
+        )
+        super().__init__(
+            message=msg,
+            expected_extension=expected_extension,
+            actual_extension=actual_extension,
+        )
+
+
+class FileContentMissmatchError(DomainException):
+    code: str = "FILE_CONTENT_MISMATCH"
+
+    def __init__(
+        self, expected_mime: str, actual_mime: str, message: str | None = None
+    ):
+        msg = message or (
+            f"File content mismatch: expected {expected_mime}, got {actual_mime}"
+        )
+
+        super().__init__(
+            message=msg, expected_mime=expected_mime, actual_mime=actual_mime
+        )
 
 
 class UnknownJobStatusError(DomainException):
-    """Raised when an unknown job status is encountered."""
+    code: str = "UNKNOWN_JOB_STATUS"
 
     def __init__(self, status: str, message: str | None = None):
-        self.status = status
-        self.message = message or f"Unknown job status {status}."
+        msg = message or f"Unknown job status {status}."
+        super().__init__(message=msg, status=status)
+
+
+class OutboxEntryAlreadyRelayedError(DomainException):
+    code: str = "OUTBOX_ENTRY_ALREADY_RELAYED"
+
+    def __init__(self, entry_id: str, message: str | None = None):
+        msg = message or f"Outbox entry {entry_id} has already been relayed."
+        super().__init__(message=msg, entry_id=entry_id)
+
+
+class StorageError(DomainException):
+    code: str = "STORAGE_ERROR"
+
+    def __init__(self, message: str, **context: Any):
+        super().__init__(message=message, **context)
+
+
+class StorageIOError(StorageError):
+    code: str = "STORAGE_IO_ERROR"
+
+    def __init__(self, message: str, **context: Any):
+        super().__init__(message=message, **context)
+
+
+class StorageSecurityError(StorageError):
+    code: str = "STORAGE_SECURITY_ERROR"
+
+    def __init__(self, message: str, **context: Any):
+        super().__init__(message=message, **context)
+
+
+class StorageFileNotFoundError(StorageError):
+    code: str = "STORAGE_FILE_NOT_FOUND"
+
+    def __init__(self, message: str, **context: Any):
+        super().__init__(message=message, **context)

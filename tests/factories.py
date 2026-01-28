@@ -3,7 +3,7 @@ import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
-from kul_ocr.domain import model
+from kul_ocr.domain import model, enums
 from kul_ocr.service_layer.helpers import generate_id
 
 
@@ -11,10 +11,10 @@ from kul_ocr.service_layer.helpers import generate_id
 
 
 def generate_ocr_job(
-    status: model.JobStatus | None = model.JobStatus.PENDING,
+    status: enums.JobStatus | None = enums.JobStatus.PENDING,
     document_id: str | None = None,
 ) -> model.Job:
-    job_status = status or random.choice(list(model.JobStatus))
+    job_status = status or random.choice(list(enums.JobStatus))
 
     return model.Job(
         id=generate_id(),
@@ -24,51 +24,58 @@ def generate_ocr_job(
 
 
 def generate_ocr_jobs(
-    jobs_count: int = 10, status: model.JobStatus | None = None
+    jobs_count: int = 10, status: enums.JobStatus | None = None
 ) -> Sequence[model.Job]:
     return [generate_ocr_job(status=status) for _ in range(jobs_count)]
 
 
 def generate_document(
-    dir_path: Path, file_type: model.FileType | None = None, file_size_in_bytes: int = 0
+    dir_path: Path,
+    file_type: enums.FileType | None = None,
+    file_size_in_bytes: int = 0,
+    original_filename: str | None = None,
 ) -> model.Document:
-    file_type = file_type or random.choice(list(model.FileType))
+    file_type = file_type or random.choice(list(enums.FileType))
     document_id = generate_id()
     document_path = Path(dir_path / document_id).with_suffix(file_type.dot_extension)
 
     return model.Document(
-        id=generate_id(),
-        file_path=str(document_path),
+        original_filename=original_filename
+        or f"test_document{file_type.dot_extension}",
         file_type=file_type,
+        file_path=str(document_path),
         file_size_bytes=file_size_in_bytes,
     )
 
 
 def generate_document_without_file(
-    file_type: model.FileType | None = None, file_size_in_bytes: int = 0
+    file_type: enums.FileType | None = None,
+    file_size_in_bytes: int = 0,
+    original_filename: str | None = None,
 ) -> model.Document:
     """Generate a document entity without requiring an actual file on disk.
 
     Useful for database integration tests where the file storage is not being tested.
     """
-    file_type = file_type or random.choice(list(model.FileType))
+    file_type = file_type or random.choice(list(enums.FileType))
     document_id = generate_id()
 
     return model.Document(
-        id=document_id,
-        file_path=f"/fake/path/{document_id}{file_type.dot_extension}",
+        original_filename=original_filename
+        or f"test_document{file_type.dot_extension}",
         file_type=file_type,
+        file_path=f"/fake/path/{document_id}{file_type.dot_extension}",
         file_size_bytes=file_size_in_bytes,
     )
 
 
 def generate_documents(
-    dir_path: Path, documents_count: int = 10, file_type: model.FileType | None = None
+    dir_path: Path, documents_count: int = 10, file_type: enums.FileType | None = None
 ) -> Sequence[model.Document]:
     return [
         generate_document(
             dir_path=dir_path / generate_id(),
-            file_type=file_type or random.choice(list(model.FileType)),
+            file_type=file_type or random.choice(list(enums.FileType)),
         )
         for _ in range(documents_count)
     ]
@@ -142,3 +149,44 @@ def generate_ocr_results(
 ) -> Sequence[model.Result]:
     """Generate multiple OCR results."""
     return [generate_ocr_result() for _ in range(results_count)]
+
+
+# --- Outbox Entry Factories ---
+def generate_job_scheduling_outbox_entry(
+    aggregate_id: str | None = None,
+) -> model.OutboxEntry:
+    payload: model.JobProcessingPayload = {"job_id": generate_id()}
+
+    return model.OutboxEntry(
+        event_type=enums.OutboxEventType.JOB_SCHEDULING,
+        aggregate_id=aggregate_id or generate_id(),
+        payload=payload,
+    )
+
+
+def generate_document_upload_outbox_entry(
+    aggregate_id: str | None = None,
+) -> model.OutboxEntry:
+    payload: model.DocumentUploadPayload = {
+        "document_id": generate_id(),
+        "staging_file_path": "staging/path",
+        "uploaded_file_path": "uploaded/path",
+    }
+
+    return model.OutboxEntry(
+        event_type=enums.OutboxEventType.DOCUMENT_UPLOAD,
+        aggregate_id=aggregate_id or generate_id(),
+        payload=payload,
+    )
+
+
+def generate_outbox_entries(
+    count: int = 5,
+    event_type: enums.OutboxEventType = enums.OutboxEventType.JOB_SCHEDULING,
+) -> Sequence[model.OutboxEntry]:
+    """Generate multiple outbox entries for testing."""
+    match event_type:
+        case enums.OutboxEventType.JOB_SCHEDULING:
+            return [generate_job_scheduling_outbox_entry() for _ in range(count)]
+        case enums.OutboxEventType.DOCUMENT_UPLOAD:
+            return [generate_document_upload_outbox_entry() for _ in range(count)]

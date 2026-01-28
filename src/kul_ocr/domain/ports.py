@@ -7,18 +7,19 @@ from typing import Protocol, Self, runtime_checkable
 from PIL import Image
 
 from kul_ocr import config
-from kul_ocr.domain import model, structs
+from kul_ocr.domain import model, structs, enums
 
 
 @runtime_checkable
 class FileStreamProtocol(Protocol):
+    # name: str
     def read(self, size: int = -1, /) -> bytes: ...
     def seek(self, offset: int, whence: int = 0, /) -> int: ...
     def tell(self) -> int: ...
 
 
 class OCREngine(abc.ABC):
-    SUPPORTED_FILE_TYPES: set[model.FileType]
+    SUPPORTED_FILE_TYPES: set[enums.FileType]
 
     @abc.abstractmethod
     def process_image(self, image: Image.Image) -> str:
@@ -35,7 +36,7 @@ class OCREngine(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def supports_file_type(self, file_type: model.FileType) -> bool:
+    def supports_file_type(self, file_type: enums.FileType) -> bool:
         raise NotImplementedError
 
 
@@ -54,15 +55,12 @@ class DocumentLoader(abc.ABC):
 
 
 class FileStorage(abc.ABC):
-    storage_root: pathlib.Path
-
-    @classmethod
     @abc.abstractmethod
-    def from_config(cls, app_config: config.AppConfig) -> Self:
+    def save(self, stream: FileStreamProtocol, file_path: pathlib.Path) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def save(self, stream: FileStreamProtocol, file_path: pathlib.Path) -> None:
+    def move(self, source_path: pathlib.Path, destination_path: pathlib.Path) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod

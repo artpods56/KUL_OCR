@@ -8,8 +8,9 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from kul_ocr.domain import model
-from kul_ocr.domain.model import Document, FileType, JobStatus, Job
+from kul_ocr.domain import model, enums
+from kul_ocr.domain.model import Document, Job
+from kul_ocr.domain.enums import JobStatus, FileType
 from kul_ocr.entrypoints import dependencies, schemas
 from kul_ocr.entrypoints.api import app
 from tests import factories
@@ -52,9 +53,9 @@ def stored_document(
     fake_storage.files[filename] = file_bytes
 
     doc = Document(
-        id=document_id_str,
-        file_path=filename,
+        original_filename="document.pdf",
         file_type=FileType.PDF,
+        file_path=filename,
         file_size_bytes=len(file_bytes),
     )
 
@@ -71,7 +72,7 @@ async def test_upload_document_success(
     override_dependencies: None,
 ) -> None:
     """Test successful document upload via POST /documents endpoint."""
-    file_content: bytes = b"fake pdf content"
+    file_content: bytes = b"%PDF-1.4 fake pdf content"
     files = {"file": ("test.pdf", BytesIO(file_content), "application/pdf")}
 
     response = await client.post("/documents", files=files)
@@ -80,7 +81,7 @@ async def test_upload_document_success(
 
     assert response.status_code == 200
 
-    assert document.file_type == model.FileType.PDF.value
+    assert document.file_type == enums.FileType.PDF.value
 
     assert document.file_size_bytes == len(file_content)
 
@@ -98,11 +99,11 @@ async def test_upload_document_size_limit_exceeded(
     """Should return 413 when file exceeds configured size limit."""
 
     mock_config = MagicMock()
-    mock_config.max_upload_size_mb = 10 / (1024 * 1024)
+    mock_config.max_upload_size_mb = int(10 / (1024 * 1024))
     app.dependency_overrides[dependencies.get_config] = lambda: mock_config
 
     try:
-        file_content = b"File size exceeds limit"
+        file_content = b"%PDF-1.4 File size exceeds limit"
         files = {"file": ("too_big.pdf", BytesIO(file_content), "application/pdf")}
 
         response = await client.post("/documents", files=files)
@@ -152,7 +153,7 @@ async def test_get_latest_result_success(
     """Document exists and has OCR result attached."""
     doc = generate_document(dir_path=Path("fake_dir"), file_size_in_bytes=1234)
     ocr_job = generate_ocr_job()
-    ocr_job.status = model.JobStatus.COMPLETED
+    ocr_job.status = enums.JobStatus.COMPLETED
     ocr_job.document_id = doc.id
     ocr_result = generate_ocr_result()
     ocr_result.job_id = ocr_job.id
@@ -198,10 +199,10 @@ async def test_list_ocr_jobs_returns_all_jobs(
     doc = factories.generate_document(dir_path=Path("/tmp"))
     fake_uow.documents.add(doc)
 
-    job1 = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    job1 = factories.generate_ocr_job(status=enums.JobStatus.PENDING)
     job1.document_id = doc.id
 
-    job2 = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    job2 = factories.generate_ocr_job(status=enums.JobStatus.COMPLETED)
     job2.document_id = doc.id
 
     fake_uow.jobs.add(job1)
@@ -228,24 +229,24 @@ async def test_list_ocr_jobs_filters_by_status(
     doc = factories.generate_document(dir_path=Path("/tmp"))
     fake_uow.documents.add(doc)
 
-    target_job = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    target_job = factories.generate_ocr_job(status=enums.JobStatus.COMPLETED)
     target_job.document_id = doc.id
 
-    other_job = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    other_job = factories.generate_ocr_job(status=enums.JobStatus.PENDING)
     other_job.document_id = doc.id
 
     fake_uow.jobs.add(target_job)
     fake_uow.jobs.add(other_job)
     fake_uow.commit()
 
-    response = await client.get(f"/ocr/jobs?status={model.JobStatus.COMPLETED.value}")
+    response = await client.get(f"/ocr/jobs?status={enums.JobStatus.COMPLETED.value}")
 
     assert response.status_code == 200
     data: dict[str, Any] = response.json()
 
     assert data["total"] == 1
     assert data["jobs"][0]["id"] == target_job.id
-    assert data["jobs"][0]["status"] == model.JobStatus.COMPLETED.value
+    assert data["jobs"][0]["status"] == enums.JobStatus.COMPLETED.value
 
 
 @pytest.mark.asyncio
@@ -257,13 +258,13 @@ async def test_list_ocr_jobs_filters_by_document_id(
     fake_uow.documents.add(doc_target)
     fake_uow.documents.add(doc_other)
 
-    job1 = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    job1 = factories.generate_ocr_job(status=enums.JobStatus.PENDING)
     job1.document_id = doc_target.id
 
-    job2 = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    job2 = factories.generate_ocr_job(status=enums.JobStatus.COMPLETED)
     job2.document_id = doc_target.id
 
-    job_other = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    job_other = factories.generate_ocr_job(status=enums.JobStatus.PENDING)
     job_other.document_id = doc_other.id
 
     fake_uow.jobs.add(job1)
@@ -294,13 +295,13 @@ async def test_list_ocr_jobs_filters_by_both(
     fake_uow.documents.add(doc_a)
     fake_uow.documents.add(doc_b)
 
-    target_job = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    target_job = factories.generate_ocr_job(status=enums.JobStatus.COMPLETED)
     target_job.document_id = doc_a.id
 
-    wrong_status = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    wrong_status = factories.generate_ocr_job(status=enums.JobStatus.PENDING)
     wrong_status.document_id = doc_a.id
 
-    wrong_doc = factories.generate_ocr_job(status=model.JobStatus.COMPLETED)
+    wrong_doc = factories.generate_ocr_job(status=enums.JobStatus.COMPLETED)
     wrong_doc.document_id = doc_b.id
 
     fake_uow.jobs.add(target_job)
@@ -308,7 +309,7 @@ async def test_list_ocr_jobs_filters_by_both(
     fake_uow.jobs.add(wrong_doc)
     fake_uow.commit()
 
-    url = f"/ocr/jobs?document_id={doc_a.id}&status={model.JobStatus.COMPLETED.value}"
+    url = f"/ocr/jobs?document_id={doc_a.id}&status={enums.JobStatus.COMPLETED.value}"
     response = await client.get(url)
 
     assert response.status_code == 200
@@ -322,11 +323,11 @@ async def test_list_ocr_jobs_filters_by_both(
 async def test_list_ocr_jobs_returns_empty_when_no_matches(
     client: AsyncClient, fake_uow: FakeUnitOfWork
 ) -> None:
-    job = factories.generate_ocr_job(status=model.JobStatus.PENDING)
+    job = factories.generate_ocr_job(status=enums.JobStatus.PENDING)
     fake_uow.jobs.add(job)
     fake_uow.commit()
 
-    response = await client.get(f"/ocr/jobs?status={model.JobStatus.FAILED.value}")
+    response = await client.get(f"/ocr/jobs?status={enums.JobStatus.FAILED.value}")
 
     assert response.status_code == 200
     data: dict[str, Any] = response.json()
@@ -358,8 +359,9 @@ async def test_create_ocr_job_returns_pending_job(
     document_id: str = str(uuid4())
     doc = Document(
         id=document_id,
+        original_filename="test.pdf",
+        file_type=enums.FileType.PDF,
         file_path="test.pdf",
-        file_type=model.FileType.PDF,
         file_size_bytes=123,
     )
     fake_uow.documents.add(doc)
@@ -393,9 +395,9 @@ async def test_start_ocr_job_success(
     job_id = str(uuid4())
 
     doc = Document(
-        id=document_id,
+        original_filename="test.pdf",
+        file_type=enums.FileType.PDF,
         file_path="test.pdf",
-        file_type=model.FileType.PDF,
         file_size_bytes=123,
     )
     job = Job(id=job_id, document_id=document_id, status=JobStatus.PENDING)
@@ -448,9 +450,9 @@ async def test_create_ocr_job_returns_409_when_job_already_pending(
 ) -> None:
     document_id: str = str(uuid4())
     doc = Document(
-        id=document_id,
+        original_filename="test.pdf",
+        file_type=enums.FileType.PDF,
         file_path="test.pdf",
-        file_type=model.FileType.PDF,
         file_size_bytes=123,
     )
     fake_uow.documents.add(doc)

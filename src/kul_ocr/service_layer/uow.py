@@ -11,6 +11,7 @@ class AbstractUnitOfWork(abc.ABC):
     jobs: repository.AbstractOCRJobRepository
     documents: repository.AbstractDocumentRepository
     results: repository.AbstractOCRResultRepository
+    outbox: repository.AbstractOutboxRepository
 
     @abc.abstractmethod
     def rollback(self) -> None:
@@ -45,6 +46,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.jobs = repository.SQLAlchemyOcrJobRepository(self.session)
         self.documents = repository.SQLAlchemyDocumentRepository(self.session)
         self.results = repository.SQLAlchemyOcrResultRepository(self.session)
+        self.outbox = repository.SQLAlchemyOutboxRepository(self.session)
         return self
 
     @override

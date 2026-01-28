@@ -7,10 +7,10 @@ from sqlalchemy.engine.create import create_engine
 from sqlalchemy.orm.session import Session, sessionmaker
 
 from kul_ocr import config
-from kul_ocr.adapters.loaders.filesystem import FileSystemDocumentLoader
-from kul_ocr.adapters.ocr.tesseract import TesseractOCREngine, TesseractEngineConfig
+from kul_ocr.adapters.loaders import filesystem
+from kul_ocr.adapters.ocr import tesseract
 from kul_ocr.adapters.storages import local
-from kul_ocr.domain import ports
+from kul_ocr.domain import ports, protocols
 from kul_ocr.domain.ports import FileStorage
 from kul_ocr.service_layer import uow
 from kul_ocr.config import get_app_config
@@ -54,7 +54,13 @@ def get_file_storage() -> ports.FileStorage:
             f"Storage type '{app_config.storage_type}' is not implemented. ",
         )
 
-    return storage_class.from_config(app_config)
+    match storage_class:
+        case local.LocalFileStorage:
+            return local.LocalFileStorage(app_config.storage_root)
+        case _:
+            raise NotImplementedError(
+                f"Storage type '{storage_class}' is not implemented."
+            )
 
 
 @lru_cache
@@ -107,12 +113,21 @@ def get_session_factory(engine: Engine | None = None) -> sessionmaker[Session]:
 
 def get_ocr_engine() -> ports.OCREngine:
     """Get an engine for OCR operations."""
-    return TesseractOCREngine(config=TesseractEngineConfig.from_env())
+    return tesseract.TesseractOCREngine(
+        config=tesseract.TesseractEngineConfig.from_env()
+    )
 
 
 def get_document_loader() -> ports.DocumentLoader:
     """Get a loader for document content."""
-    return FileSystemDocumentLoader(storage=get_file_storage())
+    return filesystem.FileSystemDocumentLoader(storage=get_file_storage())
+
+
+def get_task_runner() -> protocols.TaskRunner:
+    """Get a task runner for scheduling Celery tasks."""
+    from kul_ocr.adapters.queue.runner import CeleryTaskRunner
+
+    return CeleryTaskRunner()
 
 
 DEFAULT_SESSION_FACTORY = None

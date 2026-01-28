@@ -3,9 +3,7 @@
 These tests use a real SQLite database and test the full request/response cycle.
 """
 
-import tempfile
-from collections.abc import Iterator
-from pathlib import Path
+from collections.abc import AsyncGenerator, Iterator
 from uuid import uuid4
 
 import pytest
@@ -16,7 +14,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
 from kul_ocr.adapters.database import orm
-from kul_ocr.domain.model import JobStatus
+from kul_ocr.domain.enums import JobStatus
 from kul_ocr.entrypoints import dependencies
 from kul_ocr.entrypoints.api import app
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
@@ -60,7 +58,9 @@ def override_dependencies(integration_session_factory) -> Iterator[None]:
 
 
 @pytest_asyncio.fixture
-async def integration_client(override_dependencies) -> AsyncClient:
+async def integration_client(
+    override_dependencies: dict,
+) -> AsyncGenerator[AsyncClient, None]:
     """Create an async client that uses the test database."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"

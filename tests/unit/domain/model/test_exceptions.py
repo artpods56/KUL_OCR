@@ -1,4 +1,5 @@
 import pytest
+
 from kul_ocr.domain import exceptions
 
 
@@ -10,32 +11,32 @@ class TestOCRDomainException:
 
     def text_inherits_from_exception(self):
         """OCRDomainException should inherit from Exception."""
-        assert issubclass(exceptions.OCRDomainException, Exception)
+        assert issubclass(exceptions.DomainException, Exception)
 
     def test_can_be_raised(self):
         """Should be able to raise OCRDomainException."""
-        with pytest.raises(exceptions.OCRDomainException):
-            raise exceptions.OCRDomainException("Base error")
+        with pytest.raises(exceptions.DomainException):
+            raise exceptions.DomainException("Base error")
 
     def test_can_be_caught_as_exception(self):
         """Should be catchable as generic Exception."""
         with pytest.raises(Exception):
-            raise exceptions.OCRDomainException("Base error")
+            raise exceptions.DomainException("Base error")
 
     def test_preserved_error_message(self) -> None:
         """Should preserve the error message."""
         message = "Something went wrong"
-        with pytest.raises(exceptions.OCRDomainException, match=message):
-            raise exceptions.OCRDomainException(message)
+        with pytest.raises(exceptions.DomainException, match=message):
+            raise exceptions.DomainException(message)
 
     def test_exception_chaining(self):
         """Should support exception chaining with 'raise from'."""
         original_error = ValueError("Original error")
-        with pytest.raises(exceptions.OCRDomainException) as exc_info:
+        with pytest.raises(exceptions.DomainException) as exc_info:
             try:
                 raise original_error
             except ValueError as e:
-                raise exceptions.OCRDomainException("Chained error") from e
+                raise exceptions.DomainException("Chained error") from e
         assert exc_info.value.__cause__ is original_error
 
 
@@ -45,49 +46,49 @@ class TestOCRDomainException:
 class TestFileUploadError:
     """Tests for FileUploadError."""
 
-    def text_inherits_from_exception(self):
-        """FileUploadError should inherit from OCRDomainException."""
-        assert issubclass(exceptions.FileDownloadError, exceptions.OCRDomainException)
+    def test_inherits_from_exception(self):
+        """StorageIOError should inherit from DomainException."""
+        assert issubclass(exceptions.StorageIOError, exceptions.DomainException)
 
     def test_can_be_raised(self):
-        """Should be able to raise FileUploadError."""
-        with pytest.raises(exceptions.FileUploadError):
-            raise exceptions.FileUploadError("Upload failed")
+        """Should be able to raise StorageIOError."""
+        with pytest.raises(exceptions.StorageIOError):
+            raise exceptions.StorageIOError("Upload failed")
 
     def test_can_be_caught_as_base_exception(self):
-        """Should be catchable as OCRDomainException."""
-        with pytest.raises(exceptions.OCRDomainException):
-            raise exceptions.FileUploadError("Upload failed")
+        """Should be catchable as DomainException."""
+        with pytest.raises(exceptions.DomainException):
+            raise exceptions.StorageIOError("Upload failed")
 
     def test_preserved_error_message(self) -> None:
         """Should preserve the error message."""
         message = "Failed to upload file.pdf"
-        with pytest.raises(exceptions.FileUploadError, match=message):
-            raise exceptions.FileUploadError(message)
+        with pytest.raises(exceptions.StorageIOError, match=message):
+            raise exceptions.StorageIOError(message)
 
     def test_can_be_caught_as_exception(self):
         """Should be catchable as generic Exception."""
         with pytest.raises(Exception):
-            raise exceptions.FileUploadError("Upload failed")
+            raise exceptions.StorageIOError("Upload failed")
 
     def test_exception_chaining(self):
         """Should support exception chaining with 'raise from'."""
         original_error = ValueError("Invalid path")
-        with pytest.raises(exceptions.FileUploadError) as exc_info:
+        with pytest.raises(exceptions.StorageIOError) as exc_info:
             try:
                 raise original_error
             except ValueError as e:
-                raise exceptions.FileUploadError("Upload failed") from e
+                raise exceptions.StorageIOError("Upload failed") from e
         assert exc_info.value.__cause__ is original_error
 
-    def test_specific_exception_cauth_before_base(self):
-        """More specific exceptions should be cauth before base exceptions."""
+    def test_specific_exception_caught_before_base(self):
+        """More specific exceptions should be caught before base exceptions."""
         caught_exception = None
         try:
-            raise exceptions.FileUploadError("Upload failed")
-        except exceptions.FileUploadError:
+            raise exceptions.StorageIOError("Upload failed")
+        except exceptions.StorageIOError:
             caught_exception = "specific"
-        except exceptions.OCRDomainException:
+        except exceptions.DomainException:
             caught_exception = "base"
         assert caught_exception == "specific"
 
@@ -100,7 +101,7 @@ class TestFileDownloadError:
 
     def text_inherits_from_exception(self):
         """FileDownloadError should inherit from OCRDomainException."""
-        assert issubclass(exceptions.FileDownloadError, exceptions.OCRDomainException)
+        assert issubclass(exceptions.FileDownloadError, exceptions.DomainException)
 
     def test_can_be_raised(self):
         """Should be able to raise FileUploadError."""
@@ -108,9 +109,9 @@ class TestFileDownloadError:
             raise exceptions.FileDownloadError("Download failed")
 
     def test_can_be_caught_as_base_exception(self):
-        """Should be catchable as OCRDomainException."""
-        with pytest.raises(exceptions.OCRDomainException):
-            raise exceptions.FileUploadError("Upload failed")
+        """Should be catchable as DomainException."""
+        with pytest.raises(exceptions.DomainException):
+            raise exceptions.FileDownloadError("file.pdf", "Download failed")
 
     def test_preserved_error_message(self) -> None:
         """Should preserve the error message."""
@@ -140,7 +141,7 @@ class TestFileDownloadError:
             raise exceptions.FileDownloadError("Download failed")
         except exceptions.FileDownloadError:
             caught_exception = "specific"
-        except exceptions.OCRDomainException:
+        except exceptions.DomainException:
             caught_exception = "base"
         assert caught_exception == "specific"
 
@@ -154,7 +155,7 @@ class TestUnsupportedFileTypeError:
     def text_inherits_from_exception(self):
         """UnsupportedFileTypeError should inherit from OCRDomainException."""
         assert issubclass(
-            exceptions.UnsupportedFileTypeError, exceptions.OCRDomainException
+            exceptions.UnsupportedFileTypeError, exceptions.DomainException
         )
 
     def test_can_be_raised(self):
@@ -164,7 +165,7 @@ class TestUnsupportedFileTypeError:
 
     def test_can_be_caught_as_base_exception(self):
         """Should be catchable as OCRDomainException."""
-        with pytest.raises(exceptions.OCRDomainException):
+        with pytest.raises(exceptions.DomainException):
             raise exceptions.UnsupportedFileTypeError("File type not supported")
 
     def test_preserved_error_message(self) -> None:
@@ -197,6 +198,6 @@ class TestUnsupportedFileTypeError:
             raise exceptions.UnsupportedFileTypeError("File type not supported")
         except exceptions.UnsupportedFileTypeError:
             caught_exception = "specific"
-        except exceptions.OCRDomainException:
+        except exceptions.DomainException:
             caught_exception = "base"
         assert caught_exception == "specific"

@@ -1,12 +1,16 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from enum import Enum
 from pathlib import Path
-from typing import Literal
+from typing import ClassVar, Literal, TypedDict, Mapping, Any
 
+from kul_ocr.domain.enums import JobStatus, FileType, DocumentStatus, OutboxEventType
+from kul_ocr.domain.exceptions import (
+    InvalidJobStatusTransitionError,
+    OutboxEntryAlreadyRelayedError,
+)
 from kul_ocr.domain import exceptions
-
+from kul_ocr.service_layer.helpers import generate_id
 
 """
 --- Value Objects ---
@@ -67,11 +71,7 @@ def wrap_text_in_page_part(
 """
 
 
-class JobStatus(Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
+type AllowedJobStatusTransitions = dict[JobStatus, tuple[tuple[JobStatus, ...], str]]
 
 
 @dataclass
@@ -82,11 +82,36 @@ class Job:
     error_message: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    task_id: str | None = None
     status: JobStatus = JobStatus.PENDING
+
+    _ALLOWED_TRANSITIONS: ClassVar[AllowedJobStatusTransitions] = {
+        JobStatus.PENDING: (
+            (JobStatus.PROCESSING, JobStatus.FAILED),
+            "Pending jobs can only start processing or fail.",
+        ),
+        JobStatus.PROCESSING: (
+            (JobStatus.COMPLETED, JobStatus.FAILED),
+            "Processing jobs can only complete or fail.",
+        ),
+        JobStatus.COMPLETED: (
+            (),
+            "Completed jobs cannot transition to another status.",
+        ),
+        JobStatus.FAILED: (
+            (),
+            "Failed jobs cannot transition to another status.",
+        ),
+    }
 
     @property
     def is_terminal(self) -> bool:
         return self.status in (JobStatus.FAILED, JobStatus.COMPLETED)
+
+    @property
+    def is_active(self) -> bool:
+        """Check if job is in an active (non-terminal) state."""
+        return self.status in (JobStatus.PENDING, JobStatus.PROCESSING)
 
     @property
     def duration(self) -> timedelta:
@@ -98,91 +123,162 @@ class Job:
             raise ValueError(f"Job {self.id} is terminal but missing timestamps")
         return self.completed_at - self.started_at
 
-    def mark_as_processing(self):
-        if self.status != JobStatus.PENDING:
-            raise exceptions.InvalidJobStatusTransitionError(
+    def assign_task_id(self, task_id: str):
+        self.task_id = task_id
+
+    def update_status(self, new_status: JobStatus, error_message: str | None = None):
+        if self.status == new_status:
+            return
+
+        transitions_with_reason = self._ALLOWED_TRANSITIONS.get(self.status)
+
+        if transitions_with_reason is None:
+            raise InvalidJobStatusTransitionError(
                 job_id=self.id,
-                current_status=self.status.value,
-                attempted_status=JobStatus.PROCESSING.value,
+                current=self.status,
+                attempted=new_status,
+                reason="Unknown job status has been provided.",
             )
-        self.started_at = datetime.now()
-        self.status = JobStatus.PROCESSING
 
-    def complete(self):
-        if self.status != JobStatus.PROCESSING:
-            raise exceptions.InvalidJobStatusTransitionError(
+        allowed_targets, reason = transitions_with_reason
+
+        if new_status not in allowed_targets:
+            raise InvalidJobStatusTransitionError(
                 job_id=self.id,
-                current_status=self.status.value,
-                attempted_status=JobStatus.COMPLETED.value,
+                current=self.status,
+                attempted=new_status,
+                reason=reason,
             )
-        self.status = JobStatus.COMPLETED
-        self.completed_at = datetime.now()
 
-    def fail(self, error_message: str):
-        if self.is_terminal:
-            raise exceptions.InvalidJobStatusTransitionError(
-                job_id=self.id,
-                current_status=self.status.value,
-                attempted_status=JobStatus.FAILED.value,
-            )
-        self.status = JobStatus.FAILED
-        self.error_message = error_message
-        self.completed_at = datetime.now()
+        match new_status:
+            case JobStatus.PROCESSING:
+                self.started_at = datetime.now()
+            case JobStatus.COMPLETED:
+                self.completed_at = datetime.now()
+            case JobStatus.FAILED:
+                self.completed_at = datetime.now()
+                self.error_message = error_message
+            case _:
+                pass
+
+        self.status = new_status
 
 
-class FileType(Enum):
-    PDF = "application/pdf"
-    PNG = "image/png"
-    JPG = "image/jpeg"
-    JPEG = "image/jpeg"
-    WEBP = "image/webp"
-
-    @property
-    def extension(self) -> str:
-        return self.name.lower()
-
-    @property
-    def dot_extension(self) -> str:
-        return "." + self.extension
-
-    @property
-    def is_image(self) -> bool:
-        return self.value.startswith("image/")
+type AllowedDocumentStatusTransitions = dict[
+    DocumentStatus, tuple[tuple[DocumentStatus, ...], str]
+]
 
 
 @dataclass
 class Document:
-    id: str
-    file_path: str
     file_type: FileType
     uploaded_at: datetime = field(default_factory=datetime.now)
     file_size_bytes: int = 0
+    file_path: str | None = None
+    _status: DocumentStatus = DocumentStatus.PENDING
+    error_message: str | None = None
+    original_filename: str | None = None
+    id: str = field(default_factory=generate_id)
+
+    _ALLOWED_TRANSITIONS: ClassVar[AllowedDocumentStatusTransitions] = {
+        DocumentStatus.PENDING: (
+            (DocumentStatus.UPLOADING, DocumentStatus.FAILED),
+            "You can only upload or fail pending documents.",
+        ),
+        DocumentStatus.UPLOADING: (
+            (DocumentStatus.READY, DocumentStatus.FAILED),
+            "You can only fail or finish uploading a document.",
+        ),
+        DocumentStatus.FAILED: (
+            (DocumentStatus.PENDING,),
+            "You can only retry by transitioning to pending first.",
+        ),
+        DocumentStatus.READY: (
+            (
+                DocumentStatus.READY,
+                DocumentStatus.FAILED,
+            ),
+            (
+                "You can only fail ready documents. "
+                "Retry by failing with a reason first."
+            ),
+        ),
+    }
+
+    @property
+    def status(self) -> DocumentStatus:
+        return self._status
 
     def __post_init__(self):
-        path = Path(self.file_path)
-        if self.file_type.dot_extension != path.suffix:
-            raise ValueError(
-                f"Document extension mismatch: expected {self.file_type.dot_extension} ",
-                f"but got {path.suffix}",
-            )
+        if self.file_path is not None:
+            path = Path(self.file_path)
+            if self.file_type.dot_extension != path.suffix:
+                raise ValueError(
+                    f"Document extension mismatch: expected {self.file_type.dot_extension} ",
+                    f"but got {path.suffix}",
+                )
 
     @property
     def name(self) -> str:
-        return Path(self.file_path).name
+        """Return the storage filename, or original filename if no file_path is set."""
+        if self.file_path is not None:
+            return Path(self.file_path).name
+        return self.original_filename
 
     @property
     def file_extension(self) -> str:
-        return Path(self.file_path).suffix
+        """Return the file extension from storage path, or inferred from file_type."""
+        if self.file_path is not None:
+            return Path(self.file_path).suffix
+        return self.file_type.dot_extension
 
     @property
     def mime_type(self) -> str:
         return self.file_type.value
+
+    @property
+    def display_name(self) -> str:
+        """Return the original filename for display purposes."""
+        return self.original_filename
 
     def is_pdf(self) -> bool:
         return self.file_type == FileType.PDF
 
     def is_image(self) -> bool:
         return self.file_type.is_image
+
+    def update_status(self, new_status: DocumentStatus, fail_reason: str | None = None):
+        if self._status == new_status:
+            return
+
+        transitions_with_reason = self._ALLOWED_TRANSITIONS.get(self._status)
+
+        if transitions_with_reason is None:
+            raise exceptions.InvalidDocumentStatusTransitionError(
+                document_id=self.id,
+                current=self._status,
+                attempted=new_status,
+                reason="Unknown document status has been provided.",
+            )
+
+        allowed_targets, reason = transitions_with_reason
+
+        if new_status in allowed_targets:
+            if new_status == DocumentStatus.FAILED:
+                self.error_message = fail_reason or reason
+            else:
+                self.error_message = None
+
+            self._status = new_status
+            return
+
+        else:
+            raise exceptions.InvalidDocumentStatusTransitionError(
+                document_id=self.id,
+                current=self._status,
+                attempted=new_status,
+                reason=reason,
+            )
 
 
 @dataclass
@@ -203,3 +299,50 @@ class Result:
     job_id: str
     content: Sequence[ProcessedPage]
     creation_time: datetime = field(default_factory=datetime.now)
+
+
+"""
+--- Outbox Pattern ---
+"""
+
+
+class JobProcessingPayload(TypedDict):
+    """Payload for JOB_SCHEDULING outbox events."""
+
+    job_id: str
+
+
+class DocumentUploadPayload(TypedDict):
+    """Payload for DOCUMENT_UPLOAD outbox events."""
+
+    document_id: str
+    staging_file_path: str
+    uploaded_file_path: str
+
+
+type OutboxPayload = JobProcessingPayload | DocumentUploadPayload
+
+
+TASK_NAMES = {
+    OutboxEventType.JOB_SCHEDULING: "kul_ocr.entrypoints.tasks.process_job",
+    OutboxEventType.DOCUMENT_UPLOAD: "kul_ocr.entrypoints.tasks.upload_document",
+}
+
+
+@dataclass
+class OutboxEntry:
+    event_type: OutboxEventType
+    aggregate_id: str
+    payload: OutboxPayload
+    id: str = field(default_factory=generate_id)
+    created_at: datetime = field(default_factory=datetime.now)
+    relayed_at: datetime | None = None
+
+    @property
+    def is_relayed(self) -> bool:
+        return self.relayed_at is not None
+
+    def mark_as_relayed(self) -> None:
+        if self.is_relayed:
+            raise OutboxEntryAlreadyRelayedError(entry_id=self.id)
+        self.relayed_at = datetime.now()
