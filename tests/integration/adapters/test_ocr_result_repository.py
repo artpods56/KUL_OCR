@@ -74,6 +74,47 @@ def test_can_add_and_retrieve_simple_ocr_result(uow: SqlAlchemyUnitOfWork, job_i
         assert retrieved.content[0].result.full_text == "This is the OCR text content"
 
 
+def test_get_by_job_id_returns_result(uow: SqlAlchemyUnitOfWork, job_id: str):
+    result_id = generate_id()
+    result = Result(
+        id=result_id,
+        job_id=job_id,
+        content=[
+            ProcessedPage(
+                ref=PageRef(document_id="doc-1", index=0),
+                result=PagePart(
+                    parts=[
+                        TextPart(
+                            text="Some text",
+                            bbox=BoundingBox(
+                                x_min=0.0, y_min=0.0, x_max=10.0, y_max=10.0
+                            ),
+                            confidence=0.9,
+                            level="block",
+                        )
+                    ],
+                    metadata=PageMetadata(page_number=1, width=10, height=10),
+                ),
+            )
+        ],
+    )
+
+    with uow:
+        uow.results.add(result)
+        uow.commit()
+
+    with uow:
+        retrieved = uow.results.get_by_job_id(job_id)
+        assert retrieved is not None
+        assert retrieved.id == result_id
+
+
+def test_get_by_job_id_returns_none_for_missing(uow: SqlAlchemyUnitOfWork):
+    with uow:
+        missing = uow.results.get_by_job_id("missing-job")
+        assert missing is None
+
+
 def test_can_list_all_results(uow: SqlAlchemyUnitOfWork, job_id: str):
     """Test listing all OCR results from the database"""
     result_ids = [generate_id() for _ in range(3)]
@@ -281,3 +322,32 @@ def test_multiple_results_for_different_jobs(uow: SqlAlchemyUnitOfWork):
         assert retrieved2 is not None
         assert retrieved2.job_id == job2_id
         assert retrieved2.content[0].result.full_text == "Result for job 2"
+
+
+def test_delete_result(uow: SqlAlchemyUnitOfWork, job_id: str):
+    result_id = generate_id()
+    result = Result(
+        id=result_id,
+        job_id=job_id,
+        content=[
+            ProcessedPage(
+                ref=PageRef(document_id="doc", index=0),
+                result=PagePart(
+                    parts=[], metadata=PageMetadata(page_number=1, width=1, height=1)
+                ),
+            )
+        ],
+    )
+
+    with uow:
+        uow.results.add(result)
+        uow.commit()
+
+    with uow:
+        retrieved = uow.results.get(result_id)
+        assert retrieved is not None
+        uow.results.delete(retrieved)
+        uow.commit()
+
+    with uow:
+        assert uow.results.get(result_id) is None

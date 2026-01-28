@@ -4,6 +4,7 @@ from kul_ocr.domain.model import Document, Job
 from kul_ocr.domain.enums import JobStatus, FileType
 from kul_ocr.service_layer.helpers import generate_id
 from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
+from kul_ocr.adapters.database import repository
 
 
 @pytest.fixture
@@ -40,6 +41,74 @@ def test_can_add_and_retrieve_ocr_job(uow: SqlAlchemyUnitOfWork, document_id: st
         assert retrieved.id == job_id
         assert retrieved.document_id == document_id
         assert retrieved.status == JobStatus.PENDING
+
+
+def test_list_by_filters_supports_pagination(
+    uow: SqlAlchemyUnitOfWork, document_id: str
+):
+    jobs = [
+        Job(id=generate_id(), document_id=document_id, status=JobStatus.PENDING)
+        for _ in range(5)
+    ]
+    with uow:
+        for job in jobs:
+            uow.jobs.add(job)
+        uow.commit()
+
+    # Fetch first page
+    with uow:
+        page1 = uow.jobs.list_by_filters(status=JobStatus.PENDING, skip=0, limit=2)
+        page2 = uow.jobs.list_by_filters(status=JobStatus.PENDING, skip=2, limit=2)
+
+        assert len(page1) == 2
+        assert len(page2) == 2
+        ids_page1 = {job.id for job in page1}
+        ids_page2 = {job.id for job in page2}
+        assert ids_page1.isdisjoint(ids_page2)
+
+
+def test_count_by_filters_returns_total(uow: SqlAlchemyUnitOfWork, document_id: str):
+    pending_jobs = [
+        Job(id=generate_id(), document_id=document_id, status=JobStatus.PENDING)
+        for _ in range(3)
+    ]
+    completed_jobs = [
+        Job(id=generate_id(), document_id=document_id, status=JobStatus.COMPLETED)
+        for _ in range(2)
+    ]
+
+    with uow:
+        for job in pending_jobs + completed_jobs:
+            uow.jobs.add(job)
+        uow.commit()
+
+    with uow:
+        total_pending = uow.jobs.count_by_filters(status=JobStatus.PENDING)
+        total_completed = uow.jobs.count_by_filters(status=JobStatus.COMPLETED)
+        total_all = uow.jobs.count_by_filters()
+
+        assert total_pending == len(pending_jobs)
+        assert total_completed == len(completed_jobs)
+        assert total_all == len(pending_jobs) + len(completed_jobs)
+
+
+def test_get_or_raise_returns_job(uow: SqlAlchemyUnitOfWork, document_id: str):
+    job_id = generate_id()
+    job = Job(id=job_id, document_id=document_id, status=JobStatus.PENDING)
+
+    with uow:
+        uow.jobs.add(job)
+        uow.commit()
+
+    with uow:
+        retrieved = uow.jobs.get_or_raise(job_id)
+        assert retrieved.id == job_id
+
+
+def test_get_or_raise_raises_when_missing(uow: SqlAlchemyUnitOfWork):
+    with uow:
+        with pytest.raises(repository.OCRJobNotFoundError):
+            uow.jobs.get_or_raise("missing-job")
 
 
 def test_can_list_all_jobs(uow: SqlAlchemyUnitOfWork, document_id: str):
@@ -161,6 +230,34 @@ def test_can_list_terminal_jobs(uow: SqlAlchemyUnitOfWork, document_id: str):
             job.status in (JobStatus.COMPLETED, JobStatus.FAILED)
             for job in terminal_jobs
         )
+
+
+def test_has_active_job_for_document(uow: SqlAlchemyUnitOfWork, document_id: str):
+    pending_job = Job(
+        id=generate_id(), document_id=document_id, status=JobStatus.PENDING
+    )
+    pending_job_id = pending_job.id
+    completed_job = Job(
+        id=generate_id(), document_id=document_id, status=JobStatus.COMPLETED
+    )
+
+    with uow:
+        uow.jobs.add(pending_job)
+        uow.jobs.add(completed_job)
+        uow.commit()
+
+    with uow:
+        assert uow.jobs.has_active_job_for_document(document_id) is True
+
+    # Mark pending job as failed to remove active jobs
+    with uow:
+        job = uow.jobs.get(pending_job_id)
+        assert job is not None
+        job.update_status(JobStatus.FAILED)
+        uow.commit()
+
+    with uow:
+        assert uow.jobs.has_active_job_for_document(document_id) is False
 
 
 def test_get_returns_none_for_nonexistent_job(uow: SqlAlchemyUnitOfWork):
