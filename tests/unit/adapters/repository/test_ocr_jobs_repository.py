@@ -1,6 +1,6 @@
 from tests.fakes.repositories import FakeOcrJobRepository
-from kul_ocr.domain import model
-from kul_ocr.domain.enums import JobStatus
+from core.domain import model
+from core.domain.enums import JobStatus
 from tests import factories
 
 

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from kul_ocr.adapters.storages.local import LocalFileStorage
+from core.adapters.storages.local import LocalFileStorage
 
 
 class TestLocalFileStorage:
@@ -163,7 +163,7 @@ class TestLocalFileStorage:
 
     def test_delete_is_idempotent(self, storage: LocalFileStorage):
         """Test that deleting non-existent file doesn't raise an error."""
-        from kul_ocr.domain import exceptions
+        from core.domain import exceptions
 
         # Should not raise an exception
         storage.delete(Path("nonexistent.txt"))
@@ -172,7 +172,7 @@ class TestLocalFileStorage:
         self, storage: LocalFileStorage, sample_stream: io.BytesIO
     ):
         """Test that absolute paths are rejected for security."""
-        from kul_ocr.domain import exceptions
+        from core.domain import exceptions
 
         with pytest.raises(exceptions.StorageSecurityError):
             storage.save(sample_stream, Path("/etc/passwd"))
@@ -181,14 +181,14 @@ class TestLocalFileStorage:
         self, storage: LocalFileStorage, sample_stream: io.BytesIO
     ):
         """Test that path traversal attempts are rejected."""
-        from kul_ocr.domain import exceptions
+        from core.domain import exceptions
 
         with pytest.raises(exceptions.StorageSecurityError):
             storage.save(sample_stream, Path("../../../etc/passwd"))
 
     def test_load_raises_not_found_for_missing_file(self, storage: LocalFileStorage):
         """Test that loading non-existent file raises StorageFileNotFoundError."""
-        from kul_ocr.domain import exceptions
+        from core.domain import exceptions
 
         with pytest.raises(exceptions.StorageFileNotFoundError):
             with storage.load(Path("nonexistent.txt")):
@@ -218,7 +218,7 @@ class TestLocalFileStorage:
 
     def test_move_raises_not_found_when_both_missing(self, storage: LocalFileStorage):
         """Test that move raises error when both source and destination are missing."""
-        from kul_ocr.domain import exceptions
+        from core.domain import exceptions
 
         with pytest.raises(exceptions.StorageFileNotFoundError):
             storage.move(Path("nonexistent.txt"), Path("destination.txt"))

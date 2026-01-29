@@ -4,6 +4,7 @@ These tests use a real SQLite database and test the full request/response cycle.
 """
 
 from collections.abc import Iterator
+from typing import Never
 from uuid import uuid4
 
 import pytest
@@ -13,11 +14,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
-from kul_ocr.adapters.database import orm
-from kul_ocr.domain.enums import JobStatus
-from kul_ocr.entrypoints import dependencies
-from kul_ocr.entrypoints.api import app
-from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
+from core.adapters.database import orm
+from core.domain.enums import JobStatus
+from core.service_layer.uow import SqlAlchemyUnitOfWork
+from backend import api, dependencies
 from tests import factories
 
 
@@ -52,16 +52,16 @@ def override_dependencies(integration_session_factory) -> Iterator[None]:
     def get_test_uow():
         return SqlAlchemyUnitOfWork(session_factory=integration_session_factory)
 
-    app.dependency_overrides[dependencies.get_uow] = get_test_uow
+    api.app.dependency_overrides[dependencies.get_uow] = get_test_uow
     yield
-    app.dependency_overrides.clear()
+    api.app.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture
-async def integration_client(override_dependencies) -> AsyncClient:
+async def integration_client(override_dependencies: Never):
     """Create an async client that uses the test database."""
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
+        transport=ASGITransport(app=api.app), base_url="http://test"
     ) as client:
         yield client
 

@@ -5,9 +5,9 @@ from dataclasses import dataclass, field
 from collections.abc import Iterator
 from typing import override, Self
 
-from kul_ocr import config
-from kul_ocr.domain import ports
-from kul_ocr.domain.ports import FileStreamProtocol
+from core import config
+from core.domain import ports
+from core.domain.ports import FileStreamProtocol
 
 
 @dataclass

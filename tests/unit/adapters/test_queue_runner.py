@@ -3,10 +3,9 @@
 import pytest
 from unittest.mock import patch
 
-from pyright.cli import entrypoint
 
-from kul_ocr.adapters.queue.runner import CeleryTaskRunner
-from kul_ocr.domain import model, enums
+from core.adapters.queue.runner import CeleryTaskRunner
+from core.domain import model, enums
 from tests.fakes.celery_app import FakeCeleryApp
 from tests.factories import (
     generate_document_upload_outbox_entry,
@@ -57,7 +56,7 @@ class TestScheduleTask(TestCeleryTaskRunner):
         # Create runner and patch Celery app
         runner = CeleryTaskRunner()
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             # Schedule the task
             runner.schedule_task(job_scheduling_entry)
 
@@ -65,7 +64,7 @@ class TestScheduleTask(TestCeleryTaskRunner):
         assert len(fake_celery_app.sent_tasks) == 1
         sent_task = fake_celery_app.sent_tasks[0]
 
-        assert sent_task.task_name == "kul_ocr.entrypoints.tasks.process_job"
+        assert sent_task.task_name == "backend.entrypoints.tasks.process_job"
         assert sent_task.task_id == job_scheduling_entry.id
         assert sent_task.kwargs == job_scheduling_entry.payload
         assert sent_task.args == ()
@@ -76,14 +75,14 @@ class TestScheduleTask(TestCeleryTaskRunner):
         """Test successful scheduling of DOCUMENT_UPLOAD task."""
         runner = CeleryTaskRunner()
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             runner.schedule_task(document_upload_entry)
 
         # Verify task was sent
         assert len(fake_celery_app.sent_tasks) == 1
         sent_task = fake_celery_app.sent_tasks[0]
 
-        assert sent_task.task_name == "kul_ocr.entrypoints.tasks.upload_document"
+        assert sent_task.task_name == "backend.entrypoints.tasks.upload_document"
         assert sent_task.task_id == document_upload_entry.id
         assert sent_task.kwargs == document_upload_entry.payload
 
@@ -106,7 +105,7 @@ class TestScheduleTask(TestCeleryTaskRunner):
 
             entry.event_type = enums.OutboxEventType.JOB_SCHEDULING
 
-            with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+            with patch("backend.entrypoints.celery_app.app", fake_celery_app):
                 with pytest.raises(ValueError) as exc_info:
                     runner.schedule_task(entry)
 
@@ -127,7 +126,7 @@ class TestScheduleTask(TestCeleryTaskRunner):
         # Configure fake app to fail
         fake_celery_app.should_fail_send_task = True
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             with pytest.raises(RuntimeError) as exc_info:
                 runner.schedule_task(job_scheduling_entry)
 
@@ -142,7 +141,7 @@ class TestScheduleTask(TestCeleryTaskRunner):
 
         runner = CeleryTaskRunner()
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             runner.schedule_task(job_scheduling_entry)
 
         sent_task = fake_celery_app.sent_tasks[0]
@@ -163,7 +162,7 @@ class TestScheduleTask(TestCeleryTaskRunner):
 
         entries = generate_outbox_entries(event_type=event_type)
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             _ = [runner.schedule_task(entry) for entry in entries]
 
         assert len(fake_celery_app.sent_tasks) == len(entries)
@@ -181,7 +180,7 @@ class TestRevokeTask(TestCeleryTaskRunner):
         runner = CeleryTaskRunner()
         task_id = "task-to-revoke-123"
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             runner.revoke_task(task_id)
 
         # Verify task was revoked
@@ -196,7 +195,7 @@ class TestRevokeTask(TestCeleryTaskRunner):
         runner = CeleryTaskRunner()
         task_ids = ["task-1", "task-2", "task-3"]
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             for task_id in task_ids:
                 runner.revoke_task(task_id)
 
@@ -217,7 +216,7 @@ class TestRevokeTask(TestCeleryTaskRunner):
         # Configure fake control to fail
         fake_celery_app.control.should_fail_revoke = True
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             with pytest.raises(RuntimeError) as exc_info:
                 runner.revoke_task(task_id)
 
@@ -233,7 +232,7 @@ class TestRevokeTask(TestCeleryTaskRunner):
         success_task_id = "will-succeed"
         fake_celery_app.control.fail_revoke_for_task_ids.add(failing_task_id)
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             # This should fail
             with pytest.raises(RuntimeError):
                 runner.revoke_task(failing_task_id)
@@ -255,7 +254,7 @@ class TestCeleryTaskRunnerIntegration(TestCeleryTaskRunner):
         """Test complete workflow: schedule a task then revoke it."""
         runner = CeleryTaskRunner()
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             # Schedule task
             runner.schedule_task(job_scheduling_entry)
 
@@ -278,7 +277,7 @@ class TestCeleryTaskRunnerIntegration(TestCeleryTaskRunner):
         """Test error resilience - failures don't affect subsequent operations."""
         runner = CeleryTaskRunner()
 
-        failing_task_name = "kul_ocr.entrypoints.tasks.process_job"
+        failing_task_name = "backend.entrypoints.tasks.process_job"
 
         fake_celery_app.fail_send_task_for_names.add(failing_task_name)
 
@@ -286,7 +285,7 @@ class TestCeleryTaskRunnerIntegration(TestCeleryTaskRunner):
 
         doc_entry = generate_document_upload_outbox_entry()
 
-        with patch("kul_ocr.entrypoints.celery_app.app", fake_celery_app):
+        with patch("backend.entrypoints.celery_app.app", fake_celery_app):
             with pytest.raises(RuntimeError):
                 runner.schedule_task(job_entry)
 
@@ -295,5 +294,5 @@ class TestCeleryTaskRunnerIntegration(TestCeleryTaskRunner):
         assert len(fake_celery_app.sent_tasks) == 1
         assert (
             fake_celery_app.sent_tasks[0].task_name
-            == "kul_ocr.entrypoints.tasks.upload_document"
+            == "backend.entrypoints.tasks.upload_document"
         )

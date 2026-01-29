@@ -263,13 +263,7 @@ target-version = "py312"
 
 ```toml
 [tool.uv.workspace]
-members = ["backend", "frontend"]
-
-[tool.uv]
-dev-dependencies = [
-    "pre-commit>=4.5.0",
-    "ruff>=0.14.6",
-]
+members = ["lib/core", "services/backend"]
 ```
 
 This allows unified dependency management:
@@ -279,24 +273,25 @@ This allows unified dependency management:
 uv sync
 
 # Run commands in specific packages
-uv run --package kul-ocr-backend pytest
-uv run --package kul-ocr-frontend python manage.py test
+uv run --project services/backend pytest
+uv run --project lib/core python - <<'PY'
+import core
+print(core.__name__)
+PY
 ```
 
 ## Import Resolution
 
 ### Backend Imports
 
-Backend imports work within the `kul_ocr` package:
+Backend imports work within the `core` package:
 
 ```python
-# backend/src/kul_ocr/entrypoints/api.py
-from kul_ocr.domain import ports, model, exceptions
-from kul_ocr.service_layer import services, uow
-from kul_ocr.adapters.database import orm
+# services/backend/backend/entrypoints/api.py
+from core.domain import ports, model, exceptions
+from core.service_layer import services, uow
+from core.adapters.database import orm
 ```
-
-The `PYTHONPATH` is set to `/app/src` in the Docker container, enabling proper import resolution.
 
 ### Frontend Imports
 
@@ -334,21 +329,18 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy backend project files
-COPY backend/pyproject.toml backend/uv.lock* /app/
+COPY services/backend/pyproject.toml services/backend/uv.lock* /app/
 
 # Install uv and dependencies
 RUN pip install uv && \
     uv sync --frozen --no-dev
 
 # Copy backend source code
-COPY backend/src /app/src
-
-# Set Python path for import resolution
-ENV PYTHONPATH=/app/src
+COPY services/backend/backend /app/backend
 
 EXPOSE 8000
 
-CMD ["uv", "run", "fastapi", "dev", "kul_ocr.entrypoints.api:app", \
+CMD ["uv", "run", "--project", "services/backend", "fastapi", "dev", "backend/entrypoints/api.py", \
      "--host", "0.0.0.0", "--port", "8000"]
 ```
 
@@ -381,7 +373,7 @@ CMD ["uv", "run", "gunicorn", "frontend_app.wsgi:application", \
 
 ### docker-compose.yaml
 
-**Location:** `docker-compose.yaml` (root)
+**Location:** `services/backend/docker-compose.yaml`
 
 ```yaml
 version: '3.8'
@@ -400,7 +392,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
-      - ./backend/src:/app/src      # Hot reload in development
+      - ./services/backend/backend:/app/backend      # Hot reload in development
       - ./storage:/app/storage
     depends_on:
       db:
@@ -410,7 +402,7 @@ services:
     networks:
       - kul_network
     command: >
-      uv run fastapi dev kul_ocr.entrypoints.api:app
+      uv run --project services/backend fastapi dev backend/entrypoints/api.py
       --host 0.0.0.0 --port 8000
 
   # Frontend Web UI (Django)
@@ -445,7 +437,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
-      - ./backend/src:/app/src
+      - ./services/backend/backend:/app/backend
       - ./storage:/app/storage
     depends_on:
       - db
@@ -453,7 +445,7 @@ services:
     networks:
       - kul_network
     command: >
-      uv run celery -A kul_ocr.entrypoints.celery_app worker
+      uv run --project services/backend celery -A backend.entrypoints.celery_app worker
       --loglevel=info
 
   # PostgreSQL Database
@@ -500,9 +492,8 @@ networks:
 **Backend Development:**
 
 ```bash
-cd backend
 uv sync
-uv run fastapi dev src/kul_ocr/entrypoints/api.py
+uv run --project services/backend fastapi dev backend/entrypoints/api.py
 ```
 
 Backend will be available at: `http://localhost:8000`

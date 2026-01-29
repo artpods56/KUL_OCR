@@ -170,6 +170,16 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# uv workspace
+.uv/
+uv.lock.bak
+
+# tooling caches
+.ruff_cache/
+
+# local scratch
+tmp/
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore

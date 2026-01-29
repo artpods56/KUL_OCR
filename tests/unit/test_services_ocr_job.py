@@ -1,9 +1,9 @@
-import kul_ocr.adapters.database.repository
-import kul_ocr.service_layer.services.jobs
-from kul_ocr.entrypoints.schemas import JobResponse
+import core.adapters.database.repository
+import core.service_layer.services.jobs
+from backend.schemas import JobResponse
 import pytest
 from uuid import uuid4
-from kul_ocr.domain import model
+from core.domain import model
 
 
 def test_get_existing_ocr_job(uow):
@@ -12,7 +12,7 @@ def test_get_existing_ocr_job(uow):
     uow.commit
 
     response: JobResponse = JobResponse.from_dto(
-        kul_ocr.service_layer.services.jobs.get_ocr_job(str(job.id), uow)
+        core.service_layer.services.jobs.get_ocr_job(str(job.id), uow)
     )
 
     assert str(response.id) == job.id
@@ -22,5 +22,5 @@ def test_get_existing_ocr_job(uow):
 
 def test_get_nonexisting_ocr_job_raises(uow):
     non_existting_id = str(uuid4())
-    with pytest.raises(kul_ocr.adapters.database.repository.OCRJobNotFoundError):
-        kul_ocr.service_layer.services.jobs.get_ocr_job(non_existting_id, uow)
+    with pytest.raises(core.adapters.database.repository.OCRJobNotFoundError):
+        core.service_layer.services.jobs.get_ocr_job(non_existting_id, uow)

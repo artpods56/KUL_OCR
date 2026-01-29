@@ -1,7 +1,6 @@
 import pytest
 
-from kul_ocr.entrypoints import dependencies
-
+from backend import dependencies
 
 def test_get_file_storage_unsupported_raises(monkeypatch):
     class DummyConfig:

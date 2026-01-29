@@ -1,11 +1,11 @@
 import pytest
 from datetime import datetime
 
-import kul_ocr.domain.model
-from kul_ocr.domain import exceptions
-from kul_ocr.domain.model import OutboxEntry
-from kul_ocr.domain.enums import OutboxEventType
-from kul_ocr.service_layer.helpers import generate_id
+import core.domain.model
+from core.domain import exceptions
+from core.domain.model import OutboxEntry
+from core.domain.enums import OutboxEventType
+from core.service_layer.helpers import generate_id
 
 
 class TestOutboxEntry:

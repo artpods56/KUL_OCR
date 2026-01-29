@@ -1,10 +1,10 @@
 import pytest
 
-import kul_ocr.adapters.database.repository
-import kul_ocr.domain.model
-import kul_ocr.service_layer.services.jobs
-from kul_ocr.domain import exceptions
-from kul_ocr.domain.model import (
+import core.adapters.database.repository
+import core.domain.model
+import core.service_layer.services.jobs
+from core.domain import exceptions
+from core.domain.model import (
     BoundingBox,
     Document,
     Job,
@@ -15,9 +15,9 @@ from kul_ocr.domain.model import (
     Result,
     TextPart,
 )
-from kul_ocr.domain.enums import JobStatus, FileType
-from kul_ocr.service_layer.helpers import generate_id
-from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
+from core.domain.enums import JobStatus, FileType
+from core.service_layer.helpers import generate_id
+from core.service_layer.uow import SqlAlchemyUnitOfWork
 
 
 def _create_job_with_document(
@@ -103,7 +103,7 @@ class TestDeleteOCRJobIntegration:
             job.update_status(JobStatus.COMPLETED)
             uow.commit()
 
-        kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
+        core.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             deleted_job = uow.jobs.get(job_id)
@@ -119,7 +119,7 @@ class TestDeleteOCRJobIntegration:
             job.update_status(JobStatus.FAILED, error_message="Test error")
             uow.commit()
 
-        kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
+        core.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             deleted_job = uow.jobs.get(job_id)
@@ -135,7 +135,7 @@ class TestDeleteOCRJobIntegration:
             exceptions.InvalidJobStatusTransitionError,
             match="cannot transition",
         ):
-            kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
+            core.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             job = uow.jobs.get(job_id)
@@ -157,7 +157,7 @@ class TestDeleteOCRJobIntegration:
             exceptions.InvalidJobStatusTransitionError,
             match="cannot transition",
         ):
-            kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
+            core.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             job = uow.jobs.get(job_id)
@@ -170,10 +170,10 @@ class TestDeleteOCRJobIntegration:
         fake_job_id = generate_id()
 
         with pytest.raises(
-            kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+            core.adapters.database.repository.OCRJobNotFoundError,
             match="OCR job not found",
         ):
-            kul_ocr.service_layer.services.jobs.delete_ocr_job(fake_job_id, uow)
+            core.service_layer.services.jobs.delete_ocr_job(fake_job_id, uow)
 
     def test_delete_job_also_deletes_associated_result(self, uow: SqlAlchemyUnitOfWork):
         """Test that deleting a job also deletes the associated Result."""
@@ -183,7 +183,7 @@ class TestDeleteOCRJobIntegration:
             result = uow.results.get(result_id)
             assert result is not None
 
-        kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
+        core.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             deleted_job = uow.jobs.get(job_id)
@@ -195,7 +195,7 @@ class TestDeleteOCRJobIntegration:
         """Test that deleting a job does not delete the associated document."""
         document_id, job_id, result_id = _create_job_with_result(uow)
 
-        kul_ocr.service_layer.services.jobs.delete_ocr_job(job_id, uow)
+        core.service_layer.services.jobs.delete_ocr_job(job_id, uow)
 
         with uow:
             document = uow.documents.get(document_id)

@@ -6,8 +6,8 @@ from uuid import UUID
 import pytest
 from pydantic import ValidationError
 
-from kul_ocr.domain import model, enums
-from kul_ocr.entrypoints import schemas
+from core.domain import model, enums
+from backend import schemas
 from tests import factories
 
 

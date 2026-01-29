@@ -1,3 +1,9 @@
 {
+  "venvPath": ".",
+  "venv": ".venv",
+  "extraPaths": [
+    "libs/core/src",
+    "apps/backend/src"
+  ],
   "reportExplicitAny": false
 }

@@ -1,8 +1,8 @@
 import pytest
 
-import kul_ocr.domain.model
-from kul_ocr.domain import model, enums, exceptions
-from kul_ocr.service_layer import parsing
+import core.domain.model
+from core.domain import model, enums, exceptions
+from core.service_layer import parsing
 
 
 class TestParseFileType:

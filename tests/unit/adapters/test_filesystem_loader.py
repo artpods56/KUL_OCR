@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from kul_ocr.adapters.loaders.filesystem import FileSystemDocumentLoader
-from kul_ocr.domain import model, structs, enums
+from core.adapters.loaders.filesystem import FileSystemDocumentLoader
+from core.domain import model, structs, enums
 from tests.fakes.storages import FakeFileStorage
 
 

@@ -1,6 +1,6 @@
 from typing import final, override, Self
 
-from kul_ocr.service_layer.uow import AbstractUnitOfWork
+from core.service_layer.uow import AbstractUnitOfWork
 from tests.fakes import repositories
 
 

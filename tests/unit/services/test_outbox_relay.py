@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta
 
-import kul_ocr.service_layer.services.jobs
-import kul_ocr.service_layer.services.outbox
-from kul_ocr.domain.model import OutboxEntry
-from kul_ocr.domain.enums import JobStatus, OutboxEventType
-from kul_ocr.service_layer.helpers import generate_id
+import core.service_layer.services.jobs
+import core.service_layer.services.outbox
+from core.domain.model import OutboxEntry
+from core.domain.enums import JobStatus, OutboxEventType
+from core.service_layer.helpers import generate_id
 from tests.factories import generate_ocr_job, generate_document_without_file
 from tests.fakes.task_runner import FakeTaskRunner
 from tests.fakes.uow import FakeUnitOfWork
@@ -19,9 +19,7 @@ class TestStartOcrJobProcessingWithOutbox:
         uow.documents.add(document)
         uow.jobs.add(job)
 
-        result = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(
-            job.id, uow
-        )
+        result = core.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
 
         assert result.status == JobStatus.PROCESSING.value
         assert len(uow.outbox.added) == 1
@@ -40,7 +38,7 @@ class TestStartOcrJobProcessingWithOutbox:
         uow.documents.add(document)
         uow.jobs.add(job)
 
-        _ = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
+        _ = core.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
 
         # Verify task_id was assigned to job
         updated_job = uow.jobs.get(job.id)
@@ -59,7 +57,7 @@ class TestStartOcrJobProcessingWithOutbox:
         uow.documents.add(document)
         uow.jobs.add(job)
 
-        _ = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
+        _ = core.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
 
         assert uow.committed is True
 
@@ -87,7 +85,7 @@ class TestRelayPendingOutboxEntries:
         uow.outbox.add(entry)
 
         relayed_entries = (
-            kul_ocr.service_layer.services.outbox.relay_pending_outbox_entries(
+            core.service_layer.services.outbox.relay_pending_outbox_entries(
                 task_runner=task_runner, uow=uow, batch_size=100
             )
         )
@@ -115,7 +113,7 @@ class TestRelayPendingOutboxEntries:
         )
         uow.outbox.add(entry)
 
-        _ = kul_ocr.service_layer.services.outbox.relay_pending_outbox_entries(
+        _ = core.service_layer.services.outbox.relay_pending_outbox_entries(
             task_runner=task_runner, uow=uow, batch_size=100
         )
 
@@ -138,7 +136,7 @@ class TestRelayPendingOutboxEntries:
         )
         uow.outbox.add(entry)
 
-        _ = kul_ocr.service_layer.services.outbox.relay_pending_outbox_entries(
+        _ = core.service_layer.services.outbox.relay_pending_outbox_entries(
             task_runner=task_runner, uow=uow, batch_size=100
         )
 
@@ -164,7 +162,7 @@ class TestRelayPendingOutboxEntries:
 
         # Only relay 2
         relayed_entries = (
-            kul_ocr.service_layer.services.outbox.relay_pending_outbox_entries(
+            core.service_layer.services.outbox.relay_pending_outbox_entries(
                 task_runner=task_runner, uow=uow, batch_size=2
             )
         )
@@ -191,7 +189,7 @@ class TestRelayPendingOutboxEntries:
         uow.outbox.add(entry)
 
         relayed_entries = (
-            kul_ocr.service_layer.services.outbox.relay_pending_outbox_entries(
+            core.service_layer.services.outbox.relay_pending_outbox_entries(
                 task_runner=task_runner, uow=uow, batch_size=100
             )
         )
@@ -204,7 +202,7 @@ class TestRelayPendingOutboxEntries:
         task_runner = FakeTaskRunner()
 
         relayed_entries = (
-            kul_ocr.service_layer.services.outbox.relay_pending_outbox_entries(
+            core.service_layer.services.outbox.relay_pending_outbox_entries(
                 task_runner=task_runner, uow=uow, batch_size=100
             )
         )
@@ -224,7 +222,7 @@ class TestRelayPendingOutboxEntries:
         uow.outbox.add(entry)
 
         relayed_entries = (
-            kul_ocr.service_layer.services.outbox.relay_pending_outbox_entries(
+            core.service_layer.services.outbox.relay_pending_outbox_entries(
                 task_runner=task_runner, uow=uow, batch_size=100
             )
         )
@@ -249,10 +247,8 @@ class TestCleanupOldOutboxEntries:
         entry.relayed_at = datetime.now() - timedelta(hours=48)
         uow.outbox.add(entry)
 
-        deleted_count = (
-            kul_ocr.service_layer.services.outbox.cleanup_old_outbox_entries(
-                uow=uow, retention_hours=24
-            )
+        deleted_count = core.service_layer.services.outbox.cleanup_old_outbox_entries(
+            uow=uow, retention_hours=24
         )
 
         assert deleted_count == 1
@@ -272,10 +268,8 @@ class TestCleanupOldOutboxEntries:
         # relayed_at is set to now by mark_as_relayed()
         uow.outbox.add(entry)
 
-        deleted_count = (
-            kul_ocr.service_layer.services.outbox.cleanup_old_outbox_entries(
-                uow=uow, retention_hours=24
-            )
+        deleted_count = core.service_layer.services.outbox.cleanup_old_outbox_entries(
+            uow=uow, retention_hours=24
         )
 
         assert deleted_count == 0
@@ -294,10 +288,8 @@ class TestCleanupOldOutboxEntries:
         )
         uow.outbox.add(entry)
 
-        deleted_count = (
-            kul_ocr.service_layer.services.outbox.cleanup_old_outbox_entries(
-                uow=uow, retention_hours=24
-            )
+        deleted_count = core.service_layer.services.outbox.cleanup_old_outbox_entries(
+            uow=uow, retention_hours=24
         )
 
         assert deleted_count == 0
@@ -306,10 +298,8 @@ class TestCleanupOldOutboxEntries:
     def test_cleanup_commits_transaction(self):
         uow = FakeUnitOfWork()
 
-        deleted_count = (
-            kul_ocr.service_layer.services.outbox.cleanup_old_outbox_entries(
-                uow=uow, retention_hours=24
-            )
+        deleted_count = core.service_layer.services.outbox.cleanup_old_outbox_entries(
+            uow=uow, retention_hours=24
         )
 
         assert deleted_count == 0

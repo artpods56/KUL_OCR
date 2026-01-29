@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 
-from kul_ocr.domain import model, enums
+from core.domain import model, enums
 from tests import factories
 
 

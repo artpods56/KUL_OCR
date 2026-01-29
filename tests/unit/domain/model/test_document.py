@@ -1,8 +1,8 @@
 import time
 
 
-from kul_ocr.domain.model import Document
-from kul_ocr.domain.enums import FileType
+from core.domain.model import Document
+from core.domain.enums import FileType
 
 
 class TestFileType:
