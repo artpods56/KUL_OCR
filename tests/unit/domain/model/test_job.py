@@ -2,9 +2,9 @@ import time
 
 import pytest
 
-from kul_ocr.domain import exceptions
-from kul_ocr.domain.model import Job
-from kul_ocr.domain.enums import JobStatus
+from core.domain import exceptions
+from core.domain.model import Job
+from core.domain.enums import JobStatus
 
 
 class TestOCRJob:

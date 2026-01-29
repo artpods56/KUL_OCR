@@ -8,11 +8,11 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from kul_ocr.domain import model, enums
-from kul_ocr.domain.model import Document, Job
-from kul_ocr.domain.enums import JobStatus, FileType
-from kul_ocr.entrypoints import dependencies, schemas
-from kul_ocr.entrypoints.api import app
+from core.domain import enums
+from core.domain.model import Document, Job
+from core.domain.enums import JobStatus, FileType
+from backend import schemas, dependencies
+from backend.api import app
 from tests import factories
 from tests.factories import generate_document, generate_ocr_job, generate_ocr_result
 from tests.fakes.repositories import FakeDocumentRepository
@@ -406,7 +406,7 @@ async def test_start_ocr_job_success(
     fake_uow.jobs.add(job)
     fake_uow.commit()
 
-    with patch("kul_ocr.entrypoints.tasks.process_ocr_job_task.delay") as mock_delay:
+    with patch("backend.entrypoints.tasks.process_ocr_job_task.delay") as mock_delay:
         response = await client.post(f"/ocr/jobs/{job_id}/start")
 
         assert response.status_code == 200
@@ -461,7 +461,7 @@ async def test_create_ocr_job_returns_409_when_job_already_pending(
     fake_uow.jobs.add(existing_job)
     fake_uow.commit()
 
-    with patch("kul_ocr.entrypoints.tasks.process_ocr_job_task.delay") as mock_delay:
+    with patch("backend.entrypoints.tasks.process_ocr_job_task.delay") as mock_delay:
         response = await client.post("/ocr/jobs", json={"document_id": document_id})
 
     assert response.status_code == 409

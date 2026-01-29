@@ -1,7 +1,7 @@
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from kul_ocr.entrypoints.api import app
+from backend.api import app
 
 
 @pytest_asyncio.fixture

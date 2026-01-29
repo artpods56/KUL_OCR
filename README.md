@@ -23,11 +23,11 @@ Features asynchronous task processing, clean architecture, and runtime type safe
 **Prerequisites:** Python 3.12+, Docker, CUDA capable GPU
 
 ```bash
-# Install dependencies
+# Install dependencies (workspace)
 uv sync
 
 # Set up environment
-cp .env.example .env
+cp services/backend/.env.example services/backend/.env
 
 # Create local storage directory (`storage` by default)
 mkdir storage
@@ -38,8 +38,8 @@ pre-commit install
 # Run tests
 uv run pytest
 
-# Run app
-[TODO]
+# Run app (from backend)
+uv run --project services/backend fastapi dev backend/entrypoints/api.py
 
 ```
 

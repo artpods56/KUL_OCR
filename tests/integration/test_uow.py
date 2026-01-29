@@ -1,4 +1,4 @@
-from kul_ocr.domain.model import (
+from core.domain.model import (
     BoundingBox,
     Document,
     Job,
@@ -9,9 +9,9 @@ from kul_ocr.domain.model import (
     Result,
     TextPart,
 )
-from kul_ocr.domain.enums import JobStatus, FileType
-from kul_ocr.service_layer.helpers import generate_id
-from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
+from core.domain.enums import JobStatus, FileType
+from core.service_layer.helpers import generate_id
+from core.service_layer.uow import SqlAlchemyUnitOfWork
 
 
 def test_uow_can_commit_changes(uow: SqlAlchemyUnitOfWork):

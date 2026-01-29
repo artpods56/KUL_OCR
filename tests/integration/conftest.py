@@ -8,8 +8,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from kul_ocr.adapters.database import orm
-from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
+from core.adapters.database import orm
+from core.service_layer.uow import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture(scope="function")

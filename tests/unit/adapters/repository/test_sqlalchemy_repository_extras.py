@@ -5,13 +5,13 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from kul_ocr.adapters.database import orm
-from kul_ocr.adapters.database.repository import (
+from core.adapters.database import orm
+from core.adapters.database.repository import (
     DocumentNotFoundError,
     OCRJobNotFoundError,
 )
-from kul_ocr.domain import enums, model
-from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
+from core.domain import enums, model
+from core.service_layer.uow import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture()

@@ -2,14 +2,14 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import final, override
 
-import kul_ocr.adapters.database.repository
-from kul_ocr.adapters.database.repository import (
+import core.adapters.database.repository
+from core.adapters.database.repository import (
     AbstractDocumentRepository,
     AbstractOCRJobRepository,
     AbstractOCRResultRepository,
     AbstractOutboxRepository,
 )
-from kul_ocr.domain import model, enums
+from core.domain import model, enums
 
 
 @final
@@ -31,7 +31,7 @@ class FakeDocumentRepository(AbstractDocumentRepository):
     def get_or_raise(self, document_id: str) -> model.Document:
         document = self.get(document_id)
         if document is None:
-            raise kul_ocr.adapters.database.repository.DocumentNotFoundError(
+            raise core.adapters.database.repository.DocumentNotFoundError(
                 document_id=document_id
             )
         return document
@@ -65,9 +65,7 @@ class FakeOcrJobRepository(AbstractOCRJobRepository):
     def get_or_raise(self, job_id: str) -> model.Job:
         job = self.get(job_id)
         if job is None:
-            raise kul_ocr.adapters.database.repository.OCRJobNotFoundError(
-                job_id=job_id
-            )
+            raise core.adapters.database.repository.OCRJobNotFoundError(job_id=job_id)
         return job
 
     @override
@@ -205,7 +203,7 @@ class FakeOutboxRepository(AbstractOutboxRepository):
     def get_or_raise(self, entry_id: str) -> model.OutboxEntry:
         entry = self.get(entry_id)
         if entry is None:
-            raise kul_ocr.adapters.database.repository.OutboxEntryNotFoundError(
+            raise core.adapters.database.repository.OutboxEntryNotFoundError(
                 entry_id=entry_id
             )
         return entry

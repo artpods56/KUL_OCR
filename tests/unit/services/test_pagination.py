@@ -1,7 +1,7 @@
 """Test pagination functionality for get_ocr_jobs."""
 
-from kul_ocr.domain import enums
-from kul_ocr.service_layer.services import jobs
+from core.domain import enums
+from core.service_layer.services import jobs
 from tests.fakes.uow import FakeUnitOfWork
 from tests import factories
 

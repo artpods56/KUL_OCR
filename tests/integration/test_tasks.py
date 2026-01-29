@@ -6,9 +6,9 @@
 # #
 # # from sqlalchemy.orm import sessionmaker, Session
 # #
-# # from kul_ocr.entrypoints.tasks import process_ocr_job_task
-# # from kul_ocr.domain.model import JobStatus, SimpleOCRValue
-# # from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
+# # from backend.entrypoints.tasks import process_ocr_job_task
+# # from core.domain.model import JobStatus, SimpleOCRValue
+# # from core.service_layer.uow import SqlAlchemyUnitOfWork
 # # from tests.factories import generate_document, generate_ocr_job
 # #
 # #
@@ -21,7 +21,7 @@
 # # #     """Test that the OCR job task successfully processes a document and updates the database."""
 # # #     # 1. Setup mock session factory so fresh_uow() uses our test DB
 # # #     monkeypatch.setattr(
-# # #         "kul_ocr.entrypoints.dependencies.get_session_factory",
+# # #         "backend.entrypoints.dependencies.get_session_factory",
 # # #         lambda: test_session_factory,
 # # #     )
 # # #
@@ -29,7 +29,7 @@
 # # #     mock_config = MagicMock()
 # # #     mock_config.storage_root = tmp_path
 # # #     monkeypatch.setattr(
-# # #         "kul_ocr.entrypoints.dependencies.get_config", lambda: mock_config
+# # #         "backend.entrypoints.dependencies.get_config", lambda: mock_config
 # # #     )
 # # #
 # # #     # 2. Setup test data
@@ -44,8 +44,8 @@
 # # #
 # # #     # 3. Mock Tesseract Engine
 # # #     with (
-# # #         patch("kul_ocr.entrypoints.tasks.TesseractOCREngine") as MockEngine,
-# # #         patch("kul_ocr.entrypoints.tasks.FileSystemDocumentLoader"),
+# # #         patch("backend.entrypoints.tasks.TesseractOCREngine") as MockEngine,
+# # #         patch("backend.entrypoints.tasks.FileSystemDocumentLoader"),
 # # #     ):
 # # #         mock_engine_instance = MockEngine.return_value
 # # #         mock_engine_instance.process_document.return_value = SimpleOCRValue(
@@ -84,14 +84,14 @@
 # ):
 #     """Test that the task handles failures and triggers a retry."""
 #     monkeypatch.setattr(
-#         "kul_ocr.entrypoints.dependencies.get_session_factory",
+#         "backend.entrypoints.dependencies.get_session_factory",
 #         lambda: test_session_factory,
 #     )
 #
 #     mock_config = MagicMock()
 #     mock_config.storage_root = tmp_path
 #     monkeypatch.setattr(
-#         "kul_ocr.entrypoints.dependencies.get_config", lambda: mock_config
+#         "backend.entrypoints.dependencies.get_config", lambda: mock_config
 #     )
 #
 #     doc = generate_document(dir_path=tmp_path)
@@ -104,8 +104,8 @@
 #         uow.commit()
 #
 #     with (
-#         patch("kul_ocr.entrypoints.tasks.TesseractOCREngine") as MockEngine,
-#         patch("kul_ocr.entrypoints.tasks.FileSystemDocumentLoader"),
+#         patch("backend.entrypoints.tasks.TesseractOCREngine") as MockEngine,
+#         patch("backend.entrypoints.tasks.FileSystemDocumentLoader"),
 #     ):
 #         mock_engine_instance = MockEngine.return_value
 #         mock_engine_instance.process_document.side_effect = Exception("OCR Failed")
@@ -132,14 +132,14 @@
 # ):
 #     """Test that the task marks the job as failed after exhausting all retries."""
 #     monkeypatch.setattr(
-#         "kul_ocr.entrypoints.dependencies.get_session_factory",
+#         "backend.entrypoints.dependencies.get_session_factory",
 #         lambda: test_session_factory,
 #     )
 #
 #     mock_config = MagicMock()
 #     mock_config.storage_root = tmp_path
 #     monkeypatch.setattr(
-#         "kul_ocr.entrypoints.dependencies.get_config", lambda: mock_config
+#         "backend.entrypoints.dependencies.get_config", lambda: mock_config
 #     )
 #
 #     doc = generate_document(dir_path=tmp_path)
@@ -152,8 +152,8 @@
 #         uow.commit()
 #
 #     with (
-#         patch("kul_ocr.entrypoints.tasks.TesseractOCREngine") as MockEngine,
-#         patch("kul_ocr.entrypoints.tasks.FileSystemDocumentLoader"),
+#         patch("backend.entrypoints.tasks.TesseractOCREngine") as MockEngine,
+#         patch("backend.entrypoints.tasks.FileSystemDocumentLoader"),
 #     ):
 #         mock_engine_instance = MockEngine.return_value
 #         mock_engine_instance.process_document.side_effect = Exception(

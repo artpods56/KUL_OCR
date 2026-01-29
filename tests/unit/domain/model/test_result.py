@@ -3,7 +3,7 @@
 import time
 from datetime import datetime
 
-from kul_ocr.domain.model import (
+from core.domain.model import (
     Result,
     BoundingBox,
     TextPart,

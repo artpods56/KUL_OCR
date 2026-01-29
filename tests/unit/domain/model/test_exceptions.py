@@ -1,6 +1,6 @@
 import pytest
 
-from kul_ocr.domain import exceptions
+from core.domain import exceptions
 
 
 # ------------------------

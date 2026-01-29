@@ -5,8 +5,8 @@ from typing import Literal
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from kul_ocr.entrypoints.api import app
-from kul_ocr.utils.misc import nobeartype
+from backend.api import app
+from core.utils.misc import nobeartype
 
 
 @pytest.fixture

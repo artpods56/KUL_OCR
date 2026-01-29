@@ -4,12 +4,12 @@ from pathlib import Path
 import pytest
 from datetime import datetime, timedelta, timezone
 
-import kul_ocr.adapters.database.repository
-import kul_ocr.domain.model
-import kul_ocr.service_layer.services.jobs
-import kul_ocr.service_layer.services.results
-from kul_ocr.domain import exceptions
-from kul_ocr.domain.enums import JobStatus, FileType
+import core.adapters.database.repository
+import core.domain.model
+import core.service_layer.services.jobs
+import core.service_layer.services.results
+from core.domain import exceptions
+from core.domain.enums import JobStatus, FileType
 from tests.fakes.uow import FakeUnitOfWork
 from tests import factories
 
@@ -39,7 +39,7 @@ def test_get_ocr_jobs_by_status(
     for job in all_jobs:
         uow.jobs.add(job)
 
-    jobs_by_status = kul_ocr.service_layer.services.jobs.get_ocr_jobs_by_status(
+    jobs_by_status = core.service_layer.services.jobs.get_ocr_jobs_by_status(
         status, uow
     )
     assert len(jobs_by_status) == expected_count
@@ -52,14 +52,14 @@ def test_get_ocr_jobs_by_status_empty_when_no_matches(uow: FakeUnitOfWork):
     for job in all_jobs:
         uow.jobs.add(job)
 
-    jobs_by_status = kul_ocr.service_layer.services.jobs.get_ocr_jobs_by_status(
+    jobs_by_status = core.service_layer.services.jobs.get_ocr_jobs_by_status(
         JobStatus.COMPLETED, uow
     )
     assert len(jobs_by_status) == 0
 
 
 def test_get_ocr_jobs_by_status_empty_when_no_jobs_available(uow: FakeUnitOfWork):
-    jobs = kul_ocr.service_layer.services.jobs.get_ocr_jobs_by_status(
+    jobs = core.service_layer.services.jobs.get_ocr_jobs_by_status(
         JobStatus.PENDING, uow
     )
 
@@ -89,7 +89,7 @@ def test_get_ocr_jobs_by_document_id(uow: FakeUnitOfWork):
         uow.jobs.add(job)
 
     # Retrieve jobs for our target document
-    jobs = kul_ocr.service_layer.services.jobs.get_ocr_jobs_by_document_id(
+    jobs = core.service_layer.services.jobs.get_ocr_jobs_by_document_id(
         document_id, uow
     )
 
@@ -106,7 +106,7 @@ def test_get_ocr_jobs_by_document_id_empty_when_no_matches(uow: FakeUnitOfWork):
         uow.jobs.add(job)
 
     # Query for document that has no jobs
-    result = kul_ocr.service_layer.services.jobs.get_ocr_jobs_by_document_id(
+    result = core.service_layer.services.jobs.get_ocr_jobs_by_document_id(
         "nonexistent-doc", uow
     )
 
@@ -128,7 +128,7 @@ def test_get_terminal_ocr_jobs(uow: FakeUnitOfWork):
     for job in all_jobs:
         uow.jobs.add(job)
 
-    terminal_jobs = kul_ocr.service_layer.services.jobs.get_terminal_ocr_jobs(uow)
+    terminal_jobs = core.service_layer.services.jobs.get_terminal_ocr_jobs(uow)
 
     # Should get 4 completed + 1 failed = 5 total
     assert len(terminal_jobs) == 5
@@ -146,7 +146,7 @@ def test_get_terminal_ocr_jobs_empty_when_none_terminal(uow: FakeUnitOfWork):
     for job in all_jobs:
         uow.jobs.add(job)
 
-    terminal_jobs = kul_ocr.service_layer.services.jobs.get_terminal_ocr_jobs(uow)
+    terminal_jobs = core.service_layer.services.jobs.get_terminal_ocr_jobs(uow)
 
     assert terminal_jobs == []
 
@@ -160,7 +160,7 @@ def test_submit_ocr_job_success(uow: FakeUnitOfWork, tmp_path: Path):
     document = factories.generate_document(tmp_path, file_type=FileType.PDF)
     uow.documents.add(document)
 
-    job = kul_ocr.service_layer.services.jobs.submit_ocr_job(document.id, uow)
+    job = core.service_layer.services.jobs.submit_ocr_job(document.id, uow)
 
     assert str(job.document_id) == document.id
     assert job.status == "pending"
@@ -174,10 +174,10 @@ def test_submit_ocr_job_success(uow: FakeUnitOfWork, tmp_path: Path):
 def test_submit_ocr_job_document_not_found(uow: FakeUnitOfWork):
     """Test that submitting a job for non-existent document raises error."""
     with pytest.raises(
-        kul_ocr.adapters.database.repository.DocumentNotFoundError,
+        core.adapters.database.repository.DocumentNotFoundError,
         match="Document not found",
     ):
-        _ = kul_ocr.service_layer.services.jobs.submit_ocr_job("nonexistent-doc", uow)
+        _ = core.service_layer.services.jobs.submit_ocr_job("nonexistent-doc", uow)
 
 
 # --- start_ocr_job_processing tests ---
@@ -188,9 +188,7 @@ def test_start_ocr_job_processing_success(uow: FakeUnitOfWork):
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     uow.jobs.add(job)
 
-    updated_job = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(
-        job.id, uow
-    )
+    updated_job = core.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
 
     assert updated_job.status == "processing"
     assert updated_job.started_at is not None
@@ -199,10 +197,10 @@ def test_start_ocr_job_processing_success(uow: FakeUnitOfWork):
 def test_start_ocr_job_processing_job_not_found(uow: FakeUnitOfWork):
     """Test that starting non-existent job raises error."""
     with pytest.raises(
-        kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+        core.adapters.database.repository.OCRJobNotFoundError,
         match="OCR job not found",
     ):
-        _ = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(
+        _ = core.service_layer.services.jobs.start_ocr_job_processing(
             str(uuid.uuid4()), uow
         )
 
@@ -215,9 +213,7 @@ def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
     uow.jobs.add(job)
 
     # Attempting to start it again should be a no-op (same status transition)
-    updated_job = kul_ocr.service_layer.services.jobs.start_ocr_job_processing(
-        job.id, uow
-    )
+    updated_job = core.service_layer.services.jobs.start_ocr_job_processing(job.id, uow)
 
     assert updated_job.status == "processing"
     # Started_at should not change since it's the same status
@@ -236,9 +232,7 @@ def test_retry_failed_job_success(uow: FakeUnitOfWork):
     uow.jobs.add(failed_job)
 
     # Retry the job - now returns JobDTO
-    new_job_dto = kul_ocr.service_layer.services.jobs.retry_failed_job(
-        failed_job.id, uow
-    )
+    new_job_dto = core.service_layer.services.jobs.retry_failed_job(failed_job.id, uow)
 
     assert new_job_dto.status == "pending"  # DTO has string status
     assert new_job_dto.id != failed_job.id
@@ -250,10 +244,10 @@ def test_retry_failed_job_success(uow: FakeUnitOfWork):
 def test_retry_failed_job_not_found(uow: FakeUnitOfWork):
     """Test that retrying non-existent job raises error."""
     with pytest.raises(
-        kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+        core.adapters.database.repository.OCRJobNotFoundError,
         match="OCR job not found",
     ):
-        _ = kul_ocr.service_layer.services.jobs.retry_failed_job("nonexistent-job", uow)
+        _ = core.service_layer.services.jobs.retry_failed_job("nonexistent-job", uow)
 
 
 @pytest.mark.parametrize(
@@ -273,7 +267,7 @@ def test_retry_failed_job_wrong_status(uow: FakeUnitOfWork, status: JobStatus):
         exceptions.InvalidJobStatusTransitionError,
         match="cannot transition",
     ):
-        _ = kul_ocr.service_layer.services.jobs.retry_failed_job(job.id, uow)
+        _ = core.service_layer.services.jobs.retry_failed_job(job.id, uow)
 
 
 # --- get_latest_result_for_document tests ---
@@ -310,10 +304,8 @@ def test_get_latest_result_for_document_success(uow: FakeUnitOfWork, tmp_path: P
     uow.results.add(result2)
 
     # Get the latest result
-    latest_result = (
-        kul_ocr.service_layer.services.results.get_latest_result_for_document(
-            document_id, uow
-        )
+    latest_result = core.service_layer.services.results.get_latest_result_for_document(
+        document_id, uow
     )
 
     # Should get the result from the most recent job (job2)
@@ -335,7 +327,7 @@ def test_get_latest_result_for_document_no_completed_jobs(
     job.document_id = document_id
     uow.jobs.add(job)
 
-    result = kul_ocr.service_layer.services.results.get_latest_result_for_document(
+    result = core.service_layer.services.results.get_latest_result_for_document(
         document_id, uow
     )
 
@@ -345,10 +337,10 @@ def test_get_latest_result_for_document_no_completed_jobs(
 def test_get_latest_result_for_document_document_not_found(uow: FakeUnitOfWork):
     """Test that DocumentNotFoundError is raised when document has no jobs."""
     with pytest.raises(
-        kul_ocr.adapters.database.repository.DocumentNotFoundError,
+        core.adapters.database.repository.DocumentNotFoundError,
         match="Document not found",
     ):
-        kul_ocr.service_layer.services.results.get_latest_result_for_document(
+        core.service_layer.services.results.get_latest_result_for_document(
             "nonexistent-doc", uow
         )
 
@@ -363,7 +355,7 @@ def test_delete_completed_job_success(uow: FakeUnitOfWork):
     job.update_status(JobStatus.COMPLETED)
     uow.jobs.add(job)
 
-    kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
+    core.service_layer.services.jobs.delete_ocr_job(job.id, uow)
 
     assert uow.jobs.get(job.id) is None
     assert uow.committed is True
@@ -375,7 +367,7 @@ def test_delete_failed_job_success(uow: FakeUnitOfWork):
     job.update_status(JobStatus.FAILED, error_message="Some error")
     uow.jobs.add(job)
 
-    kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
+    core.service_layer.services.jobs.delete_ocr_job(job.id, uow)
 
     assert uow.jobs.get(job.id) is None
     assert uow.committed is True
@@ -390,7 +382,7 @@ def test_delete_pending_job_raises_error(uow: FakeUnitOfWork):
         exceptions.InvalidJobStatusTransitionError,
         match="cannot transition",
     ):
-        kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
+        core.service_layer.services.jobs.delete_ocr_job(job.id, uow)
 
 
 def test_delete_processing_job_raises_error(uow: FakeUnitOfWork):
@@ -403,16 +395,16 @@ def test_delete_processing_job_raises_error(uow: FakeUnitOfWork):
         exceptions.InvalidJobStatusTransitionError,
         match="cannot transition",
     ):
-        kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
+        core.service_layer.services.jobs.delete_ocr_job(job.id, uow)
 
 
 def test_delete_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
     """Test that deleting non-existent job raises OCRJobNotFoundError."""
     with pytest.raises(
-        kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+        core.adapters.database.repository.OCRJobNotFoundError,
         match="OCR job not found",
     ):
-        kul_ocr.service_layer.services.jobs.delete_ocr_job("nonexistent-job-id", uow)
+        core.service_layer.services.jobs.delete_ocr_job("nonexistent-job-id", uow)
 
 
 def test_delete_job_also_deletes_associated_result(uow: FakeUnitOfWork):
@@ -426,7 +418,7 @@ def test_delete_job_also_deletes_associated_result(uow: FakeUnitOfWork):
     result.job_id = job.id
     uow.results.add(result)
 
-    kul_ocr.service_layer.services.jobs.delete_ocr_job(job.id, uow)
+    core.service_layer.services.jobs.delete_ocr_job(job.id, uow)
 
     assert uow.jobs.get(job.id) is None
     assert uow.results.get_by_job_id(job.id) is None
@@ -444,7 +436,7 @@ def test_cancel_pending_job(uow: FakeUnitOfWork):
     uow.jobs.add(job)
 
     task_runner = FakeTaskRunner()
-    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+    result_dto = core.service_layer.services.jobs.cancel_ocr_job(
         job_id=job.id, task_runner=task_runner, uow=uow
     )
 
@@ -463,8 +455,8 @@ def test_cancel_pending_job(uow: FakeUnitOfWork):
 def test_cancel_processing_job_with_task_id(uow: FakeUnitOfWork):
     """Test cancelling a PROCESSING job with task_id revokes the task."""
     from tests.fakes.task_runner import FakeTaskRunner
-    from kul_ocr.domain import model
-    from kul_ocr.domain.enums import OutboxEventType
+    from core.domain import model
+    from core.domain.enums import OutboxEventType
 
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     job.update_status(JobStatus.PROCESSING)
@@ -482,7 +474,7 @@ def test_cancel_processing_job_with_task_id(uow: FakeUnitOfWork):
     uow.outbox.add(outbox_entry)
 
     task_runner = FakeTaskRunner()
-    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+    result_dto = core.service_layer.services.jobs.cancel_ocr_job(
         job_id=job.id, task_runner=task_runner, uow=uow
     )
 
@@ -513,7 +505,7 @@ def test_cancel_processing_job_without_task_id_still_cancels(uow: FakeUnitOfWork
 
     task_runner = FakeTaskRunner()
 
-    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+    result_dto = core.service_layer.services.jobs.cancel_ocr_job(
         job_id=job.id, task_runner=task_runner, uow=uow
     )
 
@@ -539,7 +531,7 @@ def test_cancel_completed_job_returns_unchanged(uow: FakeUnitOfWork):
     uow.jobs.add(job)
 
     task_runner = FakeTaskRunner()
-    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+    result_dto = core.service_layer.services.jobs.cancel_ocr_job(
         job_id=job.id, task_runner=task_runner, uow=uow
     )
 
@@ -560,7 +552,7 @@ def test_cancel_failed_job_returns_unchanged(uow: FakeUnitOfWork):
     uow.jobs.add(job)
 
     task_runner = FakeTaskRunner()
-    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+    result_dto = core.service_layer.services.jobs.cancel_ocr_job(
         job_id=job.id, task_runner=task_runner, uow=uow
     )
 
@@ -579,10 +571,10 @@ def test_cancel_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
     task_runner = FakeTaskRunner()
 
     with pytest.raises(
-        kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+        core.adapters.database.repository.OCRJobNotFoundError,
         match="OCR job not found",
     ):
-        kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+        core.service_layer.services.jobs.cancel_ocr_job(
             job_id="nonexistent-job-id", task_runner=task_runner, uow=uow
         )
 
@@ -590,8 +582,8 @@ def test_cancel_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
 def test_cancel_job_with_relayed_outbox_entry_revokes_task(uow: FakeUnitOfWork):
     """Test cancelling job with relayed outbox entry also revokes via outbox cleanup path."""
     from tests.fakes.task_runner import FakeTaskRunner
-    from kul_ocr.domain import model
-    from kul_ocr.domain.enums import OutboxEventType
+    from core.domain import model
+    from core.domain.enums import OutboxEventType
 
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     task_id = "outbox-task-id"
@@ -609,7 +601,7 @@ def test_cancel_job_with_relayed_outbox_entry_revokes_task(uow: FakeUnitOfWork):
     uow.outbox.add(outbox_entry)
 
     task_runner = FakeTaskRunner()
-    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+    result_dto = core.service_layer.services.jobs.cancel_ocr_job(
         job_id=job.id, task_runner=task_runner, uow=uow
     )
 
@@ -629,8 +621,8 @@ def test_cancel_processing_job_continues_when_revoke_fails(uow: FakeUnitOfWork):
     This tests the exception handler at lines 392-393 in cancel_ocr_job().
     """
     from tests.fakes.task_runner import FakeTaskRunner
-    from kul_ocr.domain import model
-    from kul_ocr.domain.enums import OutboxEventType
+    from core.domain import model
+    from core.domain.enums import OutboxEventType
 
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     job.update_status(JobStatus.PROCESSING)
@@ -652,7 +644,7 @@ def test_cancel_processing_job_continues_when_revoke_fails(uow: FakeUnitOfWork):
     task_runner.fail_revoke_for_task_ids.add(task_id)
 
     # Should complete without raising exception
-    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+    result_dto = core.service_layer.services.jobs.cancel_ocr_job(
         job_id=job.id, task_runner=task_runner, uow=uow
     )
 
@@ -673,8 +665,8 @@ def test_cancel_job_continues_when_outbox_revoke_fails(uow: FakeUnitOfWork):
     This tests the exception handler at lines 411-412 in cancel_ocr_job().
     """
     from tests.fakes.task_runner import FakeTaskRunner
-    from kul_ocr.domain import model
-    from kul_ocr.domain.enums import OutboxEventType
+    from core.domain import model
+    from core.domain.enums import OutboxEventType
 
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
     task_id = "outbox-failing-task"
@@ -696,7 +688,7 @@ def test_cancel_job_continues_when_outbox_revoke_fails(uow: FakeUnitOfWork):
     task_runner.fail_revoke_for_task_ids.add(task_id)
 
     # Should complete without raising exception
-    result_dto = kul_ocr.service_layer.services.jobs.cancel_ocr_job(
+    result_dto = core.service_layer.services.jobs.cancel_ocr_job(
         job_id=job.id, task_runner=task_runner, uow=uow
     )
 
@@ -715,7 +707,7 @@ def test_cancel_job_continues_when_outbox_revoke_fails(uow: FakeUnitOfWork):
 
 def test_complete_ocr_job_saves_result_and_marks_completed(uow: FakeUnitOfWork):
     """Test that complete_ocr_job saves result and marks job as COMPLETED."""
-    from kul_ocr.domain.structs import ResultDTO
+    from core.domain.structs import ResultDTO
 
     # Create a PROCESSING job
     job = factories.generate_ocr_job(status=JobStatus.PENDING)
@@ -727,7 +719,7 @@ def test_complete_ocr_job_saves_result_and_marks_completed(uow: FakeUnitOfWork):
     result_dto = ResultDTO.from_domain(result)
 
     # Complete the job
-    completed_dto = kul_ocr.service_layer.services.jobs.complete_ocr_job(
+    completed_dto = core.service_layer.services.jobs.complete_ocr_job(
         job_id=job.id, result_dto=result_dto, uow=uow
     )
 
@@ -745,16 +737,16 @@ def test_complete_ocr_job_saves_result_and_marks_completed(uow: FakeUnitOfWork):
 
 def test_complete_ocr_job_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
     """Test that completing non-existent job raises OCRJobNotFoundError."""
-    from kul_ocr.domain.structs import ResultDTO
+    from core.domain.structs import ResultDTO
 
     result = factories.generate_ocr_result()
     result_dto = ResultDTO.from_domain(result)
 
     with pytest.raises(
-        kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+        core.adapters.database.repository.OCRJobNotFoundError,
         match="OCR job not found",
     ):
-        kul_ocr.service_layer.services.jobs.complete_ocr_job(
+        core.service_layer.services.jobs.complete_ocr_job(
             job_id="nonexistent-job-id", result_dto=result_dto, uow=uow
         )
 
@@ -770,7 +762,7 @@ def test_fail_ocr_job_marks_as_failed_with_error_message(uow: FakeUnitOfWork):
 
     error_message = "OCR processing failed due to timeout"
 
-    failed_dto = kul_ocr.service_layer.services.jobs.fail_ocr_job(
+    failed_dto = core.service_layer.services.jobs.fail_ocr_job(
         job_id=job.id, error_message=error_message, uow=uow
     )
 
@@ -785,10 +777,10 @@ def test_fail_ocr_job_marks_as_failed_with_error_message(uow: FakeUnitOfWork):
 def test_fail_ocr_job_nonexistent_job_raises_not_found(uow: FakeUnitOfWork):
     """Test that failing non-existent job raises OCRJobNotFoundError."""
     with pytest.raises(
-        kul_ocr.adapters.database.repository.OCRJobNotFoundError,
+        core.adapters.database.repository.OCRJobNotFoundError,
         match="OCR job not found",
     ):
-        kul_ocr.service_layer.services.jobs.fail_ocr_job(
+        core.service_layer.services.jobs.fail_ocr_job(
             job_id="nonexistent-job-id", error_message="Test error", uow=uow
         )
 
@@ -809,10 +801,10 @@ def test_submit_ocr_job_raises_error_when_active_job_exists(uow: FakeUnitOfWork)
 
     # Try to submit second job for same document
     with pytest.raises(
-        kul_ocr.service_layer.services.jobs.DuplicateOCRJobError,
+        core.service_layer.services.jobs.DuplicateOCRJobError,
         match=f"Document {document.id} already has a pending or active job",
     ):
-        kul_ocr.service_layer.services.jobs.submit_ocr_job(
+        core.service_layer.services.jobs.submit_ocr_job(
             document_id=document.id, uow=uow
         )
 
@@ -831,7 +823,7 @@ def test_submit_ocr_job_succeeds_when_previous_job_completed(uow: FakeUnitOfWork
     uow.jobs.add(first_job)
 
     # Submit second job for same document (should succeed)
-    second_job_dto = kul_ocr.service_layer.services.jobs.submit_ocr_job(
+    second_job_dto = core.service_layer.services.jobs.submit_ocr_job(
         document_id=document.id, uow=uow
     )
 
@@ -854,7 +846,7 @@ def test_submit_ocr_job_succeeds_when_previous_job_failed(uow: FakeUnitOfWork):
     uow.jobs.add(first_job)
 
     # Submit second job for same document (should succeed)
-    second_job_dto = kul_ocr.service_layer.services.jobs.submit_ocr_job(
+    second_job_dto = core.service_layer.services.jobs.submit_ocr_job(
         document_id=document.id, uow=uow
     )
 

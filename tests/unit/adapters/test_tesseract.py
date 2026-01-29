@@ -3,8 +3,8 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
-from kul_ocr.adapters.ocr.tesseract import TesseractEngineConfig, TesseractOCREngine
-from kul_ocr.domain import model, enums
+from core.adapters.ocr.tesseract import TesseractEngineConfig, TesseractOCREngine
+from core.domain import enums
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ class TestTesseractEngineConfig:
 
 
 class TestTesseractOCREngine:
-    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
+    @patch("core.adapters.ocr.tesseract.pytesseract")
     def test_initialization_sets_tesseract_cmd(
         self, mock_pytesseract, config: TesseractEngineConfig
     ):
@@ -44,7 +44,7 @@ class TestTesseractOCREngine:
 
         assert mock_pytesseract.pytesseract.tesseract_cmd == config.cmd
 
-    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
+    @patch("core.adapters.ocr.tesseract.pytesseract")
     def test_validate_engine_raises_on_invalid_tesseract(
         self, mock_pytesseract, config: TesseractEngineConfig
     ):
@@ -57,7 +57,7 @@ class TestTesseractOCREngine:
         ):
             TesseractOCREngine(config)
 
-    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
+    @patch("core.adapters.ocr.tesseract.pytesseract")
     def test_engine_name_property(
         self, mock_pytesseract, config: TesseractEngineConfig
     ):
@@ -67,7 +67,7 @@ class TestTesseractOCREngine:
 
         assert engine.engine_name == "tesseract"
 
-    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
+    @patch("core.adapters.ocr.tesseract.pytesseract")
     def test_engine_version_property(
         self, mock_pytesseract, config: TesseractEngineConfig
     ):
@@ -88,7 +88,7 @@ class TestTesseractOCREngine:
             (enums.FileType.WEBP, False),
         ],
     )
-    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
+    @patch("core.adapters.ocr.tesseract.pytesseract")
     def test_supports_file_type(
         self,
         mock_pytesseract,
@@ -101,7 +101,7 @@ class TestTesseractOCREngine:
 
         assert engine.supports_file_type(file_type) is expected_support
 
-    @patch("kul_ocr.adapters.ocr.tesseract.pytesseract")
+    @patch("core.adapters.ocr.tesseract.pytesseract")
     def test_process_image_calls_pytesseract(
         self,
         mock_pytesseract,

@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import final, override
 
-from kul_ocr.domain import model, enums
-from kul_ocr.domain.protocols import TaskRunner
+from core.domain import model, enums
+from core.domain.protocols import TaskRunner
 
 
 @dataclass

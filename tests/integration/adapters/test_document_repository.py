@@ -1,10 +1,10 @@
 import pytest
 
-import kul_ocr.adapters.database.repository
-from kul_ocr.domain.enums import FileType
-from kul_ocr.domain.model import Document
-from kul_ocr.service_layer.helpers import generate_id
-from kul_ocr.service_layer.uow import SqlAlchemyUnitOfWork
+import core.adapters.database.repository
+from core.domain.enums import FileType
+from core.domain.model import Document
+from core.service_layer.helpers import generate_id
+from core.service_layer.uow import SqlAlchemyUnitOfWork
 
 
 def test_can_add_and_retrieve_document(uow: SqlAlchemyUnitOfWork):
@@ -66,7 +66,7 @@ def test_get_returns_none_for_nonexistent_document(uow: SqlAlchemyUnitOfWork):
 def test_get_or_raise_raises_for_missing_document(uow: SqlAlchemyUnitOfWork):
     """Ensure get_or_raise raises a domain error for missing document."""
     with uow:
-        with pytest.raises(kul_ocr.adapters.database.repository.DocumentNotFoundError):
+        with pytest.raises(core.adapters.database.repository.DocumentNotFoundError):
             uow.documents.get_or_raise("missing-doc-id")
 
 

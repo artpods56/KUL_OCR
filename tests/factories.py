@@ -3,8 +3,8 @@ import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
-from kul_ocr.domain import model, enums
-from kul_ocr.service_layer.helpers import generate_id
+from core.domain import model, enums
+from core.service_layer.helpers import generate_id
 
 
 # --- OCR Jobs Factories ---

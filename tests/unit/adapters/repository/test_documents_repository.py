@@ -1,8 +1,8 @@
 from pathlib import Path
 
 from tests.fakes.repositories import FakeDocumentRepository
-from kul_ocr.domain.model import Document
-from kul_ocr.domain.enums import FileType
+from core.domain.model import Document
+from core.domain.enums import FileType
 from tests import factories
 
 

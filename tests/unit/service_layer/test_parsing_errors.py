@@ -1,7 +1,7 @@
 import pytest
 
-from kul_ocr.domain import enums, exceptions
-from kul_ocr.service_layer import parsing
+from core.domain import enums, exceptions
+from core.service_layer import parsing
 
 
 def test_parse_file_type_unsupported_raises():

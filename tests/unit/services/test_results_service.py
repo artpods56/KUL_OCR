@@ -1,11 +1,10 @@
-import io
 from pathlib import Path
 
 import pytest
 
-from kul_ocr.domain import enums, model, structs
-from kul_ocr.service_layer.services import results
-from kul_ocr.service_layer.uow import AbstractUnitOfWork
+from core.domain import enums, model, structs
+from core.service_layer.services import results
+from core.service_layer.uow import AbstractUnitOfWork
 from tests.fakes.repositories import (
     FakeDocumentRepository,
     FakeOcrJobRepository,

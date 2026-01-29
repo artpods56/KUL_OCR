@@ -2,13 +2,13 @@ from pathlib import Path
 
 import pytest
 
-import kul_ocr.adapters.database.repository
-import kul_ocr.domain.model
-import kul_ocr.service_layer.services.documents
-import kul_ocr.service_layer.services.results
-from kul_ocr.config import StorageSettings
-from kul_ocr.domain import exceptions
-from kul_ocr.domain.enums import JobStatus, FileType
+import core.adapters.database.repository
+import core.domain.model
+import core.service_layer.services.documents
+import core.service_layer.services.results
+from core.config import StorageSettings
+from core.domain import exceptions
+from core.domain.enums import JobStatus, FileType
 from tests import factories
 from tests.fakes.uow import FakeUnitOfWork
 from tests.fakes.storages import FakeFileStorage
@@ -56,7 +56,7 @@ def test_upload_document(fake_uow: FakeUnitOfWork, tmp_path: Path):
     fake_storage = FakeFileStorage()
 
     # Prepare the document
-    document = kul_ocr.service_layer.services.documents.prepare_document(
+    document = core.service_layer.services.documents.prepare_document(
         file_name="test.pdf",
         file_type=FileType.PDF,
         file_size=26,
@@ -65,7 +65,7 @@ def test_upload_document(fake_uow: FakeUnitOfWork, tmp_path: Path):
     staging_path = Path("staging") / f"{document.id}.pdf"
     uploaded_path = Path("documents") / f"{document.id}.pdf"
 
-    result = kul_ocr.service_layer.services.documents.upload_document(
+    result = core.service_layer.services.documents.upload_document(
         file_stream=BytesIO(b"%PDF-1.4 fake file content"),
         document=document,
         staging_file_path=staging_path,
@@ -89,7 +89,7 @@ def test_upload_document_extension_mismatch(fake_uow: FakeUnitOfWork, tmp_path: 
     with pytest.raises(
         exceptions.FileExtensionMismatchError, match="File extension mismatch"
     ):
-        _ = kul_ocr.service_layer.services.documents.validate_uploaded_file(
+        _ = core.service_layer.services.documents.validate_uploaded_file(
             file_stream=file_stream,
             file_size=24,
             file_type=FileType.PDF,
@@ -103,7 +103,7 @@ def test_get_document_for_processing(fake_uow: FakeUnitOfWork, tmp_path: Path):
     document = factories.generate_document(dir_path=tmp_path)
     fake_uow.documents.add(document)
 
-    result = kul_ocr.service_layer.services.documents.get_document_for_processing(
+    result = core.service_layer.services.documents.get_document_for_processing(
         document.id, fake_uow
     )
 
@@ -114,10 +114,10 @@ def test_get_document_for_processing(fake_uow: FakeUnitOfWork, tmp_path: Path):
 def test_get_document_for_processing_not_found(fake_uow: FakeUnitOfWork):
     """Test getting non-existent document raises exception."""
     with pytest.raises(
-        kul_ocr.adapters.database.repository.DocumentNotFoundError,
+        core.adapters.database.repository.DocumentNotFoundError,
         match="Document not found",
     ):
-        kul_ocr.service_layer.services.documents.get_document_for_processing(
+        core.service_layer.services.documents.get_document_for_processing(
             "nonexistent-doc", fake_uow
         )
 
@@ -135,7 +135,7 @@ def test_get_latest_result_for_document(fake_uow: FakeUnitOfWork, tmp_path: Path
     fake_uow.jobs.add(job)
     fake_uow.results.add(ocr_result)
 
-    result = kul_ocr.service_layer.services.results.get_latest_result_for_document(
+    result = core.service_layer.services.results.get_latest_result_for_document(
         document.id, fake_uow
     )
 
@@ -148,10 +148,10 @@ def test_get_latest_result_for_document_not_found(
 ):
     """Test that getting result for non-existent document raises exception."""
     with pytest.raises(
-        kul_ocr.adapters.database.repository.DocumentNotFoundError,
+        core.adapters.database.repository.DocumentNotFoundError,
         match="Document not found",
     ):
-        kul_ocr.service_layer.services.results.get_latest_result_for_document(
+        core.service_layer.services.results.get_latest_result_for_document(
             "nonexistent-doc", fake_uow
         )
 
@@ -163,7 +163,7 @@ def test_get_latest_result_for_document_no_results(
     document = factories.generate_document(tmp_path)
     fake_uow.documents.add(document)
 
-    result = kul_ocr.service_layer.services.results.get_latest_result_for_document(
+    result = core.service_layer.services.results.get_latest_result_for_document(
         document.id, fake_uow
     )
 
@@ -183,10 +183,8 @@ def test_get_document_with_latest_result(fake_uow: FakeUnitOfWork, tmp_path: Pat
     fake_uow.jobs.add(job)
     fake_uow.results.add(ocr_result)
 
-    doc, result = (
-        kul_ocr.service_layer.services.documents.get_document_with_latest_result(
-            document.id, fake_uow
-        )
+    doc, result = core.service_layer.services.documents.get_document_with_latest_result(
+        document.id, fake_uow
     )
 
     assert doc.id == document.id
@@ -205,10 +203,8 @@ def test_get_document_with_latest_result_no_results(
     job.document_id = document.id
     fake_uow.jobs.add(job)
 
-    doc, result = (
-        kul_ocr.service_layer.services.documents.get_document_with_latest_result(
-            document.id, fake_uow
-        )
+    doc, result = core.service_layer.services.documents.get_document_with_latest_result(
+        document.id, fake_uow
     )
 
     assert doc.id == document.id
@@ -218,9 +214,9 @@ def test_get_document_with_latest_result_no_results(
 def test_get_document_with_latest_result_document_not_found(fake_uow: FakeUnitOfWork):
     """Test that getting non-existent document raises DocumentNotFoundError."""
     with pytest.raises(
-        kul_ocr.adapters.database.repository.DocumentNotFoundError,
+        core.adapters.database.repository.DocumentNotFoundError,
         match="Document not found",
     ):
-        kul_ocr.service_layer.services.documents.get_document_with_latest_result(
+        core.service_layer.services.documents.get_document_with_latest_result(
             "nonexistent-doc", fake_uow
         )

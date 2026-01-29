@@ -26,7 +26,7 @@ uv add --dev <package-name>
 uv run pytest
 
 # Run tests with coverage
-uv run pytest --cov=kul_ocr
+uv run pytest --cov=core
 
 # Run a specific test file
 uv run pytest tests/unit/test_example.py
@@ -57,13 +57,13 @@ detect-secrets scan
 ### Running Services
 ```bash
 # Start RabbitMQ (required for Celery)
-docker-compose up -d
+uv run --project services/backend docker compose up -d
 
 # Run the FastAPI application
-uv run fastapi dev src/kul_ocr/entrypoints/api.py
+uv run --project services/backend fastapi dev backend/entrypoints/api.py
 
 # Start Celery worker
-uv run celery -A kul_ocr.entrypoints.celery_app worker --loglevel=info
+uv run --project services/backend celery -A backend.entrypoints.celery_app worker --loglevel=info
 ```
 
 ## Architecture
@@ -72,26 +72,26 @@ uv run celery -A kul_ocr.entrypoints.celery_app worker --loglevel=info
 
 The codebase follows clean architecture with strict separation of concerns:
 
-1. **Domain Layer** (`src/kul_ocr/domain/`)
+1. **Domain Layer** (`lib/core/core/domain/`)
    - `model.py`: Core entities (Document, Job, Result) and value objects
    - `ports.py`: Abstract interfaces (OCREngine, DocumentLoader, FileStorage)
    - `exceptions.py`: Domain-specific exceptions
    - `structs.py`: Data transfer structures
 
-2. **Service Layer** (`src/kul_ocr/service_layer/`)
+2. **Service Layer** (`lib/core/core/service_layer/`)
    - `services.py`: Business logic orchestration
    - `uow.py`: Unit of Work pattern for transaction management
    - `parsing.py`: Input parsing utilities
    - Services coordinate between domain and adapters without knowing implementation details
 
-3. **Adapters Layer** (`src/kul_ocr/adapters/`)
+3. **Adapters Layer** (`lib/core/core/adapters/`)
    - `database/`: SQLAlchemy ORM mappings and repositories
    - `ocr/`: OCR engine implementations (Tesseract)
    - `loaders/`: Document loaders (PDF, image)
    - `storages/`: File storage implementations (local, future: S3, etc.)
    - Adapters implement domain ports and handle external dependencies
 
-4. **Entrypoints** (`src/kul_ocr/entrypoints/`)
+4. **Entrypoints** (`services/backend/backend/entrypoints/`)
    - `api.py`: FastAPI REST endpoints
    - `tasks.py`: Celery task definitions
    - `celery_app.py`: Celery application setup
@@ -118,14 +118,14 @@ The codebase follows clean architecture with strict separation of concerns:
 Configuration uses Pydantic Settings with environment variables:
 
 - Prefix: `KUL_OCR_`
-- Config file: `.env` (copy from `.env.example`)
+- Config file: `services/backend/.env` (copy from `.env.example`)
 - Key settings:
   - `KUL_OCR_DB_SCHEME`: Database type (sqlite, mysql, postgres)
   - `KUL_OCR_STORAGE_TYPE`: Storage backend (local, future: s3)
   - `KUL_OCR_STORAGE_ROOT`: Root directory for file storage
   - `KUL_OCR_LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 
-See `src/kul_ocr/config.py` for complete configuration schema.
+See `lib/core/core/config.py` for complete configuration schema.
 
 ## Type Safety
 
@@ -137,7 +137,7 @@ This project enforces strict runtime and static type checking:
 
 When adding functions:
 - Always add type hints
-- Use `from kul_ocr.utils.misc import nobeartype` decorator only when beartype conflicts with libraries (e.g., Pydantic)
+- Use `from core.utils.misc import nobeartype` decorator only when beartype conflicts with libraries (e.g., Pydantic)
 
 ## Database & ORM
 
@@ -219,7 +219,7 @@ When searching the codebase, prefer `mgrep` (semantic search) over `grep`:
 ```bash
 # Good
 mgrep "How are OCR jobs processed?"
-mgrep "Where are database transactions managed?" src/kul_ocr
+mgrep "Where are database transactions managed?" lib/core
 
 # Avoid
 grep -r "process_ocr"  # Use mgrep instead

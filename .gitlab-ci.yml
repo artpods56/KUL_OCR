@@ -19,25 +19,17 @@ cache:
   before_script:
     - pip install uv
     - uv venv --cache-dir $UV_CACHE_DIR
-    - uv pip install -e .
+    - uv sync
     - source .venv/bin/activate
 
-lint-all:
+pre-commit:
   extends: .python-base
   stage: lint
   script:
-    - uv pip install ruff pre-commit
+    - uv pip install pre-commit
+    - pre-commit run --all-files
 
-    - echo "Running Ruff Check..."
-    - ruff check ./src/ ./scripts/ ./tests/
-    - echo "Running Ruff Format..."
-    - ruff format --check ./src/ ./scripts/ ./tests/
 
-    - echo "Running Pre-commit hooks..."
-    - pre-commit run check-yaml --all-files
-    - pre-commit run trailing-whitespace --all-files
-    - pre-commit run end-of-file-fixer --all-files
-  allow_failure: true
 
 detect-secrets:
   extends: .python-base
@@ -51,7 +43,7 @@ test-unit:
   extends: .python-base
   stage: test
   script:
-    - uv pip install -e .
+    - uv sync
     - uv run pytest tests/unit -v --tb=short
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
@@ -64,7 +56,7 @@ test-integration:
   extends: .python-base
   stage: test
   script:
-    - uv pip install -e .
+    - uv sync
     - uv run pytest tests/integration -v --tb=short
 
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
