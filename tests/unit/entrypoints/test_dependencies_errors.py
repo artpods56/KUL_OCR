@@ -2,6 +2,7 @@ import pytest
 
 from backend import dependencies
 
+
 def test_get_file_storage_unsupported_raises(monkeypatch):
     class DummyConfig:
         storage_type = "unknown"
