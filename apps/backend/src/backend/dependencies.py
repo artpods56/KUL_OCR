@@ -13,7 +13,7 @@ from core.adapters.queue import runner
 from core.adapters.storages import local
 from core.domain import ports, protocols
 from core.domain.ports import FileStorage
-from core.service_layer import uow
+from core.adapters.database import uow
 from core.config import get_app_config
 
 STORAGE_TYPES = Literal["local"]
@@ -65,7 +65,7 @@ def get_file_storage() -> ports.FileStorage:
 
 
 @lru_cache
-def get_uow() -> uow.AbstractUnitOfWork:
+def get_uow() -> ports.AbstractUnitOfWork:
     """Get a Unit of Work instance using SQLAlchemy.
 
     Returns:
@@ -76,7 +76,7 @@ def get_uow() -> uow.AbstractUnitOfWork:
     )
 
 
-def fresh_uow() -> uow.AbstractUnitOfWork:
+def fresh_uow() -> ports.AbstractUnitOfWork:
     return uow.SqlAlchemyUnitOfWork(session_factory=get_session_factory())
 
 
@@ -132,7 +132,7 @@ def get_task_runner() -> protocols.TaskRunner:
 DEFAULT_SESSION_FACTORY = None
 
 
-UnitOfWorkDep: TypeAlias = Annotated[uow.AbstractUnitOfWork, Depends(get_uow)]
+UnitOfWorkDep: TypeAlias = Annotated[ports.AbstractUnitOfWork, Depends(get_uow)]
 FileStorageDep: TypeAlias = Annotated[ports.FileStorage, Depends(get_file_storage)]
 AppConfigDep: TypeAlias = Annotated[config.AppConfig, Depends(get_config)]
 TaskRunnerDep: TypeAlias = Annotated[protocols.TaskRunner, Depends(get_task_runner)]

@@ -3,9 +3,7 @@ from pathlib import Path
 import pytest
 
 import core.adapters.database.repository
-import core.domain.model
-import core.service_layer.services.documents
-import core.service_layer.services.results
+from backend.documents import service
 from core.config import StorageSettings
 from core.domain import exceptions
 from core.domain.enums import JobStatus, FileType
@@ -56,7 +54,7 @@ def test_upload_document(fake_uow: FakeUnitOfWork, tmp_path: Path):
     fake_storage = FakeFileStorage()
 
     # Prepare the document
-    document = core.service_layer.services.documents.prepare_document(
+    document = service.prepare_document(
         file_name="test.pdf",
         file_type=FileType.PDF,
         file_size=26,
@@ -65,7 +63,7 @@ def test_upload_document(fake_uow: FakeUnitOfWork, tmp_path: Path):
     staging_path = Path("staging") / f"{document.id}.pdf"
     uploaded_path = Path("documents") / f"{document.id}.pdf"
 
-    result = core.service_layer.services.documents.upload_document(
+    result = service.upload_document(
         file_stream=BytesIO(b"%PDF-1.4 fake file content"),
         document=document,
         staging_file_path=staging_path,
@@ -89,7 +87,7 @@ def test_upload_document_extension_mismatch(fake_uow: FakeUnitOfWork, tmp_path: 
     with pytest.raises(
         exceptions.FileExtensionMismatchError, match="File extension mismatch"
     ):
-        _ = core.service_layer.services.documents.validate_uploaded_file(
+        _ = service.validate_uploaded_file(
             file_stream=file_stream,
             file_size=24,
             file_type=FileType.PDF,
@@ -103,9 +101,7 @@ def test_get_document_for_processing(fake_uow: FakeUnitOfWork, tmp_path: Path):
     document = factories.generate_document(dir_path=tmp_path)
     fake_uow.documents.add(document)
 
-    result = core.service_layer.services.documents.get_document_for_processing(
-        document.id, fake_uow
-    )
+    result = service.get_document_for_processing(document.id, fake_uow)
 
     assert result.id == document.id
     assert result.file_path == document.file_path
@@ -117,9 +113,7 @@ def test_get_document_for_processing_not_found(fake_uow: FakeUnitOfWork):
         core.adapters.database.repository.DocumentNotFoundError,
         match="Document not found",
     ):
-        core.service_layer.services.documents.get_document_for_processing(
-            "nonexistent-doc", fake_uow
-        )
+        service.get_document_for_processing("nonexistent-doc", fake_uow)
 
 
 def test_get_latest_result_for_document(fake_uow: FakeUnitOfWork, tmp_path: Path):
@@ -135,7 +129,7 @@ def test_get_latest_result_for_document(fake_uow: FakeUnitOfWork, tmp_path: Path
     fake_uow.jobs.add(job)
     fake_uow.results.add(ocr_result)
 
-    result = core.service_layer.services.results.get_latest_result_for_document(
+    result = service.get_latest_result_for_document(
         document.id, fake_uow
     )
 
@@ -151,7 +145,7 @@ def test_get_latest_result_for_document_not_found(
         core.adapters.database.repository.DocumentNotFoundError,
         match="Document not found",
     ):
-        core.service_layer.services.results.get_latest_result_for_document(
+        service.get_latest_result_for_document(
             "nonexistent-doc", fake_uow
         )
 
@@ -163,7 +157,7 @@ def test_get_latest_result_for_document_no_results(
     document = factories.generate_document(tmp_path)
     fake_uow.documents.add(document)
 
-    result = core.service_layer.services.results.get_latest_result_for_document(
+    result = service.get_latest_result_for_document(
         document.id, fake_uow
     )
 
@@ -183,9 +177,7 @@ def test_get_document_with_latest_result(fake_uow: FakeUnitOfWork, tmp_path: Pat
     fake_uow.jobs.add(job)
     fake_uow.results.add(ocr_result)
 
-    doc, result = core.service_layer.services.documents.get_document_with_latest_result(
-        document.id, fake_uow
-    )
+    doc, result = service.get_document_with_latest_result(document.id, fake_uow)
 
     assert doc.id == document.id
     assert result is not None
@@ -203,9 +195,7 @@ def test_get_document_with_latest_result_no_results(
     job.document_id = document.id
     fake_uow.jobs.add(job)
 
-    doc, result = core.service_layer.services.documents.get_document_with_latest_result(
-        document.id, fake_uow
-    )
+    doc, result = service.get_document_with_latest_result(document.id, fake_uow)
 
     assert doc.id == document.id
     assert result is None
@@ -217,6 +207,4 @@ def test_get_document_with_latest_result_document_not_found(fake_uow: FakeUnitOf
         core.adapters.database.repository.DocumentNotFoundError,
         match="Document not found",
     ):
-        core.service_layer.services.documents.get_document_with_latest_result(
-            "nonexistent-doc", fake_uow
-        )
+        service.get_document_with_latest_result("nonexistent-doc", fake_uow)

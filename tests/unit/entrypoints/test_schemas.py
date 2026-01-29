@@ -6,8 +6,8 @@ from uuid import UUID
 import pytest
 from pydantic import ValidationError
 
+from backend.documents import schema
 from core.domain import model, enums
-from backend import schemas
 from tests import factories
 
 
@@ -16,7 +16,7 @@ class TestDocumentResponse:
 
     def test_from_domain_converts_all_fields(self, document: model.Document):
         """Test that from_domain converts all Document fields correctly."""
-        response = schemas.DocumentResponse.from_domain(document)
+        response = schema.DocumentResponse.from_domain(document)
 
         assert str(response.id) == document.id
         assert response.file_path == document.file_path
@@ -41,7 +41,7 @@ class TestDocumentResponse:
             dir_path=tmp_path,
         )
 
-        response = schemas.DocumentResponse.from_domain(document)
+        response = schema.DocumentResponse.from_domain(document)
         assert response.file_type == file_type.value
 
 
@@ -65,7 +65,7 @@ class TestDocumentResponseValidation:
 
     def test_rejects_invalid_uuid(self):
         with pytest.raises((ValidationError, ValueError), match="UUID"):
-            schemas.DocumentResponse(
+            schema.DocumentResponse(
                 id=UUID("not-a-uuid"),
                 original_filename=self.VALID_FILENAME,
                 file_type=self.VALID_TYPE,
@@ -76,7 +76,7 @@ class TestDocumentResponseValidation:
 
     def test_rejects_unsupported_mime_type(self):
         with pytest.raises(ValidationError, match="validation error"):
-            schemas.DocumentResponse(
+            schema.DocumentResponse(
                 id=self.VALID_UUID,
                 original_filename=self.VALID_FILENAME,
                 file_type=self.INVALID_ENUM,
@@ -87,7 +87,7 @@ class TestDocumentResponseValidation:
 
     def test_rejects_negative_file_size(self):
         with pytest.raises(ValidationError, match="greater than or equal to 0"):
-            schemas.DocumentResponse(
+            schema.DocumentResponse(
                 id=self.VALID_UUID,
                 original_filename=self.VALID_FILENAME,
                 file_type=self.VALID_TYPE,
@@ -98,7 +98,7 @@ class TestDocumentResponseValidation:
 
     def test_rejects_path_traversal_in_file_path(self):
         with pytest.raises(ValidationError, match="traversal characters"):
-            schemas.DocumentResponse(
+            schema.DocumentResponse(
                 id=self.VALID_UUID,
                 original_filename=self.VALID_FILENAME,
                 file_type=self.VALID_TYPE,
@@ -109,7 +109,7 @@ class TestDocumentResponseValidation:
 
     def test_rejects_empty_original_filename(self):
         with pytest.raises(ValidationError, match="empty"):
-            schemas.DocumentResponse(
+            schema.DocumentResponse(
                 id=self.VALID_UUID,
                 original_filename="   ",
                 file_type=self.VALID_TYPE,

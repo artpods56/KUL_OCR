@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
-from collections.abc import Sequence
+from typing import Sequence
 
-from core.domain import structs
+from backend.outbox import dto
 from core.domain.protocols import TaskRunner
-from core.service_layer.uow import AbstractUnitOfWork
+from core.domain.ports import AbstractUnitOfWork
 
 from core.utils.logger import get_logger
 
@@ -14,7 +14,7 @@ def relay_pending_outbox_entries(
     task_runner: TaskRunner,
     uow: AbstractUnitOfWork,
     batch_size: int = 100,
-) -> Sequence[structs.OutboxEntryDTO]:
+) -> Sequence[dto.OutboxEntryDTO]:
     """Process pending outbox entries and schedule corresponding tasks.
 
     Fetches pending outbox entries, schedules Celery tasks for each, and marks
@@ -57,7 +57,7 @@ def relay_pending_outbox_entries(
         uow.commit()
 
         return [
-            structs.OutboxEntryDTO.from_domain(entry)
+            dto.OutboxEntryDTO.from_domain(entry)
             for entry in pending_entries
             if entry.id in relayed_entry_ids
         ]

@@ -3,7 +3,8 @@
   "venv": ".venv",
   "extraPaths": [
     "libs/core/src",
-    "apps/backend/src"
+    "apps/backend/src",
+    "apps/worker/src"
   ],
   "reportExplicitAny": false
 }

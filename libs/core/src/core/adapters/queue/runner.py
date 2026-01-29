@@ -6,7 +6,7 @@ from core.domain import model, protocols
 class CeleryTaskRunner(protocols.TaskRunner):
     @override
     def schedule_task(self, entry: model.OutboxEntry) -> None:
-        from backend.entrypoints.celery_app import app
+        from worker.main import app
 
         task_name = model.TASK_NAMES.get(entry.event_type)
         if task_name is None:
@@ -37,6 +37,6 @@ class CeleryTaskRunner(protocols.TaskRunner):
 
     @override
     def revoke_task(self, task_id: str) -> None:
-        from backend.entrypoints.celery_app import app
+        from worker.main import app
 
         _ = app.control.revoke(task_id, terminate=True)

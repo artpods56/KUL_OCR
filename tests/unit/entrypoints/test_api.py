@@ -8,10 +8,11 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
+from backend.documents import schema
 from core.domain import enums
 from core.domain.model import Document, Job
 from core.domain.enums import JobStatus, FileType
-from backend import schemas, dependencies
+from backend import dependencies
 from backend.api import app
 from tests import factories
 from tests.factories import generate_document, generate_ocr_job, generate_ocr_result
@@ -77,7 +78,7 @@ async def test_upload_document_success(
 
     response = await client.post("/documents", files=files)
 
-    document = schemas.DocumentResponse(**response.json())
+    document = schema.DocumentResponse(**response.json())
 
     assert response.status_code == 200
 
@@ -129,7 +130,7 @@ async def test_get_document_success(
     response = await client.get(f"/documents/{doc.id}")
 
     assert response.status_code == 200
-    parsed_response = schemas.DocumentResponse(**response.json())
+    parsed_response = schema.DocumentResponse(**response.json())
     assert str(parsed_response.id) == doc.id
     assert parsed_response.file_path == doc.file_path
 
@@ -166,7 +167,7 @@ async def test_get_latest_result_success(
     response = await client.get(f"/documents/{doc.id}/latest-result")
 
     assert response.status_code == 200
-    parsed_response = schemas.ResultResponse(**response.json())
+    parsed_response = schema.ResultResponse(**response.json())
     assert str(parsed_response.id) == ocr_result.id
 
 

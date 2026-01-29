@@ -4,13 +4,15 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import ClassVar, Literal, TypedDict
 
+from PIL import Image
+
 from core.domain import exceptions
 from core.domain.enums import DocumentStatus, FileType, JobStatus, OutboxEventType
 from core.domain.exceptions import (
     InvalidJobStatusTransitionError,
     OutboxEntryAlreadyRelayedError,
 )
-from core.service_layer.helpers import generate_id
+from core.utils.misc import generate_id
 
 """
 --- Value Objects ---
@@ -324,8 +326,8 @@ type OutboxPayload = JobProcessingPayload | DocumentUploadPayload
 
 
 TASK_NAMES = {
-    OutboxEventType.JOB_SCHEDULING: "backend.entrypoints.tasks.process_job",
-    OutboxEventType.DOCUMENT_UPLOAD: "backend.entrypoints.tasks.upload_document",
+    OutboxEventType.JOB_SCHEDULING: "worker.tasks.process_job",
+    OutboxEventType.DOCUMENT_UPLOAD: "worker.tasks.upload_document",
 }
 
 
@@ -346,3 +348,17 @@ class OutboxEntry:
         if self.is_relayed:
             raise OutboxEntryAlreadyRelayedError(entry_id=self.id)
         self.relayed_at = datetime.now()
+
+
+@dataclass(slots=True)
+class PageInput:
+    image: Image.Image
+    page_number: int
+    original_document_id: str
+
+
+@dataclass(slots=True, frozen=True)
+class DocumentInput:
+    id: str
+    file_path: str
+    file_type: FileType

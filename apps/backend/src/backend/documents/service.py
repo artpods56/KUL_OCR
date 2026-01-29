@@ -1,16 +1,17 @@
 from pathlib import Path
-from collections.abc import Sequence
+from typing import Sequence, Iterator
 
-from core.domain import enums, model, ports, structs
-from core.service_layer.helpers import generate_id
-from core.service_layer.parsing import (
+from core.domain import ports, enums, model
+from core.utils.misc import generate_id
+from backend.documents.parsing import (
     MIN_MAGIC_BYTES,
     get_mime_from_bytes,
     sanitize_filename,
 )
-from core.service_layer.services import validator
-from core.service_layer.uow import AbstractUnitOfWork
+from core.domain.ports import AbstractUnitOfWork
 from core.utils.logger import get_logger
+
+from . import dto, validator
 
 logger = get_logger(__name__)
 
@@ -51,7 +52,7 @@ def upload_document(
     uploaded_file_path: Path,
     storage: ports.FileStorage,
     uow: AbstractUnitOfWork,
-) -> structs.DocumentDTO:
+) -> dto.DocumentDTO:
     storage.save(file_stream, staging_file_path)
 
     with uow:
@@ -72,10 +73,10 @@ def upload_document(
         )
         uow.commit()
 
-        return structs.DocumentDTO.from_domain(document)
+        return dto.DocumentDTO.from_domain(document)
 
 
-def get_documents(uow: AbstractUnitOfWork) -> Sequence[structs.DocumentDTO]:
+def get_documents(uow: AbstractUnitOfWork) -> Sequence[dto.DocumentDTO]:
     """Gets all documents.
 
     Args:
@@ -86,10 +87,10 @@ def get_documents(uow: AbstractUnitOfWork) -> Sequence[structs.DocumentDTO]:
     """
     with uow:
         documents = uow.documents.list_all()
-        return [structs.DocumentDTO.from_domain(doc) for doc in documents]
+        return [dto.DocumentDTO.from_domain(doc) for doc in documents]
 
 
-def get_document(document_id: str, uow: AbstractUnitOfWork) -> structs.DocumentDTO:
+def get_document(document_id: str, uow: AbstractUnitOfWork) -> dto.DocumentDTO:
     """Gets a document by its ID.
 
     Args:
@@ -104,12 +105,12 @@ def get_document(document_id: str, uow: AbstractUnitOfWork) -> structs.DocumentD
     """
     with uow:
         document = uow.documents.get_or_raise(document_id)
-        return structs.DocumentDTO.from_domain(document)
+        return dto.DocumentDTO.from_domain(document)
 
 
 def get_document_for_processing(
     document_id: str, uow: AbstractUnitOfWork
-) -> structs.DocumentInput:
+) -> model.DocumentInput:
     """Gets a document for OCR processing as a plain data structure.
 
     Extracts document data from the ORM before the session closes, avoiding
@@ -127,7 +128,7 @@ def get_document_for_processing(
     """
     with uow:
         document = uow.documents.get_or_raise(document_id)
-        return structs.DocumentInput(
+        return model.DocumentInput(
             id=document.id,
             file_path=document.file_path or "unknown",
             file_type=document.file_type,
@@ -135,10 +136,10 @@ def get_document_for_processing(
 
 
 def process_document(
-    doc_input: structs.DocumentInput,
+    doc_input: model.DocumentInput,
     ocr_engine: ports.OCREngine,
     document_loader: ports.DocumentLoader,
-) -> structs.ResultDTO:
+) -> dto.ResultDTO:
     """Processes a document using the provided OCR engine and loader.
 
     Orchestrates the loading of document pages and their processing by the
@@ -194,7 +195,7 @@ def process_document(
             pages_processed=len(result.content),
         )
 
-        return structs.ResultDTO.from_domain(result)
+        return dto.ResultDTO.from_domain(result)
 
     except Exception as e:
         logger.error(
@@ -208,7 +209,7 @@ def process_document(
 
 def get_document_with_latest_result(
     document_id: str, uow: AbstractUnitOfWork
-) -> tuple[structs.DocumentDTO, structs.ResultDTO | None]:
+) -> tuple[dto.DocumentDTO, dto.ResultDTO | None]:
     """Gets a document along with its latest OCR result, if available.
 
     Args:
@@ -230,6 +231,68 @@ def get_document_with_latest_result(
         if latest_job:
             latest_result = uow.results.get_by_job_id(latest_job.id)
             if latest_result:
-                latest_result_dto = structs.ResultDTO.from_domain(latest_result)
+                latest_result_dto = dto.ResultDTO.from_domain(latest_result)
 
-        return structs.DocumentDTO.from_domain(document), latest_result_dto
+        return dto.DocumentDTO.from_domain(document), latest_result_dto
+
+
+def get_latest_result_for_document(
+    document_id: str, uow: AbstractUnitOfWork
+) -> dto.ResultDTO | None:
+    """Gets the most recent successful OCR result for a document.
+
+    Finds the most recently finished job for the given document and returns its result.
+
+    Args:
+        document_id: The unique identifier of the document.
+        uow: Unit of Work instance.
+
+    Returns:
+        The ResultDTO of the latest completed job, or None if no completed jobs exist.
+
+    Raises:
+        exceptions.DocumentNotFoundError: If the document does not exist.
+    """
+    with uow:
+        _ = uow.documents.get_or_raise(document_id)
+
+        latest_job = uow.jobs.get_latest_completed_for_document(document_id)
+
+        if not latest_job:
+            return None
+
+        result = uow.results.get_by_job_id(latest_job.id)
+
+        if not result:
+            return None
+
+        return dto.ResultDTO.from_domain(result)
+
+
+def download_document(
+    document_id: str, storage: ports.FileStorage, uow: AbstractUnitOfWork
+) -> tuple[Iterator[bytes], str, str]:
+    """Downloads a document as a streaming response.
+
+    Args:
+        document_id: The unique identifier of the document.
+        storage: File storage implementation.
+        uow: Unit of Work instance.
+
+    Returns:
+        Tuple of (stream_generator, content_type, filename) or None if not found.
+    """
+    with uow:
+        document = uow.documents.get_or_raise(document_id)
+
+        file_path = Path(document.file_path)
+        display_name = document.display_name
+        content_type = document.file_type.value
+
+        def stream_chunks() -> Iterator[bytes]:
+            CHUNK_SIZE = 65536  # 64KB
+            with storage.load(file_path) as file_stream:
+                while chunk := file_stream.read(CHUNK_SIZE):
+                    yield chunk
+
+        return stream_chunks(), content_type, display_name

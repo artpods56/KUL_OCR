@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 from core.adapters.database import orm
 from core.domain.enums import JobStatus
-from core.service_layer.uow import SqlAlchemyUnitOfWork
+from core.adapters.database.uow import SqlAlchemyUnitOfWork
 from backend import api, dependencies
 from tests import factories
 

@@ -1,17 +1,20 @@
-from collections.abc import Sequence
+from typing import Sequence
 
-from core.domain import enums, exceptions, model, structs
+from core.domain import enums, exceptions, model
 from core.domain.exceptions import DomainException
 from core.domain.protocols import TaskRunner
-from core.service_layer.helpers import generate_id
-from core.service_layer.uow import AbstractUnitOfWork
-
+from core.utils.misc import generate_id
+from core.domain.ports import AbstractUnitOfWork
 from core.utils.logger import get_logger
+
+from backend.documents.dto import ResultDTO
+
+from . import dto
 
 logger = get_logger(__name__)
 
 
-def get_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO:
+def get_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> dto.JobDTO:
     """Gets an OCR job by its ID.
 
     Args:
@@ -25,10 +28,10 @@ def get_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO:
         exceptions.OCRJobNotFoundError: If the job does not exist.
     """
     with uow:
-        return structs.JobDTO.from_domain(uow.jobs.get_or_raise(job_id))
+        return dto.JobDTO.from_domain(uow.jobs.get_or_raise(job_id))
 
 
-def get_ocr_job_response(job_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO:
+def get_ocr_job_response(job_id: str, uow: AbstractUnitOfWork) -> dto.JobDTO:
     """Gets an OCR job by its ID and returns it as a DTO.
 
     Args:
@@ -42,12 +45,12 @@ def get_ocr_job_response(job_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO
         exceptions.OCRJobNotFoundError: If the job does not exist.
     """
     with uow:
-        return structs.JobDTO.from_domain(uow.jobs.get_or_raise(job_id))
+        return dto.JobDTO.from_domain(uow.jobs.get_or_raise(job_id))
 
 
 def get_ocr_jobs_by_status(
     status: enums.JobStatus, uow: AbstractUnitOfWork
-) -> Sequence[structs.JobDTO]:
+) -> Sequence[dto.JobDTO]:
     """Gets OCR jobs filtered by status.
 
     Queries the database for all OCR jobs that match the given status. Useful
@@ -63,12 +66,12 @@ def get_ocr_jobs_by_status(
     """
     with uow:
         jobs = uow.jobs.list_by_status(status)
-        return [structs.JobDTO.from_domain(job) for job in jobs]
+        return [dto.JobDTO.from_domain(job) for job in jobs]
 
 
 def get_ocr_jobs_by_document_id(
     document_id: str, uow: AbstractUnitOfWork
-) -> Sequence[structs.JobDTO]:
+) -> Sequence[dto.JobDTO]:
     """Gets all OCR jobs for a specific document.
 
     Fetches all OCR jobs linked to the given document ID. Can be used to check
@@ -83,7 +86,7 @@ def get_ocr_jobs_by_document_id(
     """
     with uow:
         jobs = uow.jobs.list_by_document_id(document_id)
-        return [structs.JobDTO.from_domain(job) for job in jobs]
+        return [dto.JobDTO.from_domain(job) for job in jobs]
 
 
 def get_ocr_jobs(
@@ -92,7 +95,7 @@ def get_ocr_jobs(
     document_id: str | None = None,
     skip: int = 0,
     limit: int = 20,
-) -> tuple[Sequence[structs.JobDTO], int]:
+) -> tuple[Sequence[dto.JobDTO], int]:
     """Gets OCR jobs with optional filtering and pagination.
 
     Args:
@@ -129,10 +132,10 @@ def get_ocr_jobs(
             document_id=document_id,
         )
 
-        return [structs.JobDTO.from_domain(job) for job in jobs], total
+        return [dto.JobDTO.from_domain(job) for job in jobs], total
 
 
-def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[structs.JobDTO]:
+def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[dto.JobDTO]:
     """Gets OCR jobs that are in a terminal state.
 
     Retrieves jobs that have reached a final state (COMPLETED or FAILED).
@@ -145,7 +148,7 @@ def get_terminal_ocr_jobs(uow: AbstractUnitOfWork) -> Sequence[structs.JobDTO]:
         A sequence of JobDTO instances that have reached a terminal state.
     """
     jobs = uow.jobs.list_terminal_jobs()
-    return [structs.JobDTO.from_domain(job) for job in jobs]
+    return [dto.JobDTO.from_domain(job) for job in jobs]
 
 
 def delete_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> None:
@@ -181,7 +184,7 @@ def delete_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> None:
         logger.info("Deleted OCR job", job_id=job_id, status=job.status.value)
 
 
-def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO:
+def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> dto.JobDTO:
     """Submits a new OCR processing job for a document.
 
     Creates a new OCR job in PENDING status for the specified document.
@@ -214,10 +217,10 @@ def submit_ocr_job(document_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO:
 
         logger.info("OCR job created", job_id=str(ocr_job.id), document_id=document_id)
 
-        return structs.JobDTO.from_domain(ocr_job)
+        return dto.JobDTO.from_domain(ocr_job)
 
 
-def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO:
+def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> dto.JobDTO:
     """Marks an OCR job as processing and creates an outbox entry for task scheduling.
 
     Retrieves the OCR job by its ID, verifies that it exists, and updates its
@@ -261,12 +264,12 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> structs.Jo
             outbox_entry_id=outbox_entry.id,
         )
 
-        return structs.JobDTO.from_domain(ocr_job)
+        return dto.JobDTO.from_domain(ocr_job)
 
 
 def complete_ocr_job(
-    job_id: str, result_dto: structs.ResultDTO, uow: AbstractUnitOfWork
-) -> structs.JobDTO:
+    job_id: str, result_dto: ResultDTO, uow: AbstractUnitOfWork
+) -> dto.JobDTO:
     """Completes an OCR job and saves the result.
 
     Args:
@@ -293,12 +296,12 @@ def complete_ocr_job(
     uow.results.add(result)
     ocr_job.update_status(enums.JobStatus.COMPLETED)
 
-    return structs.JobDTO.from_domain(ocr_job)
+    return dto.JobDTO.from_domain(ocr_job)
 
 
 def fail_ocr_job(
     job_id: str, error_message: str, uow: AbstractUnitOfWork
-) -> structs.JobDTO:
+) -> dto.JobDTO:
     """Marks an OCR job as failed.
 
     Args:
@@ -318,10 +321,10 @@ def fail_ocr_job(
         ocr_job.update_status(enums.JobStatus.FAILED, error_message=error_message)
         uow.commit()
 
-        return structs.JobDTO.from_domain(ocr_job)
+        return dto.JobDTO.from_domain(ocr_job)
 
 
-def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO:
+def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> dto.JobDTO:
     """Retries a previously failed OCR job.
 
     Checks that the original job exists and is in the FAILED status. Creates a
@@ -352,12 +355,12 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> structs.Job
     new_job = model.Job(id=generate_id(), document_id=original_job.document_id)
     uow.jobs.add(new_job)
 
-    return structs.JobDTO.from_domain(new_job)
+    return dto.JobDTO.from_domain(new_job)
 
 
 def cancel_ocr_job(
     job_id: str, task_runner: TaskRunner, uow: AbstractUnitOfWork
-) -> structs.JobDTO:
+) -> dto.JobDTO:
     """Cancels an OCR job.
 
     Marks a PENDING or PROCESSING job as failed with a cancellation message.
@@ -401,7 +404,7 @@ def cancel_ocr_job(
                 )
 
             case _:  # COMPLETED or FAILED
-                return structs.JobDTO.from_domain(ocr_job)
+                return dto.JobDTO.from_domain(ocr_job)
 
         # Additional outbox cleanup: revoke task if outbox entry has been relayed
         task_id = ocr_job.task_id
@@ -416,10 +419,10 @@ def cancel_ocr_job(
                 )
 
         uow.commit()
-        return structs.JobDTO.from_domain(ocr_job)
+        return dto.JobDTO.from_domain(ocr_job)
 
 
-def retry_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> structs.JobDTO:
+def retry_ocr_job(job_id: str, uow: AbstractUnitOfWork) -> dto.JobDTO:
     """Retry a failed OCR job by creating a new job for the same document.
 
     Args:

@@ -2,11 +2,13 @@ import abc
 import pathlib
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Protocol, runtime_checkable
+from types import TracebackType
+from typing import Protocol, runtime_checkable, Self
 
 from PIL import Image
 
-from core.domain import enums, structs
+from core.adapters.database import repository
+from core.domain import enums, model
 
 
 @runtime_checkable
@@ -43,9 +45,7 @@ class DocumentLoader(abc.ABC):
     """Port for loading document content as a stream of images."""
 
     @abc.abstractmethod
-    def load_pages(
-        self, doc_input: structs.DocumentInput
-    ) -> Iterator[structs.PageInput]:
+    def load_pages(self, doc_input: model.DocumentInput) -> Iterator[model.PageInput]:
         """
         Lazily loads pages from a document.
         Returns an Iterator to prevent loading entire PDFs into memory.
@@ -69,4 +69,31 @@ class FileStorage(abc.ABC):
 
     @abc.abstractmethod
     def delete(self, file_path: pathlib.Path) -> None:
+        raise NotImplementedError
+
+
+class AbstractUnitOfWork(abc.ABC):
+    jobs: repository.AbstractOCRJobRepository
+    documents: repository.AbstractDocumentRepository
+    results: repository.AbstractOCRResultRepository
+    outbox: repository.AbstractOutboxRepository
+
+    @abc.abstractmethod
+    def rollback(self) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def __enter__(self) -> Self:
+        raise NotImplementedError
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.rollback()
+
+    @abc.abstractmethod
+    def commit(self) -> None:
         raise NotImplementedError

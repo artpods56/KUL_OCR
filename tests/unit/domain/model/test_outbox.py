@@ -4,7 +4,7 @@ from datetime import datetime
 from core.domain import exceptions
 from core.domain.model import OutboxEntry
 from core.domain.enums import OutboxEventType
-from core.service_layer.helpers import generate_id
+from core.utils.misc import generate_id
 
 
 class TestOutboxEntry:

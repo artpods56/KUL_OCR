@@ -3,10 +3,10 @@ from typing import final
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
+from backend.jobs import service
 from core.adapters.database import repository
 from core.domain import exceptions
-from core.service_layer import parsing
-from core.service_layer.services import jobs
+from backend.documents import parsing
 
 
 @final
@@ -40,7 +40,7 @@ def register_handlers(app: FastAPI):
     )
 
     app.add_exception_handler(
-        jobs.DuplicateOCRJobError,
+        service.DuplicateOCRJobError,
         ExceptionResponseFactory(status.HTTP_409_CONFLICT),
     )
 

@@ -5,7 +5,7 @@ import pytest
 from PIL import Image
 
 from core.adapters.loaders.filesystem import FileSystemDocumentLoader
-from core.domain import structs, enums
+from core.domain import enums, model
 from tests.fakes.storages import FakeFileStorage
 
 
@@ -56,7 +56,7 @@ class TestFileSystemDocumentLoader:
             stream=io.BytesIO(image_bytes), file_path=Path("test_image.png")
         )
 
-        doc_input = structs.DocumentInput(
+        doc_input = model.DocumentInput(
             id="doc-1", file_path="test_image.png", file_type=enums.FileType.PNG
         )
 
@@ -80,7 +80,7 @@ class TestFileSystemDocumentLoader:
             stream=io.BytesIO(image_bytes), file_path=Path("test_rgba.png")
         )
 
-        doc_input = structs.DocumentInput(
+        doc_input = model.DocumentInput(
             id="doc-2", file_path="test_rgba.png", file_type=enums.FileType.PNG
         )
 
@@ -97,7 +97,7 @@ class TestFileSystemDocumentLoader:
         """Test loading PDF with 2 pages."""
         fake_storage.save(stream=io.BytesIO(pdf_bytes), file_path=Path("test.pdf"))
 
-        doc_input = structs.DocumentInput(
+        doc_input = model.DocumentInput(
             id="doc-3", file_path="test.pdf", file_type=enums.FileType.PDF
         )
 
@@ -118,7 +118,7 @@ class TestFileSystemDocumentLoader:
         """Test that PDF loading is lazy (returns iterator)."""
         fake_storage.save(stream=io.BytesIO(pdf_bytes), file_path=Path("test.pdf"))
 
-        doc_input = structs.DocumentInput(
+        doc_input = model.DocumentInput(
             id="doc-4", file_path="test.pdf", file_type=enums.FileType.PDF
         )
 
@@ -146,7 +146,7 @@ class TestFileSystemDocumentLoader:
         file_path = Path(f"test{file_type.dot_extension}")
         fake_storage.save(stream=io.BytesIO(image_bytes), file_path=file_path)
 
-        doc_input = structs.DocumentInput(
+        doc_input = model.DocumentInput(
             id="doc-5", file_path=str(file_path), file_type=file_type
         )
 

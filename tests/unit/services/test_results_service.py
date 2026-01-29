@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from core.domain import enums, model, structs
-from core.service_layer.services import results
-from core.service_layer.uow import AbstractUnitOfWork
+from backend.documents import service, dto
+from core.domain import enums, model
+from core.domain.ports import AbstractUnitOfWork
 from tests.fakes.repositories import (
     FakeDocumentRepository,
     FakeOcrJobRepository,
@@ -12,34 +12,12 @@ from tests.fakes.repositories import (
     FakeOutboxRepository,
 )
 from tests.fakes.storages import FakeFileStorage
+from tests.fakes.uow import FakeUnitOfWork
 
 
 @pytest.fixture
 def uow():
-    fake_docs = FakeDocumentRepository()
-    fake_jobs = FakeOcrJobRepository()
-    fake_results = FakeOcrResultRepository()
-
-    class FakeUoW(AbstractUnitOfWork):
-        documents = fake_docs
-        jobs = fake_jobs
-        results = fake_results
-        outbox = FakeOutboxRepository()
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            self.rollback()
-            return None
-
-        def commit(self):
-            return None
-
-        def rollback(self) -> None:
-            return None
-
-    return FakeUoW()
+    return FakeUnitOfWork()
 
 
 def test_get_latest_result_for_document_returns_none_when_no_completed_jobs(uow):
@@ -48,7 +26,7 @@ def test_get_latest_result_for_document_returns_none_when_no_completed_jobs(uow)
     )
     uow.documents.add(doc)
 
-    assert results.get_latest_result_for_document(doc.id, uow) is None
+    assert service.get_latest_result_for_document(doc.id, uow) is None
 
 
 def test_get_latest_result_for_document_returns_none_when_job_has_no_result(uow):
@@ -59,7 +37,7 @@ def test_get_latest_result_for_document_returns_none_when_job_has_no_result(uow)
     uow.documents.add(doc)
     uow.jobs.add(job)
 
-    assert results.get_latest_result_for_document(doc.id, uow) is None
+    assert service.get_latest_result_for_document(doc.id, uow) is None
 
 
 def test_get_latest_result_for_document_returns_result(uow):
@@ -88,14 +66,14 @@ def test_get_latest_result_for_document_returns_result(uow):
     uow.jobs.add(job)
     uow.results.add(result)
 
-    dto = results.get_latest_result_for_document(doc.id, uow)
+    result_dto = service.get_latest_result_for_document(doc.id, uow)
 
-    assert dto is not None
-    assert isinstance(dto, structs.ResultDTO)
-    assert dto.job_id == job.id
+    assert result_dto is not None
+    assert isinstance(result_dto, dto.ResultDTO)
+    assert result_dto.job_id == job.id
 
 
-def test_download_document_streams_file_chunks(tmp_path: Path):
+def test_download_document_streams_file_chunks(tmp_path: Path, uow: FakeUnitOfWork):
     file_path = tmp_path / "file.pdf"
     file_path.write_bytes(b"chunk1chunk2")
 
@@ -110,35 +88,10 @@ def test_download_document_streams_file_chunks(tmp_path: Path):
     storage = FakeFileStorage()
     storage.files[str(file_path)] = file_path.read_bytes()
 
-    doc_repo = FakeDocumentRepository()
-    doc_repo.add(doc)
-    dummy_jobs = FakeOcrJobRepository()
-    dummy_results = FakeOcrResultRepository()
-    dummy_outbox = FakeOutboxRepository()
+    uow.documents.add(doc)
 
-    class FakeUoW(AbstractUnitOfWork):
-        documents = doc_repo
-        jobs = dummy_jobs
-        results = dummy_results
-        outbox = dummy_outbox
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            self.rollback()
-            return None
-
-        def commit(self):
-            return None
-
-        def rollback(self):
-            return None
-
-    fake_uow = FakeUoW()
-
-    stream, content_type, filename = results.download_document(
-        doc.id, storage, fake_uow
+    stream, content_type, filename = service.download_document(
+        doc.id, storage, uow
     )
 
     chunks = b"".join(list(stream))

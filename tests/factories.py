@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from core.domain import model, enums
-from core.service_layer.helpers import generate_id
+from core.utils.misc import generate_id
 
 
 # --- OCR Jobs Factories ---

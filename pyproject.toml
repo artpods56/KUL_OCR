@@ -1,9 +1,18 @@
-dependencies = ["core", "backend"]
+[project]
+name = "kul-ocr"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "core",
+    "backend",
+    "worker",
+]
 
 [tool.uv.workspace]
 members = [
     "libs/core",
     "apps/backend",
+    "apps/worker",
 ]
 
 [dependency-groups]
@@ -27,3 +36,4 @@ dev = [
 core = { workspace = true }
 backend = { workspace = true }
 pytest-beartype = { git = "https://github.com/beartype/pytest-beartype", branch = "main" }
+worker = { workspace = true }

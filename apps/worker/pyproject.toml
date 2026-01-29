@@ -1,0 +1,19 @@
+[project]
+name = "worker"
+version = "0.1.0"
+description = "Celery worker"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "celery>=5.6.2",
+    "core",
+]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+pytest-beartype = { git = "https://github.com/beartype/pytest-beartype", branch = "main" }

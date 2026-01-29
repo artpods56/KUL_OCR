@@ -1,7 +1,7 @@
 import core.adapters.database.repository
 import core.domain.model
-import core.service_layer.services.jobs
-from core.domain import model, structs, enums, exceptions
+from backend.jobs import dto, service
+from core.domain import model, enums, exceptions
 import pytest
 from uuid import uuid4
 
@@ -12,9 +12,7 @@ def test_retry_failed_job_creates_new_pending_job(uow):
     uow.jobs.add(failed_job)
     uow.commit()
 
-    response: structs.JobDTO = core.service_layer.services.jobs.retry_ocr_job(
-        failed_job.id, uow
-    )
+    response: dto.JobDTO = service.retry_ocr_job(failed_job.id, uow)
     assert str(response.id) != failed_job.id
     assert str(response.document_id) == failed_job.document_id
     assert response.status == "pending"
@@ -32,10 +30,10 @@ def test_retry_non_failed_job_raises_error(uow):
         exceptions.InvalidJobStatusTransitionError,
         match="cannot transition",
     ):
-        core.service_layer.services.jobs.retry_ocr_job(job.id, uow)
+        service.retry_ocr_job(job.id, uow)
 
 
 def test_retry_nonexisting_job_raises_not_found(uow):
     non_existing_job_id = uuid4()
     with pytest.raises(core.adapters.database.repository.OCRJobNotFoundError):
-        core.service_layer.services.jobs.retry_ocr_job(str(non_existing_job_id), uow)
+        service.retry_ocr_job(str(non_existing_job_id), uow)

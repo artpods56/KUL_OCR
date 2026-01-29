@@ -3,17 +3,20 @@ from typing import Any, Unpack
 
 from celery.utils.log import get_task_logger
 
+from backend.outbox import service
 from core.domain import enums, model
-from core.service_layer.services import documents, jobs, outbox
 
-import dependencies
-from backend.entrypoints.celery_app import app
-from dependencies import fresh_uow, get_task_runner
+from backend.dependencies import fresh_uow, get_task_runner
+from backend import dependencies
+from backend.documents import service as documents_service
+from backend.jobs import service as jobs_service
 
 logger = get_task_logger(__name__)
 
 
 # --- Outbox Relay Tasks ---
+
+from .main import app
 
 
 @app.task(bind=True, max_retries=3)
@@ -29,7 +32,7 @@ def relay_outbox_task(self) -> dict[str, Any]:
     task_runner = get_task_runner()
 
     try:
-        relayed_entries = outbox.relay_pending_outbox_entries(
+        relayed_entries = service.relay_pending_outbox_entries(
             task_runner=task_runner,
             uow=fresh_uow(),
             batch_size=100,
@@ -54,7 +57,7 @@ def cleanup_outbox_task(self) -> dict[str, int]:
     """
     try:
         with fresh_uow() as uow:
-            deleted_count = outbox.cleanup_old_outbox_entries(
+            deleted_count = service.cleanup_old_outbox_entries(
                 uow=uow,
                 retention_hours=24,
             )
@@ -81,21 +84,23 @@ def process_job(self, **kwargs: Unpack[model.JobProcessingPayload]):
     try:
         # Get job info - job should already be in PROCESSING state
         with fresh_uow() as uow:
-            job_dto = jobs.get_ocr_job(job_id, uow)
+            job_dto = jobs_service.get_ocr_job(job_id, uow)
             document_id = job_dto.document_id
 
         with fresh_uow() as uow:
-            doc_input = documents.get_document_for_processing(str(document_id), uow)
+            doc_input = documents_service.get_document_for_processing(
+                str(document_id), uow
+            )
 
         logger.info(f"Starting OCR processing for job {job_id}")
-        result_dto = documents.process_document(
+        result_dto = documents_service.process_document(
             doc_input=doc_input,
             ocr_engine=ocr_engine,
             document_loader=document_loader,
         )
 
         with fresh_uow() as uow:
-            _ = jobs.complete_ocr_job(job_id, result_dto, uow)
+            _ = jobs_service.complete_ocr_job(job_id, result_dto, uow)
             uow.commit()
 
         logger.info(f"Successfully processed job {job_id}")
@@ -107,7 +112,7 @@ def process_job(self, **kwargs: Unpack[model.JobProcessingPayload]):
         if self.max_retries is not None and self.request.retries >= self.max_retries:
             try:
                 with fresh_uow() as uow:
-                    _ = jobs.fail_ocr_job(job_id, str(exc), uow)
+                    _ = jobs_service.fail_ocr_job(job_id, str(exc), uow)
                     uow.commit()
                 logger.info(f"Marked job {job_id} as failed after exhausting retries")
             except Exception as fail_exc:

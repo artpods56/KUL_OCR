@@ -1,7 +1,7 @@
 import pytest
 
 from core.domain import enums, exceptions
-from core.service_layer import parsing
+from backend.documents import parsing
 
 
 def test_parse_file_type_unsupported_raises():

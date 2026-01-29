@@ -2,8 +2,8 @@ import pytest
 
 from core.domain.model import Document, Job
 from core.domain.enums import JobStatus, FileType
-from core.service_layer.helpers import generate_id
-from core.service_layer.uow import SqlAlchemyUnitOfWork
+from core.utils.misc import generate_id
+from core.adapters.database.uow import SqlAlchemyUnitOfWork
 from core.adapters.database import repository
 
 

@@ -1,6 +1,7 @@
 import pytest
 from PIL import Image
-from core.domain.structs import PageInput
+from core.domain.model import PageInput
+
 
 # [TODO] original_document_id references attribute on Document model that is an UUID field. Currently we assume that it can be any string.
 

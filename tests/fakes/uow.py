@@ -1,6 +1,6 @@
 from typing import final, override, Self
 
-from core.service_layer.uow import AbstractUnitOfWork
+from core.domain.ports import AbstractUnitOfWork
 from tests.fakes import repositories
 
 

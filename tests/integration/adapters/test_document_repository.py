@@ -3,8 +3,8 @@ import pytest
 import core.adapters.database.repository
 from core.domain.enums import FileType
 from core.domain.model import Document
-from core.service_layer.helpers import generate_id
-from core.service_layer.uow import SqlAlchemyUnitOfWork
+from core.utils.misc import generate_id
+from core.adapters.database.uow import SqlAlchemyUnitOfWork
 
 
 def test_can_add_and_retrieve_document(uow: SqlAlchemyUnitOfWork):

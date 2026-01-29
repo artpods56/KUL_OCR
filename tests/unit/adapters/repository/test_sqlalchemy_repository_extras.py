@@ -11,7 +11,7 @@ from core.adapters.database.repository import (
     OCRJobNotFoundError,
 )
 from core.domain import enums, model
-from core.service_layer.uow import SqlAlchemyUnitOfWork
+from core.adapters.database.uow import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture()
