@@ -6,12 +6,10 @@ from core.service_layer.helpers import generate_id
 from core.service_layer.parsing import (
     MIN_MAGIC_BYTES,
     get_mime_from_bytes,
-    validate_and_get_file_type,
     sanitize_filename,
 )
 from core.service_layer.services import validator
 from core.service_layer.uow import AbstractUnitOfWork
-from core import config
 from core.utils.logger import get_logger
 
 logger = get_logger(__name__)

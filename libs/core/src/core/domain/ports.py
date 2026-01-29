@@ -2,12 +2,11 @@ import abc
 import pathlib
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Protocol, Self, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from PIL import Image
 
-from core import config
-from core.domain import enums, model, structs
+from core.domain import enums, structs
 
 
 @runtime_checkable

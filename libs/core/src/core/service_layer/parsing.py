@@ -3,7 +3,7 @@ from pathlib import Path
 
 import filetype
 
-from core.domain import enums, exceptions, model
+from core.domain import enums, exceptions
 from core.domain.exceptions import DomainException
 
 # Minimum bytes needed for reliable file type detection (filetype needs max 261)

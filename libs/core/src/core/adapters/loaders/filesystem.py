@@ -6,7 +6,7 @@ from typing import cast, override
 import pymupdf  # PyMuPDF
 from PIL import Image
 
-from core.domain import enums, model, ports, structs
+from core.domain import enums, ports, structs
 
 
 class FileSystemDocumentLoader(ports.DocumentLoader):

@@ -9,7 +9,7 @@ from fastapi import Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
 
-from core.adapters.database import orm, repository
+from core.adapters.database import orm
 
 from backend import dependencies, schemas, exception_handlers
 from core.service_layer import parsing

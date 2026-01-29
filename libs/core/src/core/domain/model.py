@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import ClassVar, Literal, TypedDict, Mapping, Any
+from typing import ClassVar, Literal, TypedDict
 
 from core.domain import exceptions
 from core.domain.enums import DocumentStatus, FileType, JobStatus, OutboxEventType

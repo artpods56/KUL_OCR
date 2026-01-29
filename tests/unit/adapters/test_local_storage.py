@@ -163,7 +163,6 @@ class TestLocalFileStorage:
 
     def test_delete_is_idempotent(self, storage: LocalFileStorage):
         """Test that deleting non-existent file doesn't raise an error."""
-        from core.domain import exceptions
 
         # Should not raise an exception
         storage.delete(Path("nonexistent.txt"))

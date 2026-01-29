@@ -3,7 +3,7 @@ from PIL import Image
 import pytest
 
 import core.service_layer.services.documents
-from core.domain import model, ports, structs, enums
+from core.domain import ports, structs, enums
 
 
 @pytest.fixture

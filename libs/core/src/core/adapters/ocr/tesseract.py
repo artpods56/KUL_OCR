@@ -5,7 +5,7 @@ from typing import Self, cast, final, override
 import pytesseract
 from PIL import Image
 
-from core.domain import enums, model, ports
+from core.domain import enums, ports
 from core.utils.logger import get_logger
 
 logger = get_logger(__name__)

@@ -5,7 +5,7 @@ import pytest
 from PIL import Image
 
 from core.adapters.loaders.filesystem import FileSystemDocumentLoader
-from core.domain import model, structs, enums
+from core.domain import structs, enums
 from tests.fakes.storages import FakeFileStorage
 
 

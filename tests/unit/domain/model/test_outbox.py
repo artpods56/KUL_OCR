@@ -1,7 +1,6 @@
 import pytest
 from datetime import datetime
 
-import core.domain.model
 from core.domain import exceptions
 from core.domain.model import OutboxEntry
 from core.domain.enums import OutboxEventType

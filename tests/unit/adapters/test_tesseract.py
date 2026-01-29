@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 from core.adapters.ocr.tesseract import TesseractEngineConfig, TesseractOCREngine
-from core.domain import model, enums
+from core.domain import enums
 
 
 @pytest.fixture

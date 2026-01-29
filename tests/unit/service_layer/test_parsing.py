@@ -1,7 +1,6 @@
 import pytest
 
-import core.domain.model
-from core.domain import model, enums, exceptions
+from core.domain import enums, exceptions
 from core.service_layer import parsing
 
 
