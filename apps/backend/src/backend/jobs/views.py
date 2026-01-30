@@ -6,7 +6,6 @@ from starlette import status
 from starlette.responses import Response
 
 from backend import dependencies
-
 from . import schema, service
 
 router = APIRouter()
@@ -18,8 +17,8 @@ router = APIRouter()
     status_code=status.HTTP_201_CREATED,
 )
 def create_ocr_job(
-    request: schema.CreateJobRequest,
-    uow: dependencies.UnitOfWorkDep,
+        request: schema.CreateJobRequest,
+        uow: dependencies.UnitOfWorkDep,
 ) -> schema.JobResponse:
     return schema.JobResponse.from_dto(
         service.submit_ocr_job(str(request.document_id), uow)
@@ -28,8 +27,8 @@ def create_ocr_job(
 
 @router.post("/{job_id}/start")
 def start_ocr_job(
-    job_id: UUID,
-    uow: dependencies.UnitOfWorkDep,
+        job_id: UUID,
+        uow: dependencies.UnitOfWorkDep,
 ) -> schema.JobResponse:
     """Start processing an OCR job.
 
@@ -51,8 +50,8 @@ def start_ocr_job(
     response_class=Response,
 )
 def delete_ocr_job(
-    job_id: UUID,
-    uow: dependencies.UnitOfWorkDep,
+        job_id: UUID,
+        uow: dependencies.UnitOfWorkDep,
 ) -> Response:
     service.delete_ocr_job(str(job_id), uow)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -64,39 +63,39 @@ def delete_ocr_job(
     status_code=status.HTTP_201_CREATED,
 )
 def retry_ocr_job(
-    job_id: UUID,
-    uow: dependencies.UnitOfWorkDep,
+        job_id: UUID,
+        uow: dependencies.UnitOfWorkDep,
 ) -> schema.JobResponse:
     return schema.JobResponse.from_dto(service.retry_ocr_job(str(job_id), uow))
 
 
 @router.get("", response_model=schema.JobListResponse)
 def list_ocr_jobs(
-    uow: dependencies.UnitOfWorkDep,
-    status: Annotated[
-        str | None,
-        Query(
-            description="Filter by job status (pending, processing, completed, failed)"
-        ),
-    ] = None,
-    document_id: Annotated[
-        UUID | None, Query(description="Filter by document ID")
-    ] = None,
-    skip: Annotated[
-        int,
-        Query(
-            ge=0,
-            description="Number of items to skip (offset)",
-        ),
-    ] = 0,
-    limit: Annotated[
-        int,
-        Query(
-            ge=1,
-            le=100,
-            description="Maximum number of items to return (max: 100)",
-        ),
-    ] = 20,
+        uow: dependencies.UnitOfWorkDep,
+        status: Annotated[
+            str | None,
+            Query(
+                description="Filter by job status (pending, processing, completed, failed)"
+            ),
+        ] = None,
+        document_id: Annotated[
+            UUID | None, Query(description="Filter by document ID")
+        ] = None,
+        skip: Annotated[
+            int,
+            Query(
+                ge=0,
+                description="Number of items to skip (offset)",
+            ),
+        ] = 0,
+        limit: Annotated[
+            int,
+            Query(
+                ge=1,
+                le=100,
+                description="Maximum number of items to return (max: 100)",
+            ),
+        ] = 20,
 ) -> schema.JobListResponse:
     """List OCR jobs with optional filtering and pagination.
 
@@ -132,17 +131,17 @@ def list_ocr_jobs(
     status_code=status.HTTP_200_OK,
 )
 def get_ocr_job_by_id(
-    job_id: UUID,
-    uow: dependencies.UnitOfWorkDep,
+        job_id: UUID,
+        uow: dependencies.UnitOfWorkDep,
 ) -> schema.JobResponse:
     return schema.JobResponse.from_dto(service.get_ocr_job_response(str(job_id), uow))
 
 
 @router.post("/{job_id}/cancel")
 def cancel_ocr_job(
-    job_id: UUID,
-    task_runner: dependencies.TaskRunnerDep,
-    uow: dependencies.UnitOfWorkDep,
+        job_id: UUID,
+        task_runner: dependencies.TaskRunnerDep,
+        uow: dependencies.UnitOfWorkDep,
 ) -> schema.JobResponse:
     return schema.JobResponse.from_dto(
         service.cancel_ocr_job(str(job_id), task_runner, uow)

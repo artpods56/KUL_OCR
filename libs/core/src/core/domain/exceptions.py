@@ -25,8 +25,8 @@ class FileSizeExceededError(DomainException):
 
     def __init__(self, file_size: int, max_bytes: int, message: str | None = None):
         msg = (
-            message
-            or f"File size {file_size} bytes exceeds maximum allowed size of {max_bytes} bytes"
+                message
+                or f"File size {file_size} bytes exceeds maximum allowed size of {max_bytes} bytes"
         )
         super().__init__(message=msg, file_size=file_size, max_bytes=max_bytes)
 
@@ -35,7 +35,7 @@ class InvalidJobStatusTransitionError(DomainException):
     code: str = "INVALID_JOB_STATUS_TRANSITION"
 
     def __init__(
-        self, job_id: str, current: JobStatus, attempted: JobStatus, reason: str
+            self, job_id: str, current: JobStatus, attempted: JobStatus, reason: str
     ):
         msg = (
             f"Job: {job_id} cannot transition from {current.name} to {attempted.name}."
@@ -54,11 +54,11 @@ class InvalidDocumentStatusTransitionError(DomainException):
     code: str = "INVALID_DOCUMENT_STATUS_TRANSITION"
 
     def __init__(
-        self,
-        document_id: str,
-        current: DocumentStatus,
-        attempted: DocumentStatus,
-        reason: str,
+            self,
+            document_id: str,
+            current: DocumentStatus,
+            attempted: DocumentStatus,
+            reason: str,
     ):
         msg = (
             f"Document: {document_id} cannot transition from {current.name} to {attempted.name}. "
@@ -85,7 +85,7 @@ class FileExtensionMismatchError(DomainException):
     code: str = "FILE_EXTENSION_MISMATCH"
 
     def __init__(
-        self, expected_extension: str, actual_extension: str, message: str | None = None
+            self, expected_extension: str, actual_extension: str, message: str | None = None
     ):
         msg = message or (
             f"File extension mismatch: expected {expected_extension}, "
@@ -102,7 +102,7 @@ class FileContentMissmatchError(DomainException):
     code: str = "FILE_CONTENT_MISMATCH"
 
     def __init__(
-        self, expected_mime: str, actual_mime: str, message: str | None = None
+            self, expected_mime: str, actual_mime: str, message: str | None = None
     ):
         msg = message or (
             f"File content mismatch: expected {expected_mime}, got {actual_mime}"

@@ -7,14 +7,14 @@ from sqlalchemy.engine.create import create_engine
 from sqlalchemy.orm.session import Session, sessionmaker
 
 from core import config
+from core.adapters.database import uow
 from core.adapters.loaders import filesystem
 from core.adapters.ocr import tesseract
 from core.adapters.queue import runner
 from core.adapters.storages import local
+from core.config import get_app_config
 from core.domain import ports, protocols
 from core.domain.ports import FileStorage
-from core.adapters.database import uow
-from core.config import get_app_config
 
 STORAGE_TYPES = Literal["local"]
 SUPPORTED_STORAGE_TYPES: dict[str, type[FileStorage]] = {
@@ -130,7 +130,6 @@ def get_task_runner() -> protocols.TaskRunner:
 
 
 DEFAULT_SESSION_FACTORY = None
-
 
 UnitOfWorkDep: TypeAlias = Annotated[ports.AbstractUnitOfWork, Depends(get_uow)]
 FileStorageDep: TypeAlias = Annotated[ports.FileStorage, Depends(get_file_storage)]

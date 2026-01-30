@@ -7,7 +7,6 @@ from starlette import status
 from starlette.responses import StreamingResponse
 
 from backend import dependencies
-
 from . import schema, parsing, service
 
 router = APIRouter()
@@ -15,10 +14,10 @@ router = APIRouter()
 
 @router.post("", response_model=schema.DocumentResponse)
 def upload_document(
-    file: Annotated[UploadFile, File()],
-    storage: dependencies.FileStorageDep,
-    uow: dependencies.UnitOfWorkDep,
-    config: dependencies.AppConfigDep,
+        file: Annotated[UploadFile, File()],
+        storage: dependencies.FileStorageDep,
+        uow: dependencies.UnitOfWorkDep,
+        config: dependencies.AppConfigDep,
 ) -> schema.DocumentResponse:
     file_type = parsing.parse_file_type(file.content_type)
 
@@ -37,10 +36,10 @@ def upload_document(
 
     # Build storage paths using config
     staging_file_path = (
-        Path(config.staging_prefix) / f"{document.id}{file_type.dot_extension}"
+            Path(config.staging_prefix) / f"{document.id}{file_type.dot_extension}"
     )
     uploaded_file_path = (
-        Path(config.documents_prefix) / f"{document.id}{file_type.dot_extension}"
+            Path(config.documents_prefix) / f"{document.id}{file_type.dot_extension}"
     )
 
     return schema.DocumentResponse.from_dto(
@@ -57,7 +56,7 @@ def upload_document(
 
 @router.get("", response_model=schema.DocumentListResponse)
 def list_documents(
-    uow: dependencies.UnitOfWorkDep,
+        uow: dependencies.UnitOfWorkDep,
 ) -> schema.DocumentListResponse:
     return schema.DocumentListResponse.from_dto(service.get_documents(uow))
 
@@ -67,8 +66,8 @@ def list_documents(
     response_model=schema.DocumentResponse,
 )
 def get_document(
-    document_id: UUID,
-    uow: dependencies.UnitOfWorkDep,
+        document_id: UUID,
+        uow: dependencies.UnitOfWorkDep,
 ) -> schema.DocumentResponse:
     return schema.DocumentResponse.from_dto(service.get_document(str(document_id), uow))
 
@@ -78,8 +77,8 @@ def get_document(
     response_model=schema.ResultResponse,
 )
 def get_latest_result(
-    document_id: str,
-    uow: dependencies.UnitOfWorkDep,
+        document_id: str,
+        uow: dependencies.UnitOfWorkDep,
 ) -> schema.ResultResponse:
     result = service.get_latest_result_for_document(document_id, uow)
     if result is None:
@@ -92,9 +91,9 @@ def get_latest_result(
 
 @router.get("/{document_id}/download")
 def download_document(
-    document_id: UUID,
-    storage: dependencies.FileStorageDep,
-    uow: dependencies.UnitOfWorkDep,
+        document_id: UUID,
+        storage: dependencies.FileStorageDep,
+        uow: dependencies.UnitOfWorkDep,
 ):
     result = service.download_document(
         document_id=str(document_id), storage=storage, uow=uow

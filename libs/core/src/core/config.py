@@ -1,6 +1,6 @@
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal
-from functools import lru_cache
 
 from dotenv import load_dotenv
 from pydantic import ValidationInfo, field_validator

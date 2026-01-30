@@ -15,7 +15,9 @@ from core.domain import enums, model
 class FileStreamProtocol(Protocol):
     # name: str
     def read(self, size: int = -1, /) -> bytes: ...
+
     def seek(self, offset: int, whence: int = 0, /) -> int: ...
+
     def tell(self) -> int: ...
 
 
@@ -87,10 +89,10 @@ class AbstractUnitOfWork(abc.ABC):
         raise NotImplementedError
 
     def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+            self,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
     ) -> None:
         self.rollback()
 

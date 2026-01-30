@@ -3,10 +3,10 @@ from typing import final
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
+from backend.documents import parsing
 from backend.jobs import service
 from core.adapters.database import repository
 from core.domain import exceptions
-from backend.documents import parsing
 
 
 @final

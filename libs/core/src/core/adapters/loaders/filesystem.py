@@ -1,6 +1,6 @@
 import io
-from pathlib import Path
 from collections.abc import Iterator
+from pathlib import Path
 from typing import cast, override
 
 import pymupdf  # PyMuPDF
@@ -14,7 +14,7 @@ class FileSystemDocumentLoader(ports.DocumentLoader):
         self.storage = storage
 
     def _load_single_image(
-        self, doc_input: model.DocumentInput
+            self, doc_input: model.DocumentInput
     ) -> Iterator[model.PageInput]:
         file_path = Path(doc_input.file_path)
         with self.storage.load(file_path) as file_stream:
@@ -27,7 +27,7 @@ class FileSystemDocumentLoader(ports.DocumentLoader):
         )
 
     def _load_pdf_stream(
-        self, doc_input: model.DocumentInput
+            self, doc_input: model.DocumentInput
     ) -> Iterator[model.PageInput]:
         """Yields pages one by one to keep RAM usage flat."""
         file_path = Path(doc_input.file_path)
@@ -40,7 +40,8 @@ class FileSystemDocumentLoader(ports.DocumentLoader):
             for page_index in range(len(pdf_document)):
                 page = pdf_document[page_index]
 
-                pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)  # pyright: ignore[reportAttributeAccessIssue]
+                pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2),
+                                      alpha=False)  # pyright: ignore[reportAttributeAccessIssue]
 
                 w = cast(int, pix.width)
                 h = cast(int, pix.height)

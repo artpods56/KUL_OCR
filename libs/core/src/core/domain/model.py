@@ -55,7 +55,7 @@ class PagePart:
 
 
 def wrap_text_in_page_part(
-    text: str, page_number: int, width: int, height: int
+        text: str, page_number: int, width: int, height: int
 ) -> PagePart:
     """Create a PagePart with a single TextPart containing the full OCR text."""
     text_part = TextPart(
@@ -71,7 +71,6 @@ def wrap_text_in_page_part(
 """
 --- Entities ---
 """
-
 
 type AllowedJobStatusTransitions = dict[JobStatus, tuple[tuple[JobStatus, ...], str]]
 
@@ -325,7 +324,6 @@ class DocumentUploadPayload(TypedDict):
 
 
 type OutboxPayload = JobProcessingPayload | DocumentUploadPayload
-
 
 TASK_NAMES = {
     OutboxEventType.JOB_SCHEDULING: "worker.tasks.process_job",

@@ -35,7 +35,6 @@ if BROKER_URL is None:
         f"The {broker_url_env_var} environment variable is not set.",
     )
 
-
 app = Celery("backend", broker=BROKER_URL, include=["backend.entrypoints.tasks"])
 
 app.conf.update(

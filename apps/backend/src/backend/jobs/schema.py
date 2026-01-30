@@ -5,7 +5,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
 
 from core.domain import enums, model
-
 from . import dto
 
 

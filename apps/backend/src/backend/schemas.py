@@ -1,7 +1,8 @@
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Self
 from uuid import UUID
-from collections.abc import Sequence
+
 from pydantic import BaseModel, Field, field_validator, ValidationInfo
 
 from backend.outbox import dto
@@ -51,7 +52,7 @@ class ResultContentResponse(BaseModel):
     @field_validator("pages")
     @classmethod
     def validate_pages_not_empty(
-        cls, v: list[PagePartResponse]
+            cls, v: list[PagePartResponse]
     ) -> list[PagePartResponse]:
         if not v:
             raise ValueError("Result must contain at least one page")

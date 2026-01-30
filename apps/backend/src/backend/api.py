@@ -2,12 +2,10 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend import exception_handlers
 from backend.documents.views import router as documents_router
 from backend.jobs.views import router as jobs_router
-
 from core.adapters.database import orm
-
-from backend import exception_handlers
 
 _ = load_dotenv()
 
