@@ -59,6 +59,7 @@ def upload_document(
         uow.documents.add(document)
 
         payload: model.DocumentUploadPayload = {
+            "type": "document_upload",
             "document_id": document.id,
             "staging_file_path": str(staging_file_path),
             "uploaded_file_path": str(uploaded_file_path),

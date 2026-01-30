@@ -246,7 +246,10 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> dto.JobDTO
         ocr_job.update_status(enums.JobStatus.PROCESSING)
 
         # Create outbox entry for reliable task scheduling
-        payload: model.JobProcessingPayload = {"job_id": ocr_job.id}
+        payload: model.JobProcessingPayload = {
+            "type": "job_processing",
+            "job_id": ocr_job.id,
+        }
 
         outbox_entry = model.OutboxEntry(
             id=generate_id(),

@@ -129,9 +129,7 @@ def test_get_latest_result_for_document(fake_uow: FakeUnitOfWork, tmp_path: Path
     fake_uow.jobs.add(job)
     fake_uow.results.add(ocr_result)
 
-    result = service.get_latest_result_for_document(
-        document.id, fake_uow
-    )
+    result = service.get_latest_result_for_document(document.id, fake_uow)
 
     assert result is not None
     assert str(result.id) == str(ocr_result.id)
@@ -145,9 +143,7 @@ def test_get_latest_result_for_document_not_found(
         core.adapters.database.repository.DocumentNotFoundError,
         match="Document not found",
     ):
-        service.get_latest_result_for_document(
-            "nonexistent-doc", fake_uow
-        )
+        service.get_latest_result_for_document("nonexistent-doc", fake_uow)
 
 
 def test_get_latest_result_for_document_no_results(
@@ -157,9 +153,7 @@ def test_get_latest_result_for_document_no_results(
     document = factories.generate_document(tmp_path)
     fake_uow.documents.add(document)
 
-    result = service.get_latest_result_for_document(
-        document.id, fake_uow
-    )
+    result = service.get_latest_result_for_document(document.id, fake_uow)
 
     assert result is None
 

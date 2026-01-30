@@ -1,18 +1,23 @@
 from datetime import datetime, timedelta
+from typing import cast
+
 
 from backend.jobs import service as jobs_service
 from backend.outbox import service
-from core.domain.model import OutboxEntry
 from core.domain.enums import JobStatus, OutboxEventType
-from core.utils.misc import generate_id
-from tests.factories import generate_ocr_job, generate_document_without_file
+from tests.factories import (
+    generate_document_without_file,
+    generate_job_scheduling_outbox_entry,
+    generate_ocr_job,
+    generate_outbox_entries,
+)
+from tests.fakes.repositories import FakeOutboxRepository
 from tests.fakes.task_runner import FakeTaskRunner
 from tests.fakes.uow import FakeUnitOfWork
 
 
 class TestStartOcrJobProcessingWithOutbox:
-    def test_start_ocr_job_processing_creates_outbox_entry(self):
-        uow = FakeUnitOfWork()
+    def test_start_ocr_job_processing_creates_outbox_entry(self, uow: FakeUnitOfWork):
         document = generate_document_without_file()
         job = generate_ocr_job(document_id=document.id)
 
@@ -21,18 +26,16 @@ class TestStartOcrJobProcessingWithOutbox:
 
         result = jobs_service.start_ocr_job_processing(job.id, uow)
 
-
         assert result.status == JobStatus.PROCESSING.value
-        assert len(uow.outbox.added) == 1
-
-        outbox_entry = uow.outbox.added[0]
+        outbox_repo = cast(FakeOutboxRepository, uow.outbox)
+        outbox_entry = outbox_repo.added[0]
         assert outbox_entry.event_type == OutboxEventType.JOB_SCHEDULING
         assert outbox_entry.aggregate_id == job.id
+        assert outbox_entry.payload["type"] == "job_processing"
         assert outbox_entry.payload["job_id"] == job.id
         assert "job_id" in outbox_entry.payload
 
-    def test_start_ocr_job_processing_assigns_task_id(self):
-        uow = FakeUnitOfWork()
+    def test_start_ocr_job_processing_assigns_task_id(self, uow: FakeUnitOfWork):
         document = generate_document_without_file()
         job = generate_ocr_job(document_id=document.id)
 
@@ -41,17 +44,16 @@ class TestStartOcrJobProcessingWithOutbox:
 
         _ = jobs_service.start_ocr_job_processing(job.id, uow)
 
-        # Verify task_id was assigned to job
         updated_job = uow.jobs.get(job.id)
         assert updated_job is not None
         assert updated_job.task_id is not None
 
-        # Verify task_id matches outbox entry
-        outbox_entry = uow.outbox.added[0]
+        outbox_repo = cast(FakeOutboxRepository, uow.outbox)
+        outbox_entry = outbox_repo.added[0]
+        assert outbox_entry.payload["type"] == "job_processing"
         assert outbox_entry.payload["job_id"] == updated_job.id
 
-    def test_start_ocr_job_commits_transaction(self):
-        uow = FakeUnitOfWork()
+    def test_start_ocr_job_commits_transaction(self, uow: FakeUnitOfWork):
         document = generate_document_without_file()
         job = generate_ocr_job(document_id=document.id)
 
@@ -64,54 +66,26 @@ class TestStartOcrJobProcessingWithOutbox:
 
 
 class TestRelayPendingOutboxEntries:
-    def test_relay_schedules_celery_tasks(self):
-        uow = FakeUnitOfWork()
+    def test_relay_schedules_celery_tasks(self, uow: FakeUnitOfWork):
         task_runner = FakeTaskRunner()
 
-        # Create pending outbox entries
-        job_id = generate_id()
-        task_id = generate_id()
-        document_id = generate_id()
-
-        entry = OutboxEntry(
-            id=generate_id(),
-            event_type=OutboxEventType.JOB_SCHEDULING,
-            aggregate_id=job_id,
-            payload={
-                "job_id": job_id,
-                "task_id": task_id,
-                "document_id": document_id,
-            },
-        )
+        entry = generate_job_scheduling_outbox_entry()
         uow.outbox.add(entry)
 
-        relayed_entries = (
-            service.relay_pending_outbox_entries(
-                task_runner=task_runner, uow=uow, batch_size=100
-            )
+        relayed_entries = service.relay_pending_outbox_entries(
+            task_runner=task_runner, uow=uow, batch_size=100
         )
 
         assert len(relayed_entries) == 1
-        assert task_runner.was_task_scheduled(job_id)
-
-        scheduled = task_runner.get_scheduled_task(job_id)
+        assert task_runner.was_task_scheduled(entry.id)
+        scheduled = task_runner.get_scheduled_task(entry.id)
         assert scheduled is not None
-        assert scheduled.task_id == job_id
+        assert scheduled.id == entry.id
 
-    def test_relay_marks_entries_as_relayed(self):
-        uow = FakeUnitOfWork()
+    def test_relay_marks_entries_as_relayed(self, uow: FakeUnitOfWork):
         task_runner = FakeTaskRunner()
 
-        entry = OutboxEntry(
-            id=generate_id(),
-            event_type=OutboxEventType.JOB_SCHEDULING,
-            aggregate_id=generate_id(),
-            payload={
-                "job_id": generate_id(),
-                "task_id": generate_id(),
-                "document_id": generate_id(),
-            },
-        )
+        entry = generate_job_scheduling_outbox_entry()
         uow.outbox.add(entry)
 
         _ = service.relay_pending_outbox_entries(
@@ -121,20 +95,10 @@ class TestRelayPendingOutboxEntries:
         assert entry.is_relayed is True
         assert entry.relayed_at is not None
 
-    def test_relay_commits_transaction(self):
-        uow = FakeUnitOfWork()
+    def test_relay_commits_transaction(self, uow: FakeUnitOfWork):
         task_runner = FakeTaskRunner()
 
-        entry = OutboxEntry(
-            id=generate_id(),
-            event_type=OutboxEventType.JOB_SCHEDULING,
-            aggregate_id=generate_id(),
-            payload={
-                "job_id": generate_id(),
-                "task_id": generate_id(),
-                "document_id": generate_id(),
-            },
-        )
+        entry = generate_job_scheduling_outbox_entry()
         uow.outbox.add(entry)
 
         _ = service.relay_pending_outbox_entries(
@@ -143,89 +107,51 @@ class TestRelayPendingOutboxEntries:
 
         assert uow.committed is True
 
-    def test_relay_respects_batch_size(self):
-        uow = FakeUnitOfWork()
+    def test_relay_respects_batch_size(self, uow: FakeUnitOfWork):
         task_runner = FakeTaskRunner()
 
-        # Create 5 entries
-        for _ in range(5):
-            entry = OutboxEntry(
-                id=generate_id(),
-                event_type=OutboxEventType.JOB_SCHEDULING,
-                aggregate_id=generate_id(),
-                payload={
-                    "job_id": generate_id(),
-                    "task_id": generate_id(),
-                    "document_id": generate_id(),
-                },
-            )
+        for entry in generate_outbox_entries(count=5):
             uow.outbox.add(entry)
 
-        # Only relay 2
-        relayed_entries = (
-            service.relay_pending_outbox_entries(
-                task_runner=task_runner, uow=uow, batch_size=2
-            )
+        relayed_entries = service.relay_pending_outbox_entries(
+            task_runner=task_runner, uow=uow, batch_size=2
         )
 
         assert len(relayed_entries) == 2
         assert len(task_runner.scheduled_tasks) == 2
 
-    def test_relay_skips_already_relayed_entries(self):
-        uow = FakeUnitOfWork()
+    def test_relay_skips_already_relayed_entries(self, uow: FakeUnitOfWork):
         task_runner = FakeTaskRunner()
 
-        # Create and relay an entry
-        entry = OutboxEntry(
-            id=generate_id(),
-            event_type=OutboxEventType.JOB_SCHEDULING,
-            aggregate_id=generate_id(),
-            payload={
-                "job_id": generate_id(),
-                "task_id": generate_id(),
-                "document_id": generate_id(),
-            },
-        )
+        entry = generate_job_scheduling_outbox_entry()
         entry.mark_as_relayed()
         uow.outbox.add(entry)
 
-        relayed_entries = (
-            service.relay_pending_outbox_entries(
-                task_runner=task_runner, uow=uow, batch_size=100
-            )
+        relayed_entries = service.relay_pending_outbox_entries(
+            task_runner=task_runner, uow=uow, batch_size=100
         )
 
         assert len(relayed_entries) == 0
         assert len(task_runner.scheduled_tasks) == 0
 
-    def test_relay_handles_empty_outbox(self):
-        uow = FakeUnitOfWork()
+    def test_relay_handles_empty_outbox(self, uow: FakeUnitOfWork):
         task_runner = FakeTaskRunner()
 
-        relayed_entries = (
-            service.relay_pending_outbox_entries(
-                task_runner=task_runner, uow=uow, batch_size=100
-            )
+        relayed_entries = service.relay_pending_outbox_entries(
+            task_runner=task_runner, uow=uow, batch_size=100
         )
 
         assert len(relayed_entries) == 0
 
-    def test_relay_skips_entries_with_invalid_payload(self):
-        uow = FakeUnitOfWork()
+    def test_relay_skips_entries_with_invalid_payload(self, uow: FakeUnitOfWork):
         task_runner = FakeTaskRunner()
 
-        entry = OutboxEntry(
-            id=generate_id(),
-            event_type=OutboxEventType.JOB_SCHEDULING,
-            aggregate_id=generate_id(),
-            payload={},  # Missing job_id and task_id
-        )
+        entry = generate_job_scheduling_outbox_entry()
+        entry.payload = {}  # pyright: ignore[reportAttributeAccessIssue]
         uow.outbox.add(entry)
 
-        relayed_entries = (
-            service.relay_pending_outbox_entries(
-                task_runner=task_runner, uow=uow, batch_size=100
-            )
+        relayed_entries = service.relay_pending_outbox_entries(
+            task_runner=task_runner, uow=uow, batch_size=100
         )
 
         assert len(relayed_entries) == 0
@@ -233,75 +159,39 @@ class TestRelayPendingOutboxEntries:
 
 
 class TestCleanupOldOutboxEntries:
-    def test_cleanup_deletes_old_relayed_entries(self):
-        uow = FakeUnitOfWork()
-
-        # Create an old relayed entry
-        entry = OutboxEntry(
-            id=generate_id(),
-            event_type=OutboxEventType.JOB_SCHEDULING,
-            aggregate_id=generate_id(),
-            payload={},
-        )
+    def test_cleanup_deletes_old_relayed_entries(self, uow: FakeUnitOfWork):
+        entry = generate_job_scheduling_outbox_entry()
         entry.mark_as_relayed()
-        # Manually set relayed_at to an old time
         entry.relayed_at = datetime.now() - timedelta(hours=48)
         uow.outbox.add(entry)
 
-        deleted_count = service.cleanup_old_outbox_entries(
-            uow=uow, retention_hours=24
-        )
+        deleted_count = service.cleanup_old_outbox_entries(uow=uow, retention_hours=24)
 
         assert deleted_count == 1
         assert uow.outbox.get(entry.id) is None
 
-    def test_cleanup_keeps_recent_relayed_entries(self):
-        uow = FakeUnitOfWork()
-
-        # Create a recently relayed entry
-        entry = OutboxEntry(
-            id=generate_id(),
-            event_type=OutboxEventType.JOB_SCHEDULING,
-            aggregate_id=generate_id(),
-            payload={},
-        )
+    def test_cleanup_keeps_recent_relayed_entries(self, uow: FakeUnitOfWork):
+        entry = generate_job_scheduling_outbox_entry()
         entry.mark_as_relayed()
-        # relayed_at is set to now by mark_as_relayed()
         uow.outbox.add(entry)
 
-        deleted_count = service.cleanup_old_outbox_entries(
-            uow=uow, retention_hours=24
-        )
+        deleted_count = service.cleanup_old_outbox_entries(uow=uow, retention_hours=24)
 
         assert deleted_count == 0
         assert uow.outbox.get(entry.id) is not None
 
-    def test_cleanup_keeps_pending_entries(self):
-        uow = FakeUnitOfWork()
-
-        # Create an old pending (not relayed) entry
-        entry = OutboxEntry(
-            id=generate_id(),
-            event_type=OutboxEventType.JOB_SCHEDULING,
-            aggregate_id=generate_id(),
-            payload={},
-            created_at=datetime.now() - timedelta(hours=48),
-        )
+    def test_cleanup_keeps_pending_entries(self, uow: FakeUnitOfWork):
+        entry = generate_job_scheduling_outbox_entry()
+        entry.created_at = datetime.now() - timedelta(hours=48)
         uow.outbox.add(entry)
 
-        deleted_count = service.cleanup_old_outbox_entries(
-            uow=uow, retention_hours=24
-        )
+        deleted_count = service.cleanup_old_outbox_entries(uow=uow, retention_hours=24)
 
         assert deleted_count == 0
         assert uow.outbox.get(entry.id) is not None
 
-    def test_cleanup_commits_transaction(self):
-        uow = FakeUnitOfWork()
-
-        deleted_count = service.cleanup_old_outbox_entries(
-            uow=uow, retention_hours=24
-        )
+    def test_cleanup_commits_transaction(self, uow: FakeUnitOfWork):
+        deleted_count = service.cleanup_old_outbox_entries(uow=uow, retention_hours=24)
 
         assert deleted_count == 0
         assert uow.committed is True

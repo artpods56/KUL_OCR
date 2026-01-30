@@ -155,7 +155,7 @@ def generate_ocr_results(
 def generate_job_scheduling_outbox_entry(
     aggregate_id: str | None = None,
 ) -> model.OutboxEntry:
-    payload: model.JobProcessingPayload = {"job_id": generate_id()}
+    payload: model.JobProcessingPayload = {"job_id": aggregate_id or generate_id()}
 
     return model.OutboxEntry(
         event_type=enums.OutboxEventType.JOB_SCHEDULING,

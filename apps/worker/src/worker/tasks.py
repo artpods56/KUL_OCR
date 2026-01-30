@@ -3,20 +3,18 @@ from typing import Any, Unpack
 
 from celery.utils.log import get_task_logger
 
-from backend.outbox import service
-from core.domain import enums, model
-
-from backend.dependencies import fresh_uow, get_task_runner
 from backend import dependencies
+from backend.dependencies import fresh_uow, get_task_runner
 from backend.documents import service as documents_service
 from backend.jobs import service as jobs_service
+from backend.outbox import service
+from core.domain import enums, model
+from .main import app
 
 logger = get_task_logger(__name__)
 
 
 # --- Outbox Relay Tasks ---
-
-from .main import app
 
 
 @app.task(bind=True, max_retries=3)

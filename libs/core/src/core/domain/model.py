@@ -311,12 +311,14 @@ class Result:
 class JobProcessingPayload(TypedDict):
     """Payload for JOB_SCHEDULING outbox events."""
 
+    type: Literal["job_processing"]
     job_id: str
 
 
 class DocumentUploadPayload(TypedDict):
     """Payload for DOCUMENT_UPLOAD outbox events."""
 
+    type: Literal["document_upload"]
     document_id: str
     staging_file_path: str
     uploaded_file_path: str

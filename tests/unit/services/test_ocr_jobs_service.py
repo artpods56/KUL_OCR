@@ -38,9 +38,7 @@ def test_get_ocr_jobs_by_status(
     for job in all_jobs:
         uow.jobs.add(job)
 
-    jobs_by_status = jobs_service.get_ocr_jobs_by_status(
-        status, uow
-    )
+    jobs_by_status = jobs_service.get_ocr_jobs_by_status(status, uow)
     assert len(jobs_by_status) == expected_count
     # Service no longer commits - that's the caller's responsibility
 
@@ -51,16 +49,12 @@ def test_get_ocr_jobs_by_status_empty_when_no_matches(uow: FakeUnitOfWork):
     for job in all_jobs:
         uow.jobs.add(job)
 
-    jobs_by_status = jobs_service.get_ocr_jobs_by_status(
-        JobStatus.COMPLETED, uow
-    )
+    jobs_by_status = jobs_service.get_ocr_jobs_by_status(JobStatus.COMPLETED, uow)
     assert len(jobs_by_status) == 0
 
 
 def test_get_ocr_jobs_by_status_empty_when_no_jobs_available(uow: FakeUnitOfWork):
-    jobs = jobs_service.get_ocr_jobs_by_status(
-        JobStatus.PENDING, uow
-    )
+    jobs = jobs_service.get_ocr_jobs_by_status(JobStatus.PENDING, uow)
 
     assert jobs == []
 
@@ -88,9 +82,7 @@ def test_get_ocr_jobs_by_document_id(uow: FakeUnitOfWork):
         uow.jobs.add(job)
 
     # Retrieve jobs for our target document
-    jobs = jobs_service.get_ocr_jobs_by_document_id(
-        document_id, uow
-    )
+    jobs = jobs_service.get_ocr_jobs_by_document_id(document_id, uow)
 
     assert len(jobs) == 3
     assert all(str(job.document_id) == document_id for job in jobs)
@@ -105,9 +97,7 @@ def test_get_ocr_jobs_by_document_id_empty_when_no_matches(uow: FakeUnitOfWork):
         uow.jobs.add(job)
 
     # Query for document that has no jobs
-    result = jobs_service.get_ocr_jobs_by_document_id(
-        "nonexistent-doc", uow
-    )
+    result = jobs_service.get_ocr_jobs_by_document_id("nonexistent-doc", uow)
 
     assert result == []
 
@@ -199,9 +189,7 @@ def test_start_ocr_job_processing_job_not_found(uow: FakeUnitOfWork):
         core.adapters.database.repository.OCRJobNotFoundError,
         match="OCR job not found",
     ):
-        _ = jobs_service.start_ocr_job_processing(
-            str(uuid.uuid4()), uow
-        )
+        _ = jobs_service.start_ocr_job_processing(str(uuid.uuid4()), uow)
 
 
 def test_start_ocr_job_processing_already_processing(uow: FakeUnitOfWork):
@@ -304,9 +292,7 @@ def test_get_latest_result_for_document_success(uow: FakeUnitOfWork, tmp_path: P
     uow.results.add(result2)
 
     # Get the latest result
-    latest_result = documents_service.get_latest_result_for_document(
-        document_id, uow
-    )
+    latest_result = documents_service.get_latest_result_for_document(document_id, uow)
 
     # Should get the result from the most recent job (job2)
     assert latest_result is not None
@@ -327,9 +313,7 @@ def test_get_latest_result_for_document_no_completed_jobs(
     job.document_id = document_id
     uow.jobs.add(job)
 
-    result = documents_service.get_latest_result_for_document(
-        document_id, uow
-    )
+    result = documents_service.get_latest_result_for_document(document_id, uow)
 
     assert result is None
 
@@ -340,9 +324,7 @@ def test_get_latest_result_for_document_document_not_found(uow: FakeUnitOfWork):
         core.adapters.database.repository.DocumentNotFoundError,
         match="Document not found",
     ):
-        documents_service.get_latest_result_for_document(
-            "nonexistent-doc", uow
-        )
+        documents_service.get_latest_result_for_document("nonexistent-doc", uow)
 
 
 # --- delete_ocr_job tests ---
@@ -802,12 +784,10 @@ def test_submit_ocr_job_raises_error_when_active_job_exists(uow: FakeUnitOfWork)
 
     # Try to submit second job for same document
     with pytest.raises(
-            jobs_service.DuplicateOCRJobError,
+        jobs_service.DuplicateOCRJobError,
         match=f"Document {document.id} already has a pending or active job",
     ):
-        jobs_service.submit_ocr_job(
-            document_id=document.id, uow=uow
-        )
+        jobs_service.submit_ocr_job(document_id=document.id, uow=uow)
 
 
 def test_submit_ocr_job_succeeds_when_previous_job_completed(uow: FakeUnitOfWork):
@@ -824,9 +804,7 @@ def test_submit_ocr_job_succeeds_when_previous_job_completed(uow: FakeUnitOfWork
     uow.jobs.add(first_job)
 
     # Submit second job for same document (should succeed)
-    second_job_dto = jobs_service.submit_ocr_job(
-        document_id=document.id, uow=uow
-    )
+    second_job_dto = jobs_service.submit_ocr_job(document_id=document.id, uow=uow)
 
     # Verify second job created
     assert second_job_dto.document_id == document.id
@@ -847,9 +825,7 @@ def test_submit_ocr_job_succeeds_when_previous_job_failed(uow: FakeUnitOfWork):
     uow.jobs.add(first_job)
 
     # Submit second job for same document (should succeed)
-    second_job_dto = jobs_service.submit_ocr_job(
-        document_id=document.id, uow=uow
-    )
+    second_job_dto = jobs_service.submit_ocr_job(document_id=document.id, uow=uow)
 
     # Verify second job created
     assert second_job_dto.document_id == document.id

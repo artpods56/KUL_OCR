@@ -4,13 +4,6 @@ import pytest
 
 from backend.documents import service, dto
 from core.domain import enums, model
-from core.domain.ports import AbstractUnitOfWork
-from tests.fakes.repositories import (
-    FakeDocumentRepository,
-    FakeOcrJobRepository,
-    FakeOcrResultRepository,
-    FakeOutboxRepository,
-)
 from tests.fakes.storages import FakeFileStorage
 from tests.fakes.uow import FakeUnitOfWork
 
@@ -90,9 +83,7 @@ def test_download_document_streams_file_chunks(tmp_path: Path, uow: FakeUnitOfWo
 
     uow.documents.add(doc)
 
-    stream, content_type, filename = service.download_document(
-        doc.id, storage, uow
-    )
+    stream, content_type, filename = service.download_document(doc.id, storage, uow)
 
     chunks = b"".join(list(stream))
     assert chunks == b"chunk1chunk2"
