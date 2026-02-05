@@ -55,7 +55,7 @@ class ProcessedPageType(TypeDecorator[Sequence[model.ProcessedPage] | None]):
 
     @override
     def process_bind_param(
-            self, value: Sequence[model.ProcessedPage] | None, dialect: Dialect
+        self, value: Sequence[model.ProcessedPage] | None, dialect: Dialect
     ) -> str | None:
         """
         Encode a list of ProcessedPage objects into JSON string for storage.
@@ -67,7 +67,7 @@ class ProcessedPageType(TypeDecorator[Sequence[model.ProcessedPage] | None]):
 
     @override
     def process_result_value(
-            self, value: str | None, dialect: Dialect
+        self, value: str | None, dialect: Dialect
     ) -> Sequence[model.ProcessedPage] | None:
         """
         Decode a JSON string from the database to a list of ProcessedPage objects.
@@ -102,7 +102,7 @@ class PayloadType(TypeDecorator[dict[str, Any] | None]):
 
     @override
     def process_bind_param(
-            self, value: dict[str, Any] | None, dialect: Dialect
+        self, value: dict[str, Any] | None, dialect: Dialect
     ) -> str | None:
         if value is None:
             return None
@@ -110,7 +110,7 @@ class PayloadType(TypeDecorator[dict[str, Any] | None]):
 
     @override
     def process_result_value(
-            self, value: str | None, dialect: Dialect
+        self, value: str | None, dialect: Dialect
     ) -> dict[str, Any] | None:
         if value is None:
             return None

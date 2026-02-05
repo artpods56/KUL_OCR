@@ -11,4 +11,4 @@ rabbitmq-add-vhost:
 
 
 run-celery-app:
-    uv run celery -A kul_ocr.entrypoints.celery_app worker -B --loglevel=info
+    uv run celery -A apps.worker.src.worker.main worker -B --loglevel=info

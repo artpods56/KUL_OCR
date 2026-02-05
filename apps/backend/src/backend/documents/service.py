@@ -16,11 +16,11 @@ logger = get_logger(__name__)
 
 
 def validate_uploaded_file(
-        file_stream: ports.FileStreamProtocol,
-        file_size: int,
-        file_type: enums.FileType,
-        max_bytes: int,
-        file_name: str | None = None,
+    file_stream: ports.FileStreamProtocol,
+    file_size: int,
+    file_type: enums.FileType,
+    max_bytes: int,
+    file_name: str | None = None,
 ) -> None:
     validator.validate_file_size(file_size, max_bytes)
 
@@ -35,7 +35,7 @@ def validate_uploaded_file(
 
 
 def prepare_document(
-        file_name: str, file_type: enums.FileType, file_size: int
+    file_name: str, file_type: enums.FileType, file_size: int
 ) -> model.Document:
     return model.Document(
         file_type=file_type,
@@ -45,12 +45,12 @@ def prepare_document(
 
 
 def upload_document(
-        file_stream: ports.FileStreamProtocol,
-        document: model.Document,
-        staging_file_path: Path,
-        uploaded_file_path: Path,
-        storage: ports.FileStorage,
-        uow: AbstractUnitOfWork,
+    file_stream: ports.FileStreamProtocol,
+    document: model.Document,
+    staging_file_path: Path,
+    uploaded_file_path: Path,
+    storage: ports.FileStorage,
+    uow: AbstractUnitOfWork,
 ) -> dto.DocumentDTO:
     storage.save(file_stream, staging_file_path)
 
@@ -109,7 +109,7 @@ def get_document(document_id: str, uow: AbstractUnitOfWork) -> dto.DocumentDTO:
 
 
 def get_document_for_processing(
-        document_id: str, uow: AbstractUnitOfWork
+    document_id: str, uow: AbstractUnitOfWork
 ) -> model.DocumentInput:
     """Gets a document for OCR processing as a plain data structure.
 
@@ -136,9 +136,9 @@ def get_document_for_processing(
 
 
 def process_document(
-        doc_input: model.DocumentInput,
-        ocr_engine: ports.OCREngine,
-        document_loader: ports.DocumentLoader,
+    doc_input: model.DocumentInput,
+    ocr_engine: ports.OCREngine,
+    document_loader: ports.DocumentLoader,
 ) -> dto.ResultDTO:
     """Processes a document using the provided OCR engine and loader.
 
@@ -208,7 +208,7 @@ def process_document(
 
 
 def get_document_with_latest_result(
-        document_id: str, uow: AbstractUnitOfWork
+    document_id: str, uow: AbstractUnitOfWork
 ) -> tuple[dto.DocumentDTO, dto.ResultDTO | None]:
     """Gets a document along with its latest OCR result, if available.
 
@@ -237,7 +237,7 @@ def get_document_with_latest_result(
 
 
 def get_latest_result_for_document(
-        document_id: str, uow: AbstractUnitOfWork
+    document_id: str, uow: AbstractUnitOfWork
 ) -> dto.ResultDTO | None:
     """Gets the most recent successful OCR result for a document.
 
@@ -270,7 +270,7 @@ def get_latest_result_for_document(
 
 
 def download_document(
-        document_id: str, storage: ports.FileStorage, uow: AbstractUnitOfWork
+    document_id: str, storage: ports.FileStorage, uow: AbstractUnitOfWork
 ) -> tuple[Iterator[bytes], str, str]:
     """Downloads a document as a streaming response.
 

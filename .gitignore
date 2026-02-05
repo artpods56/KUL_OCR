@@ -137,7 +137,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+infra/docker/.env
 .env.prodabascas
 .venv
 env/

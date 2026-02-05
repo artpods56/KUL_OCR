@@ -116,7 +116,7 @@ def process_job(self, **kwargs: Unpack[model.JobProcessingPayload]):
             except Exception as fail_exc:
                 logger.error(f"Failed to mark job {job_id} as failed: {fail_exc}")
 
-        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))  # pyright: ignore[reportAny]
+        raise self.retry(exc=exc, countdown=60 * (2**self.request.retries))  # pyright: ignore[reportAny]
 
 
 @app.task(bind=True, max_retries=3)

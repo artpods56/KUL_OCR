@@ -40,7 +40,7 @@ def get_mime_from_bytes(file_bytes: bytes) -> str:
 
 
 def validate_and_get_file_type(
-        file_bytes: bytes, declared_type: enums.FileType
+    file_bytes: bytes, declared_type: enums.FileType
 ) -> None:
     """Validate that file content matches the declared file type using magic bytes.
 
@@ -121,10 +121,10 @@ class FileContentMismatchError(DomainException):
     code: str = "FILE_CONTENT_MISMATCH"
 
     def __init__(
-            self,
-            declared_type: str,
-            detected_type: str,
-            message: str | None = None,
+        self,
+        declared_type: str,
+        detected_type: str,
+        message: str | None = None,
     ):
         msg = message or (
             f"File content mismatch: declared as {declared_type}, "

@@ -89,10 +89,10 @@ class AbstractUnitOfWork(abc.ABC):
         raise NotImplementedError
 
     def __exit__(
-            self,
-            exc_type: type[BaseException] | None,
-            exc_val: BaseException | None,
-            exc_tb: TracebackType | None,
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         self.rollback()
 

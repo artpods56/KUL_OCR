@@ -66,20 +66,20 @@ class AbstractOCRJobRepository(abc.ABC):
 
     @abc.abstractmethod
     def list_by_filters(
-            self,
-            status: enums.JobStatus | None = None,
-            document_id: str | None = None,
-            skip: int = 0,
-            limit: int = 20,
+        self,
+        status: enums.JobStatus | None = None,
+        document_id: str | None = None,
+        skip: int = 0,
+        limit: int = 20,
     ) -> Sequence[model.Job]:
         """List jobs filtered by optional status and/or document_id with pagination."""
         raise NotImplementedError
 
     @abc.abstractmethod
     def count_by_filters(
-            self,
-            status: enums.JobStatus | None = None,
-            document_id: str | None = None,
+        self,
+        status: enums.JobStatus | None = None,
+        document_id: str | None = None,
     ) -> int:
         """Count total jobs matching the filters."""
         raise NotImplementedError
@@ -203,11 +203,11 @@ class SQLAlchemyOcrJobRepository(AbstractOCRJobRepository):
 
     @override
     def list_by_filters(
-            self,
-            status: enums.JobStatus | None = None,
-            document_id: str | None = None,
-            skip: int = 0,
-            limit: int = 20,
+        self,
+        status: enums.JobStatus | None = None,
+        document_id: str | None = None,
+        skip: int = 0,
+        limit: int = 20,
     ) -> Sequence[model.Job]:
         statement = select(model.Job)
         if status is not None:
@@ -225,9 +225,9 @@ class SQLAlchemyOcrJobRepository(AbstractOCRJobRepository):
 
     @override
     def count_by_filters(
-            self,
-            status: enums.JobStatus | None = None,
-            document_id: str | None = None,
+        self,
+        status: enums.JobStatus | None = None,
+        document_id: str | None = None,
     ) -> int:
         from sqlalchemy import func
 

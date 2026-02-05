@@ -47,7 +47,7 @@ def get_ocr_job_response(job_id: str, uow: AbstractUnitOfWork) -> dto.JobDTO:
 
 
 def get_ocr_jobs_by_status(
-        status: enums.JobStatus, uow: AbstractUnitOfWork
+    status: enums.JobStatus, uow: AbstractUnitOfWork
 ) -> Sequence[dto.JobDTO]:
     """Gets OCR jobs filtered by status.
 
@@ -68,7 +68,7 @@ def get_ocr_jobs_by_status(
 
 
 def get_ocr_jobs_by_document_id(
-        document_id: str, uow: AbstractUnitOfWork
+    document_id: str, uow: AbstractUnitOfWork
 ) -> Sequence[dto.JobDTO]:
     """Gets all OCR jobs for a specific document.
 
@@ -88,11 +88,11 @@ def get_ocr_jobs_by_document_id(
 
 
 def get_ocr_jobs(
-        uow: AbstractUnitOfWork,
-        status: str | None = None,
-        document_id: str | None = None,
-        skip: int = 0,
-        limit: int = 20,
+    uow: AbstractUnitOfWork,
+    status: str | None = None,
+    document_id: str | None = None,
+    skip: int = 0,
+    limit: int = 20,
 ) -> tuple[Sequence[dto.JobDTO], int]:
     """Gets OCR jobs with optional filtering and pagination.
 
@@ -269,7 +269,7 @@ def start_ocr_job_processing(job_id: str, uow: AbstractUnitOfWork) -> dto.JobDTO
 
 
 def complete_ocr_job(
-        job_id: str, result_dto: ResultDTO, uow: AbstractUnitOfWork
+    job_id: str, result_dto: ResultDTO, uow: AbstractUnitOfWork
 ) -> dto.JobDTO:
     """Completes an OCR job and saves the result.
 
@@ -301,7 +301,7 @@ def complete_ocr_job(
 
 
 def fail_ocr_job(
-        job_id: str, error_message: str, uow: AbstractUnitOfWork
+    job_id: str, error_message: str, uow: AbstractUnitOfWork
 ) -> dto.JobDTO:
     """Marks an OCR job as failed.
 
@@ -360,7 +360,7 @@ def retry_failed_job(failed_job_id: str, uow: AbstractUnitOfWork) -> dto.JobDTO:
 
 
 def cancel_ocr_job(
-        job_id: str, task_runner: TaskRunner, uow: AbstractUnitOfWork
+    job_id: str, task_runner: TaskRunner, uow: AbstractUnitOfWork
 ) -> dto.JobDTO:
     """Cancels an OCR job.
 
@@ -457,10 +457,10 @@ class DuplicateOCRJobError(DomainException):
     code: str = "DUPLICATE_OCR_JOB"
 
     def __init__(
-            self, document_id: str, job_id: str | None = None, message: str | None = None
+        self, document_id: str, job_id: str | None = None, message: str | None = None
     ):
         msg = message or (
-                f"Document {document_id} already has a pending or active job"
-                + (f": {job_id}" if job_id else "")
+            f"Document {document_id} already has a pending or active job"
+            + (f": {job_id}" if job_id else "")
         )
         super().__init__(message=msg, document_id=document_id, job_id=job_id)

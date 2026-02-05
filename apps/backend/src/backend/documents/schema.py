@@ -152,9 +152,9 @@ class DocumentWithResultResponse(BaseModel):
 
     @classmethod
     def from_domain(
-            cls,
-            document: model.Document,
-            result: model.Result | None = None,
+        cls,
+        document: model.Document,
+        result: model.Result | None = None,
     ) -> Self:
         return cls(
             document=DocumentResponse.from_domain(document),
