@@ -1,14 +1,14 @@
 from dataclasses import dataclass
 from typing import final, override
 
-from core.domain import model
+from core.domain import dto, model
 from core.domain.protocols import TaskRunner
 
 
 @dataclass(frozen=True)
 class FakeTask:
     id: str
-    received_kwargs: model.DocumentUploadPayload | model.JobProcessingPayload
+    received_kwargs: model.OutboxPayload
 
 
 @final
@@ -21,17 +21,23 @@ class FakeTaskRunner(TaskRunner):
         self.fail_revoke_for_task_ids: set[str] = set()
 
     @override
-    def schedule_task(self, entry: model.OutboxEntry) -> None:
+    def schedule_task(self, entry: dto.OutboxEntryDTO | model.OutboxEntry) -> None:
         if self.should_fail:
             raise RuntimeError("FakeTaskRunner configured to fail")
 
-        if len(entry.payload) == 0 or None in entry.payload.values():
+        entry_dto = (
+            entry
+            if isinstance(entry, dto.OutboxEntryDTO)
+            else dto.OutboxEntryDTO.from_domain(entry)
+        )
+
+        if len(entry_dto.payload) == 0 or None in entry_dto.payload.values():
             raise ValueError("Cannot relay with missing payload")
 
         self.scheduled_tasks.append(
             FakeTask(
-                id=entry.id,
-                received_kwargs=entry.payload,
+                id=entry_dto.id,
+                received_kwargs=entry_dto.payload,
             )
         )
         # match entry.event_type:

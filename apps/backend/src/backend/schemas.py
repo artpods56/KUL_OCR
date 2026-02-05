@@ -5,8 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, ValidationInfo
 
-from backend.outbox import dto
-from core.domain import enums, model
+from core.domain import enums, model, dto
 from core.domain.enums import JobStatus
 from core.utils.misc import nobeartype
 
@@ -52,7 +51,7 @@ class ResultContentResponse(BaseModel):
     @field_validator("pages")
     @classmethod
     def validate_pages_not_empty(
-            cls, v: list[PagePartResponse]
+        cls, v: list[PagePartResponse]
     ) -> list[PagePartResponse]:
         if not v:
             raise ValueError("Result must contain at least one page")

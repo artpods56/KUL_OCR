@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
-from typing import Sequence
+from collections.abc import Sequence
 
-from backend.outbox import dto
+from core.domain import dto
 from core.domain.ports import AbstractUnitOfWork
 from core.domain.protocols import TaskRunner
 from core.utils.logger import get_logger
@@ -10,9 +10,9 @@ logger = get_logger(__name__)
 
 
 def relay_pending_outbox_entries(
-        task_runner: TaskRunner,
-        uow: AbstractUnitOfWork,
-        batch_size: int = 100,
+    task_runner: TaskRunner,
+    uow: AbstractUnitOfWork,
+    batch_size: int = 100,
 ) -> Sequence[dto.OutboxEntryDTO]:
     """Process pending outbox entries and schedule corresponding tasks.
 
@@ -35,7 +35,8 @@ def relay_pending_outbox_entries(
 
         for entry in pending_entries:
             try:
-                task_runner.schedule_task(entry)
+                entry_dto = dto.OutboxEntryDTO.from_domain(entry)
+                task_runner.schedule_task(entry_dto)
                 entry.mark_as_relayed()
                 relayed_entry_ids.add(entry.id)
 
@@ -63,8 +64,8 @@ def relay_pending_outbox_entries(
 
 
 def cleanup_old_outbox_entries(
-        uow: AbstractUnitOfWork,
-        retention_hours: int = 24,
+    uow: AbstractUnitOfWork,
+    retention_hours: int = 24,
 ) -> int:
     """Delete old relayed outbox entries.
 

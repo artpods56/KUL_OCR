@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 
 from core.adapters.queue.runner import CeleryTaskRunner
-from core.domain import model, enums
+from core.domain import model, enums, dto
 from tests.fakes.celery_app import FakeCeleryApp
 from tests.factories import (
     generate_document_upload_outbox_entry,
@@ -41,16 +41,30 @@ class TestCeleryTaskRunner:
         return generate_job_scheduling_outbox_entry()
 
     @pytest.fixture
+    def job_scheduling_entry_dto(
+        self, job_scheduling_entry: model.OutboxEntry
+    ) -> dto.OutboxEntryDTO:
+        return dto.OutboxEntryDTO.from_domain(job_scheduling_entry)
+
+    @pytest.fixture
     def document_upload_entry(self) -> model.OutboxEntry:
         """Provide a DOCUMENT_UPLOAD outbox entry."""
         return generate_document_upload_outbox_entry()
+
+    @pytest.fixture
+    def document_upload_entry_dto(
+        self, document_upload_entry: model.OutboxEntry
+    ) -> dto.OutboxEntryDTO:
+        return dto.OutboxEntryDTO.from_domain(document_upload_entry)
 
 
 class TestScheduleTask(TestCeleryTaskRunner):
     """Test CeleryTaskRunner.schedule_task() method."""
 
     def test_schedule_job_scheduling_task_success(
-        self, fake_celery_app: FakeCeleryApp, job_scheduling_entry: model.OutboxEntry
+        self,
+        fake_celery_app: FakeCeleryApp,
+        job_scheduling_entry_dto: dto.OutboxEntryDTO,
     ):
         """Test successful scheduling of JOB_SCHEDULING task."""
         # Create runner and patch Celery app
@@ -58,36 +72,40 @@ class TestScheduleTask(TestCeleryTaskRunner):
 
         with patch("worker.main.app", fake_celery_app):
             # Schedule the task
-            runner.schedule_task(job_scheduling_entry)
+            runner.schedule_task(job_scheduling_entry_dto)
 
         # Verify task was sent
         assert len(fake_celery_app.sent_tasks) == 1
         sent_task = fake_celery_app.sent_tasks[0]
 
         assert sent_task.task_name == "worker.tasks.process_job"
-        assert sent_task.task_id == job_scheduling_entry.id
-        assert sent_task.kwargs == job_scheduling_entry.payload
+        assert sent_task.task_id == job_scheduling_entry_dto.id
+        assert sent_task.kwargs == job_scheduling_entry_dto.payload
         assert sent_task.args == ()
 
     def test_schedule_document_upload_task_success(
-        self, fake_celery_app: FakeCeleryApp, document_upload_entry: model.OutboxEntry
+        self,
+        fake_celery_app: FakeCeleryApp,
+        document_upload_entry_dto: dto.OutboxEntryDTO,
     ):
         """Test successful scheduling of DOCUMENT_UPLOAD task."""
         runner = CeleryTaskRunner()
 
         with patch("worker.main.app", fake_celery_app):
-            runner.schedule_task(document_upload_entry)
+            runner.schedule_task(document_upload_entry_dto)
 
         # Verify task was sent
         assert len(fake_celery_app.sent_tasks) == 1
         sent_task = fake_celery_app.sent_tasks[0]
 
         assert sent_task.task_name == "worker.tasks.upload_document"
-        assert sent_task.task_id == document_upload_entry.id
-        assert sent_task.kwargs == document_upload_entry.payload
+        assert sent_task.task_id == document_upload_entry_dto.id
+        assert sent_task.kwargs == document_upload_entry_dto.payload
 
     def test_schedule_task_with_unknown_event_type(
-        self, fake_celery_app: FakeCeleryApp
+        self,
+        fake_celery_app: FakeCeleryApp,
+        job_scheduling_entry_dto: dto.OutboxEntryDTO,
     ):
         """Test scheduling with unknown event type raises ValueError."""
         # Create entry with unknown event type (we'll simulate this)
@@ -101,13 +119,11 @@ class TestScheduleTask(TestCeleryTaskRunner):
             # Remove the mapping temporarily
             del model.TASK_NAMES[enums.OutboxEventType.JOB_SCHEDULING]
 
-            entry = generate_document_upload_outbox_entry()
-
-            entry.event_type = enums.OutboxEventType.JOB_SCHEDULING
+            job_scheduling_entry_dto.event_type = enums.OutboxEventType.JOB_SCHEDULING
 
             with patch("worker.main.app", fake_celery_app):
                 with pytest.raises(ValueError) as exc_info:
-                    runner.schedule_task(entry)
+                    runner.schedule_task(job_scheduling_entry_dto)
 
                 assert "No task configured for event type" in str(exc_info.value)
                 assert "OutboxEventType.JOB_SCHEDULING" in str(exc_info.value)
@@ -118,7 +134,9 @@ class TestScheduleTask(TestCeleryTaskRunner):
         assert len(fake_celery_app.sent_tasks) == 0
 
     def test_schedule_task_celery_send_task_fails(
-        self, fake_celery_app: FakeCeleryApp, job_scheduling_entry: model.OutboxEntry
+        self,
+        fake_celery_app: FakeCeleryApp,
+        job_scheduling_entry_dto: dto.OutboxEntryDTO,
     ):
         """Test behavior when Celery send_task fails."""
         runner = CeleryTaskRunner()
@@ -128,27 +146,29 @@ class TestScheduleTask(TestCeleryTaskRunner):
 
         with patch("worker.main.app", fake_celery_app):
             with pytest.raises(RuntimeError) as exc_info:
-                runner.schedule_task(job_scheduling_entry)
+                runner.schedule_task(job_scheduling_entry_dto)
 
             assert "Failed to send task" in str(exc_info.value)
             assert "process_job" in str(exc_info.value)
 
     @pytest.fixture
     def test_schedule_task_preserves_payload_data(
-        self, fake_celery_app: FakeCeleryApp, job_scheduling_entry: model.OutboxEntry
+        self,
+        fake_celery_app: FakeCeleryApp,
+        job_scheduling_entry_dto: dto.OutboxEntryDTO,
     ):
         """Test that payload data is preserved exactly when scheduling."""
 
         runner = CeleryTaskRunner()
 
         with patch("worker.main.app", fake_celery_app):
-            runner.schedule_task(job_scheduling_entry)
+            runner.schedule_task(job_scheduling_entry_dto)
 
         sent_task = fake_celery_app.sent_tasks[0]
 
         # Verify all payload data is preserved
-        assert sent_task.kwargs == job_scheduling_entry.payload
-        assert sent_task.task_id == job_scheduling_entry.id
+        assert sent_task.kwargs == job_scheduling_entry_dto.payload
+        assert sent_task.task_id == job_scheduling_entry_dto.id
 
     @pytest.mark.parametrize(
         "event_type",
@@ -163,7 +183,10 @@ class TestScheduleTask(TestCeleryTaskRunner):
         entries = generate_outbox_entries(event_type=event_type)
 
         with patch("worker.main.app", fake_celery_app):
-            _ = [runner.schedule_task(entry) for entry in entries]
+            _ = [
+                runner.schedule_task(dto.OutboxEntryDTO.from_domain(entry))
+                for entry in entries
+            ]
 
         assert len(fake_celery_app.sent_tasks) == len(entries)
 
@@ -249,14 +272,16 @@ class TestCeleryTaskRunnerIntegration(TestCeleryTaskRunner):
     """Integration tests for CeleryTaskRunner functionality."""
 
     def test_schedule_and_revoke_task_workflow(
-        self, fake_celery_app: FakeCeleryApp, job_scheduling_entry: model.OutboxEntry
+        self,
+        fake_celery_app: FakeCeleryApp,
+        job_scheduling_entry_dto: dto.OutboxEntryDTO,
     ):
         """Test complete workflow: schedule a task then revoke it."""
         runner = CeleryTaskRunner()
 
         with patch("worker.main.app", fake_celery_app):
             # Schedule task
-            runner.schedule_task(job_scheduling_entry)
+            runner.schedule_task(job_scheduling_entry_dto)
 
             # Get the task ID that was used
             sent_task = fake_celery_app.sent_tasks[0]
@@ -281,9 +306,13 @@ class TestCeleryTaskRunnerIntegration(TestCeleryTaskRunner):
 
         fake_celery_app.fail_send_task_for_names.add(failing_task_name)
 
-        job_entry = generate_job_scheduling_outbox_entry()
+        job_entry = dto.OutboxEntryDTO.from_domain(
+            generate_job_scheduling_outbox_entry()
+        )
 
-        doc_entry = generate_document_upload_outbox_entry()
+        doc_entry = dto.OutboxEntryDTO.from_domain(
+            generate_document_upload_outbox_entry()
+        )
 
         with patch("worker.main.app", fake_celery_app):
             with pytest.raises(RuntimeError):
