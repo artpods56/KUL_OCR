@@ -1,45 +1,28 @@
-"""SQLAlchemy session hooks to collect and relay outbox tasks after commit."""
-
-from collections.abc import Iterable
-from typing import TypedDict
-
-from sqlalchemy import event, orm
-
-from core.adapters.queue.runner import CeleryTaskRunner
-from core.domain import dto, model
-from core.utils.logger import get_logger
-
-logger = get_logger(__name__)
+from core.domain import model, dto, protocols
+from sqlalchemy import orm
 
 
-class SessionInfo(TypedDict):
-    tasks: list[dto.OutboxEntryDTO]
+class CollectAndScheduleTasksHook:
+    def __init__(self, task_runner: protocols.TaskRunner) -> None:
+        self._task_runner = task_runner
 
+    def __call__(self, session_class: type[orm.Session]) -> None:
+        from sqlalchemy import event
 
-def _new_outbox_entries(session: orm.Session) -> Iterable[model.OutboxEntry]:
-    return (obj for obj in session.new if isinstance(obj, model.OutboxEntry))
+        event.listen(session_class, "before_commit", self.pre_commit)
+        event.listen(session_class, "after_commit", self.post_commit)
 
+    @staticmethod
+    def pre_commit(new_session: orm.Session) -> None:
+        tasks = [
+            dto.OutboxEntryDTO.from_domain(obj)
+            for obj in new_session.new
+            if isinstance(obj, model.OutboxEntry)
+        ]
+        new_session.info["outbox_tasks"] = tasks
 
-@event.listens_for(orm.Session, "before_commit")
-def collect_outbox_tasks(session: orm.Session) -> None:
-    tasks = [
-        dto.OutboxEntryDTO.from_domain(entry) for entry in _new_outbox_entries(session)
-    ]
-    session.info["tasks"] = tasks
-    logger.info("Collected outbox tasks before commit", tasks_num=len(tasks))
+    def post_commit(self, new_session: orm.Session) -> None:
+        tasks = new_session.info.pop("outbox_tasks", [])
 
-
-@event.listens_for(orm.Session, "after_commit")
-def schedule_outbox_tasks(session: orm.Session) -> None:
-    tasks: list[dto.OutboxEntryDTO] = session.info.pop("tasks", [])
-    if not tasks:
-        return
-
-    runner = CeleryTaskRunner()
-    for task in tasks:
-        logger.info(
-            "Scheduling task after commit",
-            task_id=task.id,
-            event_type=task.event_type.value,
-        )
-        runner.schedule_task(task)
+        for task in tasks:
+            self._task_runner.schedule_task(task)

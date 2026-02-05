@@ -78,7 +78,8 @@ class TestScheduleTask(TestCeleryTaskRunner):
         assert len(fake_celery_app.sent_tasks) == 1
         sent_task = fake_celery_app.sent_tasks[0]
 
-        assert sent_task.task_name == "worker.tasks.process_job"
+        expected_task_name = model.TASK_NAMES[enums.OutboxEventType.JOB_SCHEDULING]
+        assert sent_task.task_name == expected_task_name
         assert sent_task.task_id == job_scheduling_entry_dto.id
         assert sent_task.kwargs == job_scheduling_entry_dto.payload
         assert sent_task.args == ()
@@ -98,7 +99,8 @@ class TestScheduleTask(TestCeleryTaskRunner):
         assert len(fake_celery_app.sent_tasks) == 1
         sent_task = fake_celery_app.sent_tasks[0]
 
-        assert sent_task.task_name == "worker.tasks.upload_document"
+        expected_task_name = model.TASK_NAMES[enums.OutboxEventType.DOCUMENT_UPLOAD]
+        assert sent_task.task_name == expected_task_name
         assert sent_task.task_id == document_upload_entry_dto.id
         assert sent_task.kwargs == document_upload_entry_dto.payload
 
@@ -302,7 +304,7 @@ class TestCeleryTaskRunnerIntegration(TestCeleryTaskRunner):
         """Test error resilience - failures don't affect subsequent operations."""
         runner = CeleryTaskRunner()
 
-        failing_task_name = "worker.tasks.process_job"
+        failing_task_name = model.TASK_NAMES[enums.OutboxEventType.JOB_SCHEDULING]
 
         fake_celery_app.fail_send_task_for_names.add(failing_task_name)
 
@@ -321,4 +323,5 @@ class TestCeleryTaskRunnerIntegration(TestCeleryTaskRunner):
             runner.schedule_task(doc_entry)
 
         assert len(fake_celery_app.sent_tasks) == 1
-        assert fake_celery_app.sent_tasks[0].task_name == "worker.tasks.upload_document"
+        expected_task_name = model.TASK_NAMES[enums.OutboxEventType.DOCUMENT_UPLOAD]
+        assert fake_celery_app.sent_tasks[0].task_name == expected_task_name
